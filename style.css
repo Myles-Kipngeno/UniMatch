@@ -1,0 +1,79 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+body {
+  background-color: #f8f8f8;
+}
+
+.navbar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 18px 40px;
+  background: white;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: bold;
+  color: #ff4d6d;
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  gap: 30px;
+  /* margin-left: auto; */
+}
+
+
+.nav-links a {
+  text-decoration: none;
+  color: #444;
+  font-weight: 500;
+  transition: color 0.3s;
+  
+}
+
+.nav-links a:hover {
+  color: #e14562;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 15px;
+}
+
+.login {
+  text-decoration:underline;
+  color: #444;
+  font-weight: 500;
+    background: #037bf3;
+  color: white;
+  padding: 8px 15px;
+  border-radius: 21px;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+.login:hover {
+  background: #3f62de;
+}
+
+.signup {
+  text-decoration: none;
+  background: #ff4d6d;
+  color: white;
+  padding: 9px 15px;
+  border-radius: 25px;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.signup:hover {
+  background: #e63956;
+}

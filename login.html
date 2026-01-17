@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login | UniMatch</title>
+  <link rel="stylesheet" href="login.css">
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+  />
+
+</head>
+<body>
+
+  <div class="container">
+    <form id="loginForm" class="card">
+      <h2>Welcome Back ❤️</h2>
+      <p>Login to your account</p>
+
+      <input type="email" id="loginEmail" placeholder="University Email" required>
+      <div class="password-wrapper">
+        <input
+          type="password"
+          id="loginPassword"
+          placeholder="Password"
+          required
+        />
+
+        <i class="fa-solid fa-eye" id="togglePassword"></i>
+      </div>
+
+
+      <!-- <input type="password" id="loginPassword" placeholder="Password" required> -->
+      <!-- <input type="checkbox" id="check" onclick="loginPassword.type = this.checked ? 'text' : 'password' "> -->
+      
+      
+
+      <p id="loginError" class="error"></p>
+
+      <p id="verifyNotice" style="display:none; color:orange;">
+        Your email is not verified.
+      </p>
+
+      <button type="button" id="resendBtn" style="display:none;">
+        Resend verification email
+      </button>
+
+      <button type="submit">Login</button>
+
+      <p class="switch">
+        New here?
+        <a href="signup.html">Join now</a>
+      </p>
+    </form>
+  </div>
+
+ <script type="module" src="login.js"></script>
+
+
+</body>
+</html>
