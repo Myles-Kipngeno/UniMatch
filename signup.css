@@ -4,7 +4,7 @@
 }
 
 body {
-  background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
+  background: linear-gradient(135deg, #ff4d6d, #322a2c);
   height: 100vh;
   display: flex;
   justify-content: center;
@@ -17,7 +17,7 @@ body {
 }
 
 .card {
-  background: white;
+ background: linear-gradient(135deg, #dba5af, #bdb7b9);
   padding: 35px;
   border-radius: 14px;
   text-align: center;
@@ -29,7 +29,7 @@ body {
 }
 
 .card p {
-  color: #666;
+  color: #424242;
   margin-bottom: 20px;
 }
 
@@ -43,7 +43,7 @@ input {
 
 input:focus {
   outline: none;
-  border-color: #ff4d6d;
+  border-color:  #6a5acd;
 }
 
 button {
@@ -70,4 +70,29 @@ button:hover {
 .switch {
   margin-top: 15px;
   font-size: 14px;
+}
+
+/* Password wrapper */
+.password-wrapper {
+  position: relative;
+}
+
+/* Eye icon */
+.password-wrapper i {
+  position: absolute;
+  right: 14px;
+  top: 40%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: #cf8593;
+  font-size: 12px;
+}
+
+/* Space for icon */
+.password-wrapper input {
+  padding-right: 42px;
+}
+
+.password-wrapper i:hover {
+  opacity: 0.7;
 }

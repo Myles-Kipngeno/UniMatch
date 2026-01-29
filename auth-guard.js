@@ -1,22 +1,48 @@
-import { auth } from "./firebase.js";
-import { onAuthStateChanged } 
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { auth, db } from "./firebase.js";
+import {
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+import {
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDrau2Su12koSelSlEqceXbPsGJwj_wr7M",
-  authDomain: "unimatch-296fa.firebaseapp.com",
-  projectId: "unimatch-296fa",
-  storageBucket: "unimatch-296fa.firebasestorage.app",
-  messagingSenderId: "904727075849",
-  appId: "1:904727075849:web:f657e89c98f1937f6eacd8"
-};
+onAuthStateChanged(auth, async (user) => {
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-onAuthStateChanged(auth, (user) => {
+  // ❌ Not logged in
   if (!user) {
     window.location.href = "login.html";
+    return;
   }
+
+  // ❌ Email not verified
+  if (!user.emailVerified) {
+    alert("Please verify your email before accessing UniMatch.");
+    await signOut(auth);
+    window.location.href = "login.html";
+    return;
+  }
+
+  // 🔍 Check Firestore user profile
+  const userSnap = await getDoc(doc(db, "users", user.uid));
+
+  if (!userSnap.exists()) {
+    // Safety fallback
+    await signOut(auth);
+    window.location.href = "login.html";
+    return;
+  }
+
+  const data = userSnap.data();
+
+  // ❌ Profile not complete
+  if (!data.profileComplete) {
+    window.location.href = "profile.html";
+    return;
+  }
+
+  // ✅ Fully authenticated & onboarded
+  console.log("Access granted to dashboard");
 });

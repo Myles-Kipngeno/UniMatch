@@ -2,23 +2,58 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard</title>
+  <title>Dashboard | UniMatch</title>
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
 
-  <nav>
+  <nav class="navbar">
     <h1>UniMatch ❤️</h1>
-    <!-- Logout button -->
     <button id="logoutBtn">Logout</button>
   </nav>
 
-  <h2>Welcome to your dashboard!</h2>
-  <p>You are logged in.</p>
+  <main class="dashboard page">
 
-  <!-- Auth guard to protect page -->
+    <section class="welcome">
+      <img id="profilePhoto" src="default-avatar.png" class="profile-pic">
+      <h2 id="welcomeName">Welcome 👋</h2>
+      <p id="profileSummary">Loading your profile...</p>
+       <!-- ✏️ Edit Profile button -->
+      <button id="editProfileBtn" class="edit-profile-btn">
+        ✏️ Edit Profile
+      </button>
+    </section>
+
+
+    <section class="actions">
+      <div class="card" id="uploadPhotoCard">
+        📸 Upload Profile Photo
+      </div>
+
+      <div class="card" onclick="location.href='discover.html'">
+        🔍 Discover Students
+      </div>
+
+      <div class="card" id="matchesCard">
+        ❤️ Matches
+      </div>
+
+      <div class="card" id="chatCard">
+        💬 Chat <span id="matchCount"></span><span id="unreadCount"></span>
+      </div>
+    </section>
+
+
+    </section>
+
+  </main>
+
+  <!-- Auth + profile check -->
   <script type="module" src="auth-guard.js"></script>
-  <!-- Logout functionality -->
+  <!-- Dashboard logic -->
+  <script type="module" src="dashboard.js"></script>
+  <!-- Logout -->
   <script type="module" src="logout.js"></script>
+
 </body>
-</html>
+

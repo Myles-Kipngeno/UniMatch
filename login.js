@@ -31,6 +31,7 @@ form.addEventListener("submit", async (e) => {
 
     // 🔒 Block login if email not verified
     if (!user.emailVerified) {
+      alert("Verification email sent! Check your SPAM or inbox folder.");
       error.textContent = "Please verify your email before logging in.";
       verifyNotice.style.display = "block";
       resendBtn.style.display = "block";
@@ -57,7 +58,7 @@ resendBtn.addEventListener("click", async () => {
 
   try {
     await sendEmailVerification(user);
-    alert("Verification email sent! Check your inbox or spam folder.");
+    alert("Verification email sent! Check your SPAM or inbox folder.");
   } catch (err) {
     alert("Failed to resend verification email.");
     console.error(err);

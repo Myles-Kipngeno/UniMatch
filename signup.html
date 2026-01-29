@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <title>Join | UniMatch</title>
   <link rel="stylesheet" href="signup.css">
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+  />
+
 </head>
 <body>
 
@@ -14,8 +19,18 @@
 
       <input type="text" id="name" placeholder="Full Name" required>
       <input type="email" id="email" placeholder="University Email" required>
-      <input type="password" id="password" placeholder="Password" required>
-      <input type="password" id="confirmPassword" placeholder="Confirm Password" required>
+      <div class="password-wrapper">
+        <input type="password" id="password" placeholder="Password" required>
+        <i class="fa-solid fa-eye" id="togglePassword"></i>
+      </div>
+
+      <div class="password-wrapper">
+        <input type="password" id="confirmPassword" placeholder="Confirm Password" required>
+        <i class="fa-solid fa-eye" id="toggleConfirmPassword"></i>
+      </div>
+
+      <!-- <input type="password" id="password" placeholder="Password" required>
+      <input type="password" id="confirmPassword" placeholder="Confirm Password" required> -->
 
       <p id="error" class="error"></p>
 

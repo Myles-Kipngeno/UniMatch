@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Complete Profile | UniMatch</title>
+  <link rel="stylesheet" href="profile.css">
+</head>
+<body>
+
+  <div class="container">
+    <form id="profileForm" class="card">
+      <h2>Complete your profile 💖</h2>
+      <p>Let others know you better</p>
+
+      <!-- 📸 Profile photo -->
+      <div class="photo-section">
+        <img id="profilePreview" src="default-avatar.png" alt="Profile photo">
+        <input type="file" id="photoInput" accept="image/*">
+      </div>
+
+      <input type="text" id="name" placeholder="Full name" required>
+
+      <select id="gender" required>
+        <option value="">Select gender</option>
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+        <option value="other">Other</option>
+      </select>
+
+      <input type="number" id="age" placeholder="Age" min="18" required>
+      <input type="text" id="campus" placeholder="University / Campus" required>
+      <input type="text" id="course" placeholder="Course" required>
+
+      <textarea id="bio" placeholder="Short bio (optional)"></textarea>
+
+      <p id="error" class="error"></p>
+
+      <button type="submit">Save Profile</button>
+    </form>
+  </div>
+
+  <script type="module" src="./profile.js"></script>
+</body>
+</html>
+ 

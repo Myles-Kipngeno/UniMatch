@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chat | UniMatch</title>
+  <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+
+  <div class="chat-container">
+    <header class="chat-header">
+      <h3 id="chatName">Chat</h3>
+      <p id="onlineStatus" class="status"></p>
+      <p id="typingStatus" class="typing"></p>
+    </header>
+
+    <div id="messages" class="messages"></div>
+
+    <form id="chatForm" class="chat-input">
+      <input type="text" id="messageInput" placeholder="Type a message..." required />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <script type="module" src="chat.js"></script>
+</body>
+</html>
