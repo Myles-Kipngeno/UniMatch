@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Photos | UniMatch</title>
+  <link rel="stylesheet" href="upload-photos.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+
+  <div class="bg-gradient"></div>
+
+  <nav class="navbar">
+    <div class="nav-content">
+      <button onclick="location.href='dashboard.html'" class="back-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      
+      <h1 class="page-title">My Photo Posts</h1>
+      
+      <div class="spacer"></div>
+    </div>
+  </nav>
+
+  <main class="upload-page">
+    
+    <div class="upload-section">
+      <h2>Add New Photos</h2>
+      <p class="subtitle">Share photos that show who you are</p>
+      
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept="image/*" multiple hidden>
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <rect x="8" y="12" width="48" height="40" rx="4" stroke="currentColor" stroke-width="2"/>
+          <circle cx="32" cy="28" r="6" stroke="currentColor" stroke-width="2"/>
+          <path d="M8 44l12-12 8 8 16-16 12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h3>Click to upload photos</h3>
+        <p>or drag and drop</p>
+        <span class="hint">PNG, JPG up to 5MB each</span>
+      </div>
+      
+      <div id="uploadProgress" class="upload-progress" style="display: none;">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p id="progressText">Uploading...</p>
+      </div>
+    </div>
+
+    <div class="photos-grid" id="photosGrid">
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading your photos...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script type="module" src="upload-photos.js"></script>
+</body>
+</html>

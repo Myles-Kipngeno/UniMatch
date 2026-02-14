@@ -6,25 +6,26 @@
   <link rel="stylesheet" href="profile.css">
 </head>
 <body>
-
   <div class="container">
     <form id="profileForm" class="card">
-      <h2>Complete your profile 💖</h2>
-      <p>Let others know you better</p>
+      <h2>UniMatch</h2>
+      <p class="subtitle">Complete your profile to get started</p>
 
       <!-- 📸 Profile photo -->
       <div class="photo-section">
         <img id="profilePreview" src="default-avatar.png" alt="Profile photo">
-        <input type="file" id="photoInput" accept="image/*">
+        <label class="upload-btn">
+          Change photo
+          <input type="file" id="photoInput" accept="image/*" hidden>
+        </label>
       </div>
 
       <input type="text" id="name" placeholder="Full name" required>
 
       <select id="gender" required>
-        <option value="">Select gender</option>
+        <option value="">Gender</option>
         <option value="male">Male</option>
         <option value="female">Female</option>
-        <option value="other">Other</option>
       </select>
 
       <input type="number" id="age" placeholder="Age" min="18" required>
@@ -33,13 +34,21 @@
 
       <textarea id="bio" placeholder="Short bio (optional)"></textarea>
 
+      <select id="preference" required>
+        <option value="all">Interested in</option>
+        <option value="all">Everyone</option>
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+      </select>
+
       <p id="error" class="error"></p>
 
-      <button type="submit">Save Profile</button>
+      <button type="submit">Save & Continue</button>
     </form>
   </div>
 
   <script type="module" src="./profile.js"></script>
 </body>
+
 </html>
  

@@ -9,17 +9,88 @@
 
   <div class="chat-container">
     <header class="chat-header">
-      <h3 id="chatName">Chat</h3>
-      <p id="onlineStatus" class="status"></p>
-      <p id="typingStatus" class="typing"></p>
+      <button class="back-btn" onclick="history.back()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      
+      <div class="chat-header-info">
+        <h3 id="chatName">Chat</h3>
+        <p id="onlineStatus" class="status"></p>
+      </div>
+      
+      <button class="more-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="6" r="1.5" fill="currentColor"/>
+          <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+          <circle cx="12" cy="18" r="1.5" fill="currentColor"/>
+        </svg>
+      </button>
     </header>
+    
+    <p id="typingStatus" class="typing"></p>
 
     <div id="messages" class="messages"></div>
 
     <form id="chatForm" class="chat-input">
-      <input type="text" id="messageInput" placeholder="Type a message..." required />
-      <button type="submit">Send</button>
+      <button type="button" class="input-icon emoji-btn" title="Emojis">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+          <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="9" cy="9" r="1" fill="currentColor"/>
+          <circle cx="15" cy="9" r="1" fill="currentColor"/>
+        </svg>
+      </button>
+      
+      <input type="text" id="messageInput" placeholder="Message..." />
+      
+      <button type="button" class="input-icon mic-btn" title="Voice message">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <rect x="9" y="2" width="6" height="11" rx="3" stroke="currentColor" stroke-width="2"/>
+          <path d="M5 10v2a7 7 0 0014 0v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M12 19v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      
+      <button type="button" class="input-icon image-btn" title="Send image">
+        <input type="file" id="imageInput" accept="image/*" hidden>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+          <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      
+      <button type="submit" class="input-icon send-btn" title="Send" id="sendBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </form>
+    
+    <!-- Emoji Picker -->
+    <div id="emojiPicker" class="emoji-picker" style="display: none;">
+      <div class="emoji-grid">
+        <span class="emoji-item">😊</span>
+        <span class="emoji-item">😂</span>
+        <span class="emoji-item">❤️</span>
+        <span class="emoji-item">😍</span>
+        <span class="emoji-item">🥰</span>
+        <span class="emoji-item">😘</span>
+        <span class="emoji-item">😎</span>
+        <span class="emoji-item">🤔</span>
+        <span class="emoji-item">👍</span>
+        <span class="emoji-item">🙏</span>
+        <span class="emoji-item">🎉</span>
+        <span class="emoji-item">🔥</span>
+        <span class="emoji-item">✨</span>
+        <span class="emoji-item">💯</span>
+        <span class="emoji-item">😭</span>
+        <span class="emoji-item">😅</span>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="chat.js"></script>

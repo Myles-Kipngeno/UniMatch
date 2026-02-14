@@ -1,85 +1,109 @@
 import { auth, db } from "./firebase.js";
-import { onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   collection,
   query,
   where,
-  getDocs,
-  doc,
-  getDoc
-} from
-  "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  onSnapshot,
+  getDoc,
+  doc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const container = document.getElementById("matchesContainer");
+const matchesContainer = document.getElementById("matchesContainer");
+const noMatchesText = document.getElementById("noMatchesText");
 
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, (user) => {
   if (!user) {
     window.location.href = "login.html";
     return;
   }
 
-  container.innerHTML = "";
+  const q = query(
+    collection(db, "matches"),
+    where("users", "array-contains", user.uid)
+  );
 
-  try {
-    const q = query(
-      collection(db, "matches"),
-      where("users", "array-contains", user.uid)
-    );
+  const matchesContainer = document.getElementById("matchesContainer");
+const noMatchesContainer = document.getElementById("noMatchesContainer");
+const loadingContainer = document.getElementById("loadingContainer");
+const matchCountNumber = document.getElementById("matchCountNumber");
+const totalMatchCount = document.getElementById("totalMatchCount");
 
-    const snap = await getDocs(q);
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    window.location.href = "login.html";
+    return;
+  }
 
-    if (snap.empty) {
-      container.innerHTML = "<p>No matches yet 💔</p>";
+  const q = query(
+    collection(db, "matches"),
+    where("users", "array-contains", user.uid)
+  );
+
+  onSnapshot(q, async (snapshot) => {
+    // Hide loading
+    if (loadingContainer) {
+      loadingContainer.style.display = "none";
+    }
+
+    if (snapshot.empty) {
+      // Show empty state
+      matchesContainer.innerHTML = "";
+      if (noMatchesContainer) {
+        noMatchesContainer.style.display = "flex";
+      }
+      if (totalMatchCount) {
+        totalMatchCount.style.opacity = "0";
+      }
       return;
     }
 
-    for (const matchDoc of snap.docs) {
-      const matchId = matchDoc.id;
-      const users = matchDoc.data().users;
-
-      const otherUserId = users.find(uid => uid !== user.uid);
-      if (!otherUserId) continue;
-
-      const userSnap = await getDoc(doc(db, "users", otherUserId));
-      if (!userSnap.exists()) continue;
-
-      const data = userSnap.data();
-
-      const card = document.createElement("div");
-      card.className = "match-card";
-
-      card.innerHTML = `
-        <img src="${data.photoURL || 'default-avatar.png'}">
-        <h3>${data.name}</h3>
-        <p>${data.campus}</p>
-        <button>💬 Chat</button>
-      `;
-
-      card.querySelector("button").onclick = () => {
-        window.location.href = `chat.html?matchId=${matchId}`;
-      };
-
-      container.appendChild(card);
+    // Hide empty state
+    if (noMatchesContainer) {
+      noMatchesContainer.style.display = "none";
     }
 
-  } catch (err) {
-    console.error("Error loading matches:", err);
-    container.innerHTML = "<p>Error loading matches.</p>";
-  }
+    // Update match count
+    const matchCount = snapshot.size;
+    if (matchCountNumber) {
+      matchCountNumber.textContent = matchCount;
+    }
+    if (totalMatchCount) {
+      totalMatchCount.style.opacity = "1";
+    }
+
+    matchesContainer.innerHTML = "";
+
+    for (const docSnap of snapshot.docs) {
+      const match = docSnap.data();
+      const matchId = docSnap.id;
+      const otherUserId = match.users.find(id => id !== user.uid);
+
+      try {
+        // Fetch the other user's profile
+        const otherUserSnap = await getDoc(doc(db, "users", otherUserId));
+        
+        if (otherUserSnap.exists()) {
+          const otherUser = otherUserSnap.data();
+
+          const div = document.createElement("div");
+          div.className = "match-card";
+          div.innerHTML = `
+            <img src="${otherUser.photoURL || './assets/images/default-avatar.png'}" alt="${otherUser.name}">
+            <h3>${otherUser.name}, ${otherUser.age}</h3>
+            <p>📍 ${otherUser.campus}</p>
+            <p>📚 ${otherUser.course}</p>
+            <button onclick="location.href='chat.html?matchId=${matchId}'">
+              💬 Start Chat
+            </button>
+          `;
+
+          matchesContainer.appendChild(div);
+        }
+      } catch (err) {
+        console.error("Error loading match:", err);
+      }
+    }
+  });
 });
-
-
-let startX = 0;
-
-document.addEventListener("touchstart", e => {
-  startX = e.touches[0].clientX;
-});
-
-document.addEventListener("touchend", e => {
-  const endX = e.changedTouches[0].clientX;
-  if (endX - startX > 90) {
-    history.back(); // swipe right = go back
-  }
 });

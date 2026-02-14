@@ -13,7 +13,7 @@ onAuthStateChanged(auth, async (user) => {
 
   // ❌ Not logged in
   if (!user) {
-    window.location.href = "login.html";
+    window.location.replace("login.html");
     return;
   }
 
@@ -21,17 +21,17 @@ onAuthStateChanged(auth, async (user) => {
   if (!user.emailVerified) {
     alert("Please verify your email before accessing UniMatch.");
     await signOut(auth);
-    window.location.href = "login.html";
+    window.location.replace("login.html");
     return;
   }
 
   // 🔍 Check Firestore user profile
-  const userSnap = await getDoc(doc(db, "users", user.uid));
+  const userRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userRef);
 
   if (!userSnap.exists()) {
-    // Safety fallback
     await signOut(auth);
-    window.location.href = "login.html";
+    window.location.replace("login.html");
     return;
   }
 
@@ -39,10 +39,13 @@ onAuthStateChanged(auth, async (user) => {
 
   // ❌ Profile not complete
   if (!data.profileComplete) {
-    window.location.href = "profile.html";
+    window.location.replace("profile.html");
     return;
   }
 
-  // ✅ Fully authenticated & onboarded
-  console.log("Access granted to dashboard");
+  // ✅ Auth OK — DO NOT redirect if already on dashboard
+  if (!window.location.pathname.endsWith("dashboard.html")) {
+    console.log("Access granted to dashboard");
+    window.location.replace("dashboard.html");
+  }
 });

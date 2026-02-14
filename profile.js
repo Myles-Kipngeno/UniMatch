@@ -1,11 +1,11 @@
 import { auth, db, storage } from "./firebase.js";
-import { onAuthStateChanged } 
+import { onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-import { doc, setDoc, getDoc, serverTimestamp } 
+import { doc, setDoc, getDoc, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-import { ref, uploadBytes, getDownloadURL } 
+import { ref, uploadBytes, getDownloadURL }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 // ===============================
@@ -19,6 +19,7 @@ const isEditMode = urlParams.get("edit") === "true";
 // ===============================
 const form = document.getElementById("profileForm");
 const error = document.getElementById("error");
+
 const photoInput = document.getElementById("photoInput");
 const profilePreview = document.getElementById("profilePreview");
 
@@ -28,6 +29,7 @@ const ageInput = document.getElementById("age");
 const campusInput = document.getElementById("campus");
 const courseInput = document.getElementById("course");
 const bioInput = document.getElementById("bio");
+const preferenceSelect = document.getElementById("preference");
 
 let currentUser = null;
 
@@ -44,7 +46,7 @@ onAuthStateChanged(auth, async (user) => {
 
   const snap = await getDoc(doc(db, "users", user.uid));
 
-  // 🚫 Block ONLY if not editing
+  // 🚫 Redirect ONLY if profile complete and not editing
   if (snap.exists() && snap.data().profileComplete && !isEditMode) {
     window.location.href = "dashboard.html";
     return;
@@ -60,8 +62,9 @@ onAuthStateChanged(auth, async (user) => {
     campusInput.value = data.campus || "";
     courseInput.value = data.course || "";
     bioInput.value = data.bio || "";
+    preferenceSelect.value = data.preference || "all";
 
-    if (data.photoURL && profilePreview) {
+    if (data.photoURL) {
       profilePreview.src = data.photoURL;
     }
   }
@@ -91,8 +94,9 @@ form.addEventListener("submit", async (e) => {
   const campus = campusInput.value.trim();
   const course = courseInput.value.trim();
   const bio = bioInput.value.trim();
+  const preference = preferenceSelect.value;
 
-  if (!name || !gender || !age || !campus || !course) {
+  if (!name || !gender || !age || !campus || !course || !preference) {
     error.textContent = "Please complete all required fields.";
     return;
   }
@@ -100,6 +104,7 @@ form.addEventListener("submit", async (e) => {
   try {
     let photoURL = null;
 
+    // Upload photo if selected
     if (photoInput.files.length > 0) {
       const file = photoInput.files[0];
       const photoRef = ref(
@@ -120,6 +125,7 @@ form.addEventListener("submit", async (e) => {
         campus,
         course,
         bio,
+        preference,        // ✅ IMPORTANT
         photoURL,
         profileComplete: true,
         updatedAt: serverTimestamp()

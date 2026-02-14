@@ -2,19 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Discover | UniMatch</title>
   <link rel="stylesheet" href="discover.css">
+  <link rel="icon" href="data:,">
 </head>
 <body>
 
+  <!-- Subtle background -->
+  <div class="bg-gradient"></div>
+
   <nav class="navbar">
-    <h1>Discover 💕</h1>
-    <a href="dashboard.html">⬅ Back</a>
+    <div class="nav-content">
+      <button onclick="location.href='dashboard.html'" class="back-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      
+      <h1 class="page-title">Discover</h1>
+      
+      <div class="filters-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M2.5 5h15M5 10h10M7.5 15h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
   </nav>
 
   <main class="discover" id="discoverContainer">
-    <p>Loading students...</p>
+    <div class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>Finding connections...</p>
+    </div>
   </main>
+
+  <div class="swipe-indicators">
+    <div class="indicator pass">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <path d="M24 8L8 24M8 8l16 16" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <span>Pass</span>
+    </div>
+    <div class="indicator like">
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+        <path d="M16 28l-1.4-1.3C8.4 21 4 17 4 12c0-3.3 2.7-6 6-6 1.9 0 3.8.9 5 2.3C16.2 6.9 18.1 6 20 6c3.3 0 6 2.7 6 6 0 5-4.4 9-10.6 14.7L16 28z" fill="currentColor"/>
+      </svg>
+      <span>Like</span>
+    </div>
+  </div>
 
   <script type="module" src="discover.js"></script>
 </body>

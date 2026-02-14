@@ -2,20 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Your Matches | UniMatch</title>
   <link rel="stylesheet" href="matches.css">
+  <link rel="icon" href="data:,">
 </head>
 <body>
 
+  <!-- Animated background -->
+  <div class="bg-animation">
+    <div class="heart-float heart-1">💖</div>
+    <div class="heart-float heart-2">💕</div>
+    <div class="heart-float heart-3">💗</div>
+    <div class="heart-float heart-4">💓</div>
+    <div class="heart-float heart-5">❤️</div>
+  </div>
+
   <nav class="navbar">
-    <h1>💖 Your Matches</h1>
-    <button onclick="location.href='dashboard.html'">Back</button>
+    <div class="nav-content">
+      <button onclick="location.href='dashboard.html'" class="back-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Back</span>
+      </button>
+      
+      <h1 class="page-title">
+        <span class="title-icon">💖</span>
+        <span>Your Matches</span>
+      </h1>
+      
+      <div class="match-count-badge" id="totalMatchCount" style="opacity: 0;">
+        <span id="matchCountNumber">0</span>
+      </div>
+    </div>
   </nav>
 
   <main class="matches">
-    <div id="matchesContainer" class="matches-grid">
-      <p>Loading matches...</p>
+    
+    <div class="matches-header">
+      <h2>People who like you back ✨</h2>
+      <p>Start a conversation and see where it goes!</p>
     </div>
+
+    <div id="matchesContainer" class="matches-grid">
+      <div class="loading-container" id="loadingContainer">
+        <div class="loading-spinner"></div>
+        <p>Finding your matches...</p>
+      </div>
+    </div>
+
+    <div id="noMatchesContainer" class="no-matches" style="display: none;">
+      <div class="empty-state">
+        <div class="empty-icon">💔</div>
+        <h3>No matches yet</h3>
+        <p>Keep swiping and liking profiles!</p>
+        <button onclick="location.href='discover.html'" class="discover-btn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/>
+            <circle cx="10" cy="10" r="2" fill="currentColor"/>
+          </svg>
+          <span>Start Discovering</span>
+        </button>
+      </div>
+    </div>
+
   </main>
 
   <script type="module" src="matches.js"></script>

@@ -2,58 +2,153 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard | UniMatch</title>
   <link rel="stylesheet" href="dashboard.css">
+  <link rel="icon" href="data:,">
 </head>
 <body>
 
+  <!-- Animated background -->
+  <div class="bg-animation">
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+    <div class="shape shape-3"></div>
+  </div>
+
   <nav class="navbar">
-    <h1>UniMatch ❤️</h1>
-    <button id="logoutBtn">Logout</button>
+    <div class="nav-content">
+      <h1 class="logo">
+        <span class="logo-icon">💖</span>
+        <span class="logo-text">UniMatch</span>
+      </h1>
+      <button id="logoutBtn" class="logout-btn">
+        <span>Logout</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M6 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V3.33333C2 2.97971 2.14048 2.64057 2.39052 2.39052C2.64057 2.14048 2.97971 2 3.33333 2H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10.6667 11.3333L14 8L10.6667 4.66667" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M14 8H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
   </nav>
 
   <main class="dashboard page">
 
     <section class="welcome">
-      <img id="profilePhoto" src="default-avatar.png" class="profile-pic">
-      <h2 id="welcomeName">Welcome 👋</h2>
-      <p id="profileSummary">Loading your profile...</p>
-       <!-- ✏️ Edit Profile button -->
+      <div class="profile-section">
+        <div class="profile-pic-container">
+          <img
+            id="profilePhoto"
+            src="./assets/images/default-avatar.png"
+            class="profile-pic"
+            alt="Profile photo"
+          />
+          <div class="online-indicator"></div>
+        </div>
+        
+        <div class="welcome-text">
+          <h2 id="welcomeName">Welcome back! 👋</h2>
+          <p id="profileSummary">Loading your profile...</p>
+        </div>
+      </div>
+
       <button id="editProfileBtn" class="edit-profile-btn">
-        ✏️ Edit Profile
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M12.75 2.25L15.75 5.25L5.25 15.75H2.25V12.75L12.75 2.25Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Edit Profile</span>
       </button>
     </section>
 
-
-    <section class="actions">
-      <div class="card" id="uploadPhotoCard">
-        📸 Upload Profile Photo
+    <section class="stats-section">
+      <div class="stat-card">
+        <div class="stat-icon">👀</div>
+        <div class="stat-content">
+          <h3 id="profileViews">0</h3>
+          <p>Profile Views</p>
+        </div>
       </div>
-
-      <div class="card" onclick="location.href='discover.html'">
-        🔍 Discover Students
+      
+      <div class="stat-card">
+        <div class="stat-icon">❤️</div>
+        <div class="stat-content">
+          <h3 id="likesReceived">0</h3>
+          <p>Likes Received</p>
+        </div>
       </div>
-
-      <div class="card" id="matchesCard">
-        ❤️ Matches
-      </div>
-
-      <div class="card" id="chatCard">
-        💬 Chat <span id="matchCount"></span><span id="unreadCount"></span>
+      
+      <div class="stat-card highlight">
+        <div class="stat-icon">✨</div>
+        <div class="stat-content">
+          <h3 id="totalMatches">0</h3>
+          <p>Total Matches</p>
+        </div>
       </div>
     </section>
 
+    <section class="actions">
+      <div class="action-card discover-card" onclick="location.href='discover.html'">
+        <div class="card-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+            <circle cx="16" cy="16" r="4" fill="currentColor"/>
+            <path d="M16 2v4M16 26v4M2 16h4M26 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Discover</h3>
+        <p>Find new connections</p>
+      </div>
 
+      <div class="action-card matches-card" id="matchesCard">
+        <div class="card-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <path d="M16 28c6.627 0 12-5.373 12-12S22.627 4 16 4 4 9.373 4 16s5.373 12 12 12z" stroke="currentColor" stroke-width="2"/>
+            <path d="M16 11v10M11 16h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Matches</h3>
+        <p id="matchCount">Loading...</p>
+        <div class="card-badge" id="matchBadge" style="display: none;"></div>
+      </div>
+
+      <div class="action-card chat-card" id="chatCard">
+        <div class="card-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <path d="M28 16c0 6.627-5.373 12-12 12-1.5 0-2.927-.276-4.245-.781L6 28l1.031-5.755A11.952 11.952 0 014 16C4 9.373 9.373 4 16 4s12 5.373 12 12z" stroke="currentColor" stroke-width="2"/>
+            <circle cx="12" cy="16" r="1.5" fill="currentColor"/>
+            <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
+            <circle cx="20" cy="16" r="1.5" fill="currentColor"/>
+          </svg>
+        </div>
+        <h3>Messages</h3>
+        <p>Start chatting</p>
+        <div class="card-badge" id="unreadBadge" style="display: none;"></div>
+      </div>
+
+      <div class="action-card upload-card" id="uploadPhotoCard" onclick="location.href='upload-photos.html'">
+        <div class="card-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect x="4" y="8" width="24" height="20" rx="2" stroke="currentColor" stroke-width="2"/>
+            <circle cx="16" cy="16" r="4" stroke="currentColor" stroke-width="2"/>
+            <path d="M24 8L28 4M8 8L4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Upload Photo</h3>
+        <p>Share your photos</p>
+      </div>
     </section>
 
   </main>
 
-  <!-- Auth + profile check -->
+  <!-- Auth + profile guard -->
   <script type="module" src="auth-guard.js"></script>
+
   <!-- Dashboard logic -->
   <script type="module" src="dashboard.js"></script>
+
   <!-- Logout -->
   <script type="module" src="logout.js"></script>
 
 </body>
-
+</html>
