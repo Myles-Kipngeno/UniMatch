@@ -103,11 +103,18 @@ onAuthStateChanged(auth, async (user) => {
         
         // Increment profile view count
         try {
-          await updateDoc(doc(db, "users", targetUid), {
-            profileViews: increment(1)
-          });
+          const userRef = doc(db, "users", targetUid);
+          const userSnap = await getDoc(userRef);
+          
+          if (userSnap.exists()) {
+            const currentViews = userSnap.data().profileViews || 0;
+            await updateDoc(userRef, {
+              profileViews: currentViews + 1
+            });
+            console.log("Profile view counted for:", targetUid);
+          }
         } catch (err) {
-          console.log("Could not update view count:", err);
+          console.error("Could not update view count:", err);
         }
         
         showProfileModal(data, targetUid);

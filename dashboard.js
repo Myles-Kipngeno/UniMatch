@@ -160,11 +160,14 @@ function updateStats(uid) {
     if (snap.exists() && profileViewsEl) {
       const views = snap.data().profileViews || 0;
       profileViewsEl.textContent = views;
+      console.log("Profile views updated:", views);
       // Animate number change
       profileViewsEl.style.animation = 'none';
       setTimeout(() => {
         profileViewsEl.style.animation = 'popIn 0.3s ease';
       }, 10);
+    } else if (profileViewsEl) {
+      profileViewsEl.textContent = "0";
     }
   });
 }
