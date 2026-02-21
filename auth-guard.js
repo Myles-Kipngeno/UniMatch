@@ -1,51 +1,63 @@
-import { auth, db } from "./firebase.js";
-import {
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+/**
+ * auth-guard.js
+ * ==============
+ * THE FIX: Uses onAuthStateChanged but immediately unsubscribes
+ * after the first resolution — so it fires EXACTLY ONCE and stops.
+ *
+ * The old code kept listening → Firebase re-fired with null during
+ * token refresh → every page redirected to login.html mid-session.
+ *
+ * USAGE on every protected page:
+ *   import { requireAuth } from "./auth-guard.js";
+ *   const user = await requireAuth();
+ *   // safe to use user here — guaranteed logged in
+ */
 
-import {
-  doc,
-  getDoc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { auth } from "./firebase.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-onAuthStateChanged(auth, async (user) => {
+/**
+ * Waits for Firebase Auth to fully initialize, then resolves ONCE.
+ * - If logged in + email verified → returns user object
+ * - If not logged in → redirects to login.html
+ * - If email not verified → redirects to login.html?unverified=1
+ */
+export function requireAuth(redirectTo = "login.html") {
+  return new Promise((resolve) => {
+    // unsubscribe stops the listener after first fire — this is the key fix
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe(); // ← CRITICAL: stop listening immediately after first resolution
 
-  // ❌ Not logged in
-  if (!user) {
-    window.location.replace("login.html");
-    return;
-  }
+      if (!user) {
+        window.location.replace(redirectTo);
+        return;
+      }
 
-  // ❌ Email not verified
-  if (!user.emailVerified) {
-    alert("Please verify your email before accessing UniMatch.");
-    await signOut(auth);
-    window.location.replace("login.html");
-    return;
-  }
+      if (!user.emailVerified) {
+        window.location.replace(`${redirectTo}?unverified=1`);
+        return;
+      }
 
-  // 🔍 Check Firestore user profile
-  const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
+      resolve(user); // ✅ user is confirmed logged in
+    });
+  });
+}
 
-  if (!userSnap.exists()) {
-    await signOut(auth);
-    window.location.replace("login.html");
-    return;
-  }
+/**
+ * For login/signup pages — redirects AWAY if already logged in.
+ * Resolves with null if not logged in (stays on login page).
+ */
+export function redirectIfLoggedIn(redirectTo = "dashboard.html") {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe(); // fire once only
 
-  const data = userSnap.data();
+      if (user && user.emailVerified) {
+        window.location.replace(redirectTo);
+        return;
+      }
 
-  // ❌ Profile not complete
-  if (!data.profileComplete) {
-    window.location.replace("profile.html");
-    return;
-  }
-
-  // ✅ Auth OK — DO NOT redirect if already on dashboard
-  if (!window.location.pathname.endsWith("dashboard.html")) {
-    console.log("Access granted to dashboard");
-    window.location.replace("dashboard.html");
-  }
-});
+      resolve(null); // not logged in — stay on page
+    });
+  });
+}
