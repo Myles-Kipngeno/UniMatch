@@ -14,12 +14,15 @@ import {
   deleteObject
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-const uploadArea = document.getElementById("uploadArea");
+const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
 const fileInput = document.getElementById("fileInput");
 const photosGrid = document.getElementById("photosGrid");
 const uploadProgress = document.getElementById("uploadProgress");
 const progressFill = document.getElementById("progressFill");
 const progressText = document.getElementById("progressText");
+const userProfilePhoto = document.getElementById("userProfilePhoto");
+const userName = document.getElementById("userName");
+const photoCount = document.getElementById("photoCount");
 
 let currentUser = null;
 
@@ -30,14 +33,39 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   currentUser = user;
+  
+  // Load user profile info
+  try {
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      if (userName) userName.textContent = userData.name || "User";
+      if (userProfilePhoto && userData.photoURL) {
+        userProfilePhoto.src = userData.photoURL;
+      }
+    }
+  } catch (err) {
+    console.error("Error loading user profile:", err);
+  }
+  
   loadUserPhotos();
 });
+
+// Upload button click
+if (uploadPhotoBtn) {
+  uploadPhotoBtn.onclick = () => fileInput.click();
+}
 
 // Load user's photo posts
 async function loadUserPhotos() {
   try {
     const userDoc = await getDoc(doc(db, "users", currentUser.uid));
     const photoPosts = userDoc.data()?.photoPosts || [];
+
+    // Update photo count
+    if (photoCount) {
+      photoCount.textContent = photoPosts.length;
+    }
 
     photosGrid.innerHTML = "";
 
@@ -84,33 +112,9 @@ async function loadUserPhotos() {
   }
 }
 
-// Upload Area Click
-uploadArea.onclick = () => fileInput.click();
-
 // File Input Change
 fileInput.onchange = (e) => {
   const files = Array.from(e.target.files);
-  if (files.length > 0) {
-    uploadPhotos(files);
-  }
-};
-
-// Drag and Drop
-uploadArea.ondragover = (e) => {
-  e.preventDefault();
-  uploadArea.classList.add("drag-over");
-};
-
-uploadArea.ondragleave = () => {
-  uploadArea.classList.remove("drag-over");
-};
-
-uploadArea.ondrop = (e) => {
-  e.preventDefault();
-  uploadArea.classList.remove("drag-over");
-  const files = Array.from(e.dataTransfer.files).filter(file => 
-    file.type.startsWith("image/")
-  );
   if (files.length > 0) {
     uploadPhotos(files);
   }

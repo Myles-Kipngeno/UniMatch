@@ -168,7 +168,7 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px 20px 120px;
+  padding: 40px 20px 110px;
 }
 
 /* =====================
@@ -335,74 +335,16 @@ body {
 }
 
 /* =====================
-   ACTION BUTTONS - Smaller & Lower
-===================== */
-.card-actions {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  z-index: 3;
-  display: flex;
-  gap: 12px;
-}
-
-.action-btn {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: var(--transition);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  font-size: 20px;
-}
-
-.pass-btn {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  color: #ff4458;
-}
-
-.pass-btn:hover {
-  background: rgba(255, 68, 88, 0.2);
-  transform: scale(1.08);
-}
-
-.like-btn {
-  background: var(--gradient-like);
-  color: white;
-}
-
-.like-btn:hover {
-  transform: scale(1.08);
-  box-shadow: 0 6px 20px rgba(67, 233, 123, 0.4);
-}
-
-.like-btn.liked {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  color: #ff4458;
-}
-
-.action-btn:active {
-  transform: scale(0.92);
-}
-
-/* =====================
-   SWIPE INDICATORS
+   SWIPE INDICATORS — now interactive buttons
 ===================== */
 .swipe-indicators {
   position: fixed;
-  bottom: 40px;
+  bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
   display: flex;
   gap: 100px;
-  pointer-events: none;
   animation: fadeInUp 0.6s ease 0.3s backwards;
 }
 
@@ -422,8 +364,23 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  opacity: 0.5;
+  opacity: 0.75;
   transition: var(--transition);
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: white;
+  padding: 0;
+  font-family: inherit;
+}
+
+.indicator:hover {
+  opacity: 1;
+  transform: translateY(-4px);
+}
+
+.indicator:active {
+  transform: scale(0.92) translateY(-2px);
 }
 
 .indicator svg {
@@ -431,16 +388,37 @@ body {
   height: 48px;
   padding: 12px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: var(--transition);
 }
 
 .indicator.pass svg {
   color: #ff4458;
+  background: rgba(255, 68, 88, 0.15);
+  border: 2px solid rgba(255, 68, 88, 0.4);
+}
+
+.indicator.pass:hover svg {
+  background: rgba(255, 68, 88, 0.25);
+  box-shadow: 0 6px 20px rgba(255, 68, 88, 0.35);
 }
 
 .indicator.like svg {
   color: #43e97b;
+  background: rgba(67, 233, 123, 0.15);
+  border: 2px solid rgba(67, 233, 123, 0.4);
+}
+
+.indicator.like:hover svg {
+  background: rgba(67, 233, 123, 0.25);
+  box-shadow: 0 6px 20px rgba(67, 233, 123, 0.35);
+}
+
+.indicator.like.liked svg {
+  color: #ff4458;
+  background: rgba(255, 68, 88, 0.15);
+  border: 2px solid rgba(255, 68, 88, 0.4);
 }
 
 .indicator span {
@@ -546,21 +524,9 @@ body {
     font-size: 14px;
   }
   
-  .card-actions {
-    bottom: 14px;
-    right: 14px;
-    gap: 10px;
-  }
-  
-  .action-btn {
-    width: 46px;
-    height: 46px;
-    font-size: 18px;
-  }
-  
   .swipe-indicators {
     gap: 60px;
-    bottom: 30px;
+    bottom: 14px;
   }
   
   .indicator svg {
@@ -592,7 +558,7 @@ body {
 }
 
 .undo-notification.show {
-  bottom: 100px;
+  bottom: 130px;
 }
 
 .undo-notification span {
@@ -627,12 +593,14 @@ body {
    TOUCH DEVICE OPTIMIZATION
 ===================== */
 @media (hover: none) and (pointer: coarse) {
-  .action-btn:hover {
+  .indicator:hover {
     transform: none;
+    opacity: 0.75;
   }
-  
-  .action-btn:active {
+
+  .indicator:active {
     transform: scale(0.9);
+    opacity: 1;
   }
 }
 

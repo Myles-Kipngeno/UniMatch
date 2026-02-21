@@ -2,53 +2,88 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Complete Profile | UniMatch</title>
   <link rel="stylesheet" href="profile.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
+  
+  <div class="bg-gradient"></div>
+  
   <div class="container">
-    <form id="profileForm" class="card">
-      <h2>UniMatch</h2>
-      <p class="subtitle">Complete your profile to get started</p>
+    <div class="card">
+      <div class="header">
+        <h2>💖 UniMatch</h2>
+        <p class="subtitle">Create your profile</p>
+      </div>
 
       <!-- 📸 Profile photo -->
       <div class="photo-section">
-        <img id="profilePreview" src="default-avatar.png" alt="Profile photo">
-        <label class="upload-btn">
-          Change photo
-          <input type="file" id="photoInput" accept="image/*" hidden>
-        </label>
+        <div class="photo-container">
+          <img id="profilePreview" src="default-avatar.png" alt="Profile">
+          <div class="photo-overlay">
+            <label class="upload-label">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/>
+              </svg>
+              <input type="file" id="photoInput" accept="image/*" hidden>
+            </label>
+          </div>
+        </div>
       </div>
 
-      <input type="text" id="name" placeholder="Full name" required>
+      <form id="profileForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <input type="text" id="name" placeholder="Full name" required>
+          </div>
 
-      <select id="gender" required>
-        <option value="">Gender</option>
-        <option value="male">Male</option>
-        <option value="female">Female</option>
-      </select>
+          <div class="form-row">
+            <select id="gender" required>
+              <option value="">Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
 
-      <input type="number" id="age" placeholder="Age" min="18" required>
-      <input type="text" id="campus" placeholder="University / Campus" required>
-      <input type="text" id="course" placeholder="Course" required>
+            <input type="number" id="age" placeholder="Age" min="18" max="99" required>
+          </div>
 
-      <textarea id="bio" placeholder="Short bio (optional)"></textarea>
+          <div class="form-group">
+            <input type="text" id="campus" placeholder="University / Campus" required>
+          </div>
 
-      <select id="preference" required>
-        <option value="all">Interested in</option>
-        <option value="all">Everyone</option>
-        <option value="male">Male</option>
-        <option value="female">Female</option>
-      </select>
+          <div class="form-group">
+            <input type="text" id="course" placeholder="Course / Major" required>
+          </div>
 
-      <p id="error" class="error"></p>
+          <div class="form-group">
+            <textarea id="bio" placeholder="Write something about yourself... (optional)" rows="3"></textarea>
+          </div>
 
-      <button type="submit">Save & Continue</button>
-    </form>
+          <div class="form-group">
+            <select id="preference" required>
+              <option value="">Show me</option>
+              <option value="all">Everyone</option>
+              <option value="male">Men</option>
+              <option value="female">Women</option>
+            </select>
+          </div>
+        </div>
+
+        <p id="error" class="error"></p>
+
+        <button type="submit" class="save-btn">
+          <span>Save & Continue</span>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M7.5 15l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </form>
+    </div>
   </div>
 
   <script type="module" src="./profile.js"></script>
 </body>
-
 </html>
- 

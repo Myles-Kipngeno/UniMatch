@@ -92,69 +92,94 @@ body {
   padding: 40px 24px;
 }
 
-.upload-section {
-  margin-bottom: 48px;
+/* Profile Header - Instagram Style */
+.profile-header {
+  display: flex;
+  gap: 40px;
+  align-items: center;
+  margin-bottom: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.upload-section h2 {
+.profile-photo-large {
+  flex-shrink: 0;
+}
+
+.profile-photo-large img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-info h2 {
   font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 8px;
+  font-weight: 400;
+  margin-bottom: 16px;
+  color: white;
 }
 
-.subtitle {
+.profile-stats {
+  display: flex;
+  gap: 32px;
+}
+
+.stat {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+}
+
+.stat-label {
+  font-size: 16px;
   color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 24px;
 }
 
-/* Upload Area */
-.upload-area {
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px dashed rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  padding: 40px 30px;
-  text-align: center;
+/* Upload Actions */
+.upload-actions {
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+.upload-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 12px 32px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
   cursor: pointer;
   transition: var(--transition);
 }
 
-.upload-area:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--primary);
+.upload-photo-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.upload-area.drag-over {
-  background: rgba(102, 126, 234, 0.1);
-  border-color: var(--primary);
-  transform: scale(1.02);
-}
-
-.upload-area svg {
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 12px;
-  width: 48px;
-  height: 48px;
-}
-
-.upload-area h3 {
-  font-size: 16px;
-  margin-bottom: 6px;
-  font-weight: 600;
-}
-
-.upload-area p {
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 10px;
-  font-size: 14px;
-}
-
-.hint {
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 4px 10px;
-  border-radius: 50px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+.upload-photo-btn:active {
+  transform: translateY(0);
 }
 
 /* Upload Progress */
@@ -311,12 +336,25 @@ body {
     padding: 24px 16px;
   }
   
-  .upload-area {
-    padding: 40px 24px;
+  .profile-header {
+    gap: 24px;
+  }
+  
+  .profile-photo-large img {
+    width: 90px;
+    height: 90px;
+  }
+  
+  .profile-info h2 {
+    font-size: 22px;
+  }
+  
+  .profile-stats {
+    gap: 20px;
   }
   
   .photos-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
   }
 }

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Chat | UniMatch</title>
   <link rel="stylesheet" href="chat.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
 
@@ -15,12 +16,15 @@
         </svg>
       </button>
       
-      <div class="chat-header-info">
-        <h3 id="chatName">Chat</h3>
-        <p id="onlineStatus" class="status"></p>
+      <div class="user-profile">
+        <img id="chatProfilePhoto" src="./assets/images/default-avatar.png" alt="Profile" class="chat-avatar">
+        <div class="chat-header-info">
+          <h3 id="chatName">Chat</h3>
+          <p id="onlineStatus" class="status"></p>
+        </div>
       </div>
       
-      <button class="more-btn">
+      <button class="more-btn" id="moreBtn">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
           <circle cx="12" cy="6" r="1.5" fill="currentColor"/>
           <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
@@ -28,35 +32,252 @@
         </svg>
       </button>
     </header>
+
+    <!-- Dropdown Menu - Outside header to avoid overflow clipping -->
+    <div class="chat-menu" id="chatMenu" style="display: none;">
+        <button class="menu-item" id="clearChatBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M17 5l-1 12a2 2 0 01-2 2H6a2 2 0 01-2-2L3 5m5-2h4m-9 2h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Clear Chat</span>
+        </button>
+        <button class="menu-item" id="muteBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M15 9a5 5 0 01-5 5m0 0a5 5 0 01-5-5m5 5v4m-4 0h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M10 2a3 3 0 013 3v4a3 3 0 11-6 0V5a3 3 0 013-3z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M3 3l14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Mute Notifications</span>
+        </button>
+        <button class="menu-item" id="viewProfileBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="7" r="3" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M4 18c0-3 2.5-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>View Profile</span>
+        </button>
+        <button class="menu-item" id="mediaBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="7.5" cy="7.5" r="1.5" fill="currentColor"/>
+            <path d="M17 13l-4-4-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Media & Links</span>
+        </button>
+        <button class="menu-item danger" id="unmatchBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2C5 2 2 5 2 10s3 8 8 8 8-3 8-8-3-8-8-8z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M7 13l6-6M7 7l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Unmatch</span>
+        </button>
+        <button class="menu-item danger" id="blockUserBtn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M4 4l12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Block User</span>
+        </button>
+      </div>
     
     <p id="typingStatus" class="typing"></p>
 
     <div id="messages" class="messages"></div>
 
+    <!-- Invisible overlay to close menus when clicking outside -->
+    <div id="menuOverlay" style="display:none; position:fixed; inset:0; z-index:999;"></div>
+
+    <!-- Media & Links Modal -->
+    <div id="mediaModal" class="media-modal" style="display:none;">
+      <div class="media-modal-content">
+        <div class="media-modal-header">
+          <h3>Media & Links</h3>
+          <button class="media-modal-close" id="closeMediaModal">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="media-modal-tabs">
+          <button class="media-tab active" data-tab="media">Media</button>
+          <button class="media-tab" data-tab="links">Links</button>
+          <button class="media-tab" data-tab="docs">Documents</button>
+        </div>
+        <div class="media-modal-body">
+          <div class="media-tab-content active" id="mediaTabContent">
+            <div class="media-grid" id="mediaGrid">
+              <!-- Images will be loaded here -->
+            </div>
+          </div>
+          <div class="media-tab-content" id="linksTabContent">
+            <div class="links-list" id="linksList">
+              <!-- Links will be loaded here -->
+            </div>
+          </div>
+          <div class="media-tab-content" id="docsTabContent">
+            <div class="docs-list" id="docsList">
+              <!-- Documents will be loaded here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Viewer Modal -->
+    <div id="imageViewerModal" class="image-viewer-modal" style="display:none;">
+      <div class="image-viewer-overlay"></div>
+      <div class="image-viewer-content">
+        <button class="image-viewer-close">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <img id="viewerImage" src="" alt="Full size image">
+        <button class="image-viewer-download" title="Download image">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Reaction Emoji Picker (for + button in message menu) -->
+    <div id="reactionPicker" class="reaction-picker" style="display:none;">
+      <div class="reaction-picker-categories">
+        <button class="reaction-cat active" data-category="recent" title="Recent">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="smileys" title="Smileys">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.5"/><path d="M8 14s1.5 2 4 2 4-2 4-2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="9" cy="9.5" r="1.5" fill="currentColor"/><circle cx="15" cy="9.5" r="1.5" fill="currentColor"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="gestures" title="Gestures">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 11V8a2 2 0 00-4 0m0 3V7a2 2 0 00-4 0v1m0 3V8a2 2 0 00-4 0v7l-1-1a2 2 0 00-3 3l4 4a6 6 0 006 0 6 6 0 006-6v-4a2 2 0 00-4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="animals" title="Animals">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="7" cy="6" r="2" fill="currentColor"/><circle cx="17" cy="6" r="2" fill="currentColor"/><path d="M12 22C16 22 20 18 20 14V10C20 7 18 4 12 4S4 7 4 10V14C4 18 8 22 12 22Z" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><path d="M9 16C10 17 11 17.5 12 17.5S14 17 15 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="food" title="Food">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" stroke="currentColor" stroke-width="2"/><path d="M6 1v4M10 1v4M14 1v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="activities" title="Activities">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="travel" title="Travel">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke="currentColor" stroke-width="2"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="symbols" title="Symbols">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <button class="reaction-cat" data-category="flags" title="Flags">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 22v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="reaction-picker-header">
+        <input type="text" id="reactionSearch" class="reaction-search" placeholder="Search emoji..."/>
+      </div>
+      <div class="reaction-picker-grid" id="reactionPickerGrid"></div>
+    </div>
+
+    <!-- Message Context Menu -->
+    <div id="messageContextMenu" class="message-context-menu" style="display: none;">
+      <div class="quick-reactions">
+        <button class="reaction-btn" data-emoji="👍">👍</button>
+        <button class="reaction-btn" data-emoji="❤️">❤️</button>
+        <button class="reaction-btn" data-emoji="😂">😂</button>
+        <button class="reaction-btn" data-emoji="😮">😮</button>
+        <button class="reaction-btn" data-emoji="😢">😢</button>
+        <button class="reaction-btn" data-emoji="🙏">🙏</button>
+        <button class="reaction-btn more-reactions">+</button>
+      </div>
+      <div class="menu-options">
+        <button class="context-menu-item" data-action="reply">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M8 14L4 10L8 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 10H16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Reply</span>
+        </button>
+        <button class="context-menu-item" data-action="select">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="4" y="4" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M7 10l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Select</span>
+        </button>
+        <button class="context-menu-item danger" data-action="delete">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M16 5l-1 11a2 2 0 01-2 2H7a2 2 0 01-2-2L4 5m4-2h4m-9 2h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>Delete</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Select Mode Toolbar -->
+    <div id="selectToolbar" class="select-toolbar" style="display:none;">
+      <button type="button" id="cancelSelect" class="select-action-btn">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Cancel
+      </button>
+      <span id="selectedCount" class="selected-count">0 selected</span>
+      <button type="button" id="deleteSelected" class="select-action-btn danger">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M16 5l-1 11a2 2 0 01-2 2H7a2 2 0 01-2-2L4 5m4-2h4m-9 2h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Delete
+      </button>
+    </div>
+
     <form id="chatForm" class="chat-input">
-      <button type="button" class="input-icon emoji-btn" title="Emojis">
+      <input type="file" id="imageInput" accept="image/*" multiple hidden>
+
+      <!-- Reply Preview Bar -->
+      <div id="replyBar" class="reply-bar" style="display:none;">
+        <div class="reply-bar-content">
+          <div class="reply-bar-line"></div>
+          <div class="reply-bar-text">
+            <span class="reply-bar-name">Replying to</span>
+            <span id="replyPreviewText" class="reply-bar-preview"></span>
+          </div>
+        </div>
+        <button type="button" id="cancelReply" class="reply-cancel-btn">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      
+      <button type="button" class="attach-btn" title="Attach">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-          <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="9" cy="9" r="1" fill="currentColor"/>
-          <circle cx="15" cy="9" r="1" fill="currentColor"/>
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </button>
       
-      <input type="text" id="messageInput" placeholder="Message..." />
-      
-      <button type="button" class="input-icon mic-btn" title="Voice message">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <rect x="9" y="2" width="6" height="11" rx="3" stroke="currentColor" stroke-width="2"/>
-          <path d="M5 10v2a7 7 0 0014 0v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <path d="M12 19v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-      
-      <button type="button" class="input-icon image-btn" title="Send image">
-        <input type="file" id="imageInput" accept="image/*" hidden>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+      <div class="input-wrapper">
+        <button type="button" class="input-icon emoji-btn" title="Emojis">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="9" cy="9" r="1" fill="currentColor"/>
+            <circle cx="15" cy="9" r="1" fill="currentColor"/>
+          </svg>
+        </button>
+        
+        <input type="text" id="messageInput" placeholder="Message..." />
+        
+        <button type="button" class="input-icon mic-btn" title="Voice message">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <rect x="9" y="2" width="6" height="11" rx="3" stroke="currentColor" stroke-width="2"/>
+            <path d="M5 10v2a7 7 0 0014 0v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 19v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+        
+        <button type="button" class="input-icon image-btn" title="Gallery" onclick="document.getElementById('imageInput').click()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
           <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
           <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -68,27 +289,1137 @@
           <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
+    </div>
     </form>
     
     <!-- Emoji Picker -->
     <div id="emojiPicker" class="emoji-picker" style="display: none;">
-      <div class="emoji-grid">
-        <span class="emoji-item">😊</span>
-        <span class="emoji-item">😂</span>
-        <span class="emoji-item">❤️</span>
-        <span class="emoji-item">😍</span>
-        <span class="emoji-item">🥰</span>
-        <span class="emoji-item">😘</span>
-        <span class="emoji-item">😎</span>
-        <span class="emoji-item">🤔</span>
-        <span class="emoji-item">👍</span>
-        <span class="emoji-item">🙏</span>
-        <span class="emoji-item">🎉</span>
-        <span class="emoji-item">🔥</span>
-        <span class="emoji-item">✨</span>
-        <span class="emoji-item">💯</span>
-        <span class="emoji-item">😭</span>
-        <span class="emoji-item">😅</span>
+      <div class="emoji-panel">
+        <div class="emoji-header">
+          <div class="emoji-categories">
+            <button class="emoji-cat active" data-category="recent" title="Recent">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <button class="emoji-cat" data-category="smileys" title="Smileys & People">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M8 14s1.5 2 4 2 4-2 4-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="9.5" r="1.5" fill="currentColor"/><circle cx="15" cy="9.5" r="1.5" fill="currentColor"/></svg>
+            </button>
+            <button class="emoji-cat" data-category="gestures" title="Gestures">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 11V8a2 2 0 00-4 0m0 3V7a2 2 0 00-4 0v1m0 3V8a2 2 0 00-4 0v7l-1-1a2 2 0 00-3 3l4 4a6 6 0 006 0 6 6 0 006-6v-4a2 2 0 00-4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button class="emoji-cat" data-category="animals" title="Animals & Nature">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C9 2 7 4 7 7v1H5a2 2 0 00-2 2v2a5 5 0 005 5h8a5 5 0 005-5V10a2 2 0 00-2-2h-2V7c0-3-2-5-5-5z" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>
+            </button>
+            <button class="emoji-cat" data-category="objects" title="Food & Objects">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <button class="emoji-cat" data-category="hearts" title="Hearts & Symbols">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="emoji-search-wrap">
+            <input type="text" class="emoji-search" placeholder="Search emoji">
+          </div>
+        </div>
+      
+      <div class="emoji-content">
+        <div class="emoji-section active" data-category="recent">
+          <h4>Recent</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">😊</span>
+            <span class="emoji-item">😂</span>
+            <span class="emoji-item">❤️</span>
+          </div>
+        </div>
+        
+        <div class="emoji-section" data-category="smileys">
+          <h4>Smileys & People</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">😀</span>
+            <span class="emoji-item">😃</span>
+            <span class="emoji-item">😄</span>
+            <span class="emoji-item">😁</span>
+            <span class="emoji-item">😆</span>
+            <span class="emoji-item">😅</span>
+            <span class="emoji-item">🤣</span>
+            <span class="emoji-item">😂</span>
+            <span class="emoji-item">🙂</span>
+            <span class="emoji-item">🙃</span>
+            <span class="emoji-item">🫠</span>
+            <span class="emoji-item">😉</span>
+            <span class="emoji-item">😊</span>
+            <span class="emoji-item">😇</span>
+            <span class="emoji-item">🥰</span>
+            <span class="emoji-item">😍</span>
+            <span class="emoji-item">🤩</span>
+            <span class="emoji-item">😘</span>
+            <span class="emoji-item">😗</span>
+            <span class="emoji-item">☺️</span>
+            <span class="emoji-item">😚</span>
+            <span class="emoji-item">😙</span>
+            <span class="emoji-item">🥲</span>
+            <span class="emoji-item">😋</span>
+            <span class="emoji-item">😛</span>
+            <span class="emoji-item">😜</span>
+            <span class="emoji-item">🤪</span>
+            <span class="emoji-item">😝</span>
+            <span class="emoji-item">🤑</span>
+            <span class="emoji-item">🤗</span>
+            <span class="emoji-item">🤭</span>
+            <span class="emoji-item">🫢</span>
+            <span class="emoji-item">🫣</span>
+            <span class="emoji-item">🤫</span>
+            <span class="emoji-item">🤔</span>
+            <span class="emoji-item">🫡</span>
+            <span class="emoji-item">🤐</span>
+            <span class="emoji-item">🤨</span>
+            <span class="emoji-item">😐</span>
+            <span class="emoji-item">😑</span>
+            <span class="emoji-item">😶</span>
+            <span class="emoji-item">🫥</span>
+            <span class="emoji-item">😶‍🌫️</span>
+            <span class="emoji-item">😏</span>
+            <span class="emoji-item">😒</span>
+            <span class="emoji-item">🙄</span>
+            <span class="emoji-item">😬</span>
+            <span class="emoji-item">😮‍💨</span>
+            <span class="emoji-item">🤥</span>
+            <span class="emoji-item">😌</span>
+            <span class="emoji-item">😔</span>
+            <span class="emoji-item">😪</span>
+            <span class="emoji-item">🤤</span>
+            <span class="emoji-item">😴</span>
+            <span class="emoji-item">😷</span>
+            <span class="emoji-item">🤒</span>
+            <span class="emoji-item">🤕</span>
+            <span class="emoji-item">🤢</span>
+            <span class="emoji-item">🤮</span>
+            <span class="emoji-item">🤧</span>
+            <span class="emoji-item">🥵</span>
+            <span class="emoji-item">🥶</span>
+            <span class="emoji-item">🥴</span>
+            <span class="emoji-item">😵</span>
+            <span class="emoji-item">😵‍💫</span>
+            <span class="emoji-item">🤯</span>
+            <span class="emoji-item">🤠</span>
+            <span class="emoji-item">🥳</span>
+            <span class="emoji-item">🥸</span>
+            <span class="emoji-item">😎</span>
+            <span class="emoji-item">🤓</span>
+            <span class="emoji-item">🧐</span>
+            <span class="emoji-item">😕</span>
+            <span class="emoji-item">🫤</span>
+            <span class="emoji-item">😟</span>
+            <span class="emoji-item">🙁</span>
+            <span class="emoji-item">☹️</span>
+            <span class="emoji-item">😮</span>
+            <span class="emoji-item">😯</span>
+            <span class="emoji-item">😲</span>
+            <span class="emoji-item">😳</span>
+            <span class="emoji-item">🥺</span>
+            <span class="emoji-item">🥹</span>
+            <span class="emoji-item">😦</span>
+            <span class="emoji-item">😧</span>
+            <span class="emoji-item">😨</span>
+            <span class="emoji-item">😰</span>
+            <span class="emoji-item">😥</span>
+            <span class="emoji-item">😢</span>
+            <span class="emoji-item">😭</span>
+            <span class="emoji-item">😱</span>
+            <span class="emoji-item">😖</span>
+            <span class="emoji-item">😣</span>
+            <span class="emoji-item">😞</span>
+            <span class="emoji-item">😓</span>
+            <span class="emoji-item">😩</span>
+            <span class="emoji-item">😫</span>
+            <span class="emoji-item">🥱</span>
+            <span class="emoji-item">😤</span>
+            <span class="emoji-item">😡</span>
+            <span class="emoji-item">😠</span>
+            <span class="emoji-item">🤬</span>
+            <span class="emoji-item">😈</span>
+            <span class="emoji-item">👿</span>
+            <span class="emoji-item">💀</span>
+            <span class="emoji-item">☠️</span>
+            <span class="emoji-item">💩</span>
+            <span class="emoji-item">🤡</span>
+            <span class="emoji-item">👹</span>
+            <span class="emoji-item">👺</span>
+            <span class="emoji-item">👻</span>
+            <span class="emoji-item">👽</span>
+            <span class="emoji-item">👾</span>
+            <span class="emoji-item">🤖</span>
+            <span class="emoji-item">😺</span>
+            <span class="emoji-item">😸</span>
+            <span class="emoji-item">😹</span>
+            <span class="emoji-item">😻</span>
+            <span class="emoji-item">😼</span>
+            <span class="emoji-item">😽</span>
+            <span class="emoji-item">🙀</span>
+            <span class="emoji-item">😿</span>
+            <span class="emoji-item">😾</span>
+          </div>
+        </div>
+        
+        <div class="emoji-section" data-category="hearts">
+          <h4>Hearts & Love</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">❤️</span>
+            <span class="emoji-item">🧡</span>
+            <span class="emoji-item">💛</span>
+            <span class="emoji-item">💚</span>
+            <span class="emoji-item">💙</span>
+            <span class="emoji-item">💜</span>
+            <span class="emoji-item">🖤</span>
+            <span class="emoji-item">🤍</span>
+            <span class="emoji-item">🤎</span>
+            <span class="emoji-item">💔</span>
+            <span class="emoji-item">❣️</span>
+            <span class="emoji-item">💕</span>
+            <span class="emoji-item">💞</span>
+            <span class="emoji-item">💓</span>
+            <span class="emoji-item">💗</span>
+            <span class="emoji-item">💖</span>
+            <span class="emoji-item">💘</span>
+            <span class="emoji-item">💝</span>
+            <span class="emoji-item">💟</span>
+          </div>
+        </div>
+        
+        <div class="emoji-section" data-category="gestures">
+          <h4>Hand Gestures</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">👋</span>
+            <span class="emoji-item">🤚</span>
+            <span class="emoji-item">🖐️</span>
+            <span class="emoji-item">✋</span>
+            <span class="emoji-item">🖖</span>
+            <span class="emoji-item">🫱</span>
+            <span class="emoji-item">🫲</span>
+            <span class="emoji-item">🫳</span>
+            <span class="emoji-item">🫴</span>
+            <span class="emoji-item">👌</span>
+            <span class="emoji-item">🤌</span>
+            <span class="emoji-item">🤏</span>
+            <span class="emoji-item">✌️</span>
+            <span class="emoji-item">🤞</span>
+            <span class="emoji-item">🫰</span>
+            <span class="emoji-item">🤟</span>
+            <span class="emoji-item">🤘</span>
+            <span class="emoji-item">🤙</span>
+            <span class="emoji-item">👈</span>
+            <span class="emoji-item">👉</span>
+            <span class="emoji-item">👆</span>
+            <span class="emoji-item">🖕</span>
+            <span class="emoji-item">👇</span>
+            <span class="emoji-item">☝️</span>
+            <span class="emoji-item">🫵</span>
+            <span class="emoji-item">👍</span>
+            <span class="emoji-item">👎</span>
+            <span class="emoji-item">✊</span>
+            <span class="emoji-item">👊</span>
+            <span class="emoji-item">🤛</span>
+            <span class="emoji-item">🤜</span>
+            <span class="emoji-item">👏</span>
+            <span class="emoji-item">🙌</span>
+            <span class="emoji-item">🫶</span>
+            <span class="emoji-item">👐</span>
+            <span class="emoji-item">🤲</span>
+            <span class="emoji-item">🤝</span>
+            <span class="emoji-item">🙏</span>
+            <span class="emoji-item">✍️</span>
+            <span class="emoji-item">💅</span>
+            <span class="emoji-item">🤳</span>
+            <span class="emoji-item">💪</span>
+            <span class="emoji-item">🦾</span>
+            <span class="emoji-item">🦿</span>
+            <span class="emoji-item">🦵</span>
+            <span class="emoji-item">🦶</span>
+            <span class="emoji-item">👂</span>
+            <span class="emoji-item">🦻</span>
+            <span class="emoji-item">👃</span>
+            <span class="emoji-item">🧠</span>
+            <span class="emoji-item">🫀</span>
+            <span class="emoji-item">🫁</span>
+            <span class="emoji-item">🦷</span>
+            <span class="emoji-item">🦴</span>
+            <span class="emoji-item">👀</span>
+            <span class="emoji-item">👁️</span>
+            <span class="emoji-item">👅</span>
+            <span class="emoji-item">👄</span>
+          </div>
+          
+          <h4>People & Body</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">👶</span>
+            <span class="emoji-item">🧒</span>
+            <span class="emoji-item">👦</span>
+            <span class="emoji-item">👧</span>
+            <span class="emoji-item">🧑</span>
+            <span class="emoji-item">👱</span>
+            <span class="emoji-item">👨</span>
+            <span class="emoji-item">🧔</span>
+            <span class="emoji-item">👩</span>
+            <span class="emoji-item">🧓</span>
+            <span class="emoji-item">👴</span>
+            <span class="emoji-item">👵</span>
+            <span class="emoji-item">🙍</span>
+            <span class="emoji-item">🙎</span>
+            <span class="emoji-item">🙅</span>
+            <span class="emoji-item">🙆</span>
+            <span class="emoji-item">💁</span>
+            <span class="emoji-item">🙋</span>
+            <span class="emoji-item">🧏</span>
+            <span class="emoji-item">🙇</span>
+            <span class="emoji-item">🤦</span>
+            <span class="emoji-item">🤷</span>
+            <span class="emoji-item">👮</span>
+            <span class="emoji-item">🕵️</span>
+            <span class="emoji-item">💂</span>
+            <span class="emoji-item">👷</span>
+            <span class="emoji-item">🫅</span>
+            <span class="emoji-item">🤴</span>
+            <span class="emoji-item">👸</span>
+            <span class="emoji-item">👳</span>
+            <span class="emoji-item">👲</span>
+            <span class="emoji-item">🧕</span>
+            <span class="emoji-item">🤵</span>
+            <span class="emoji-item">👰</span>
+            <span class="emoji-item">🤰</span>
+            <span class="emoji-item">🫃</span>
+            <span class="emoji-item">🫄</span>
+            <span class="emoji-item">🤱</span>
+            <span class="emoji-item">👼</span>
+            <span class="emoji-item">🎅</span>
+            <span class="emoji-item">🤶</span>
+            <span class="emoji-item">🧑‍🎄</span>
+            <span class="emoji-item">🦸</span>
+            <span class="emoji-item">🦹</span>
+            <span class="emoji-item">🧙</span>
+            <span class="emoji-item">🧚</span>
+            <span class="emoji-item">🧛</span>
+            <span class="emoji-item">🧜</span>
+            <span class="emoji-item">🧝</span>
+            <span class="emoji-item">🧞</span>
+            <span class="emoji-item">🧟</span>
+            <span class="emoji-item">🧌</span>
+            <span class="emoji-item">💆</span>
+            <span class="emoji-item">💇</span>
+            <span class="emoji-item">🚶</span>
+            <span class="emoji-item">🧍</span>
+            <span class="emoji-item">🧎</span>
+            <span class="emoji-item">🏃</span>
+            <span class="emoji-item">💃</span>
+            <span class="emoji-item">🕺</span>
+            <span class="emoji-item">🕴️</span>
+            <span class="emoji-item">👯</span>
+            <span class="emoji-item">🧖</span>
+            <span class="emoji-item">🧗</span>
+            <span class="emoji-item">🤺</span>
+            <span class="emoji-item">🏇</span>
+            <span class="emoji-item">⛷️</span>
+            <span class="emoji-item">🏂</span>
+            <span class="emoji-item">🏌️</span>
+            <span class="emoji-item">🏄</span>
+            <span class="emoji-item">🚣</span>
+            <span class="emoji-item">🏊</span>
+            <span class="emoji-item">⛹️</span>
+            <span class="emoji-item">🏋️</span>
+            <span class="emoji-item">🚴</span>
+            <span class="emoji-item">🚵</span>
+            <span class="emoji-item">🤸</span>
+            <span class="emoji-item">🤼</span>
+            <span class="emoji-item">🤽</span>
+            <span class="emoji-item">🤾</span>
+            <span class="emoji-item">🤹</span>
+            <span class="emoji-item">🧘</span>
+            <span class="emoji-item">🛀</span>
+            <span class="emoji-item">🛌</span>
+            <span class="emoji-item">👭</span>
+            <span class="emoji-item">👫</span>
+            <span class="emoji-item">👬</span>
+            <span class="emoji-item">💏</span>
+            <span class="emoji-item">💑</span>
+            <span class="emoji-item">👪</span>
+            <span class="emoji-item">🗣️</span>
+            <span class="emoji-item">👤</span>
+            <span class="emoji-item">👥</span>
+            <span class="emoji-item">🫂</span>
+          </div>
+        </div>
+        
+        <div class="emoji-section" data-category="animals">
+          <h4>Animals & Nature</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">🐵</span>
+            <span class="emoji-item">🐒</span>
+            <span class="emoji-item">🦍</span>
+            <span class="emoji-item">🦧</span>
+            <span class="emoji-item">🐶</span>
+            <span class="emoji-item">🐕</span>
+            <span class="emoji-item">🦮</span>
+            <span class="emoji-item">🐕‍🦺</span>
+            <span class="emoji-item">🐩</span>
+            <span class="emoji-item">🐺</span>
+            <span class="emoji-item">🦊</span>
+            <span class="emoji-item">🦝</span>
+            <span class="emoji-item">🐱</span>
+            <span class="emoji-item">🐈</span>
+            <span class="emoji-item">🐈‍⬛</span>
+            <span class="emoji-item">🦁</span>
+            <span class="emoji-item">🐯</span>
+            <span class="emoji-item">🐅</span>
+            <span class="emoji-item">🐆</span>
+            <span class="emoji-item">🐴</span>
+            <span class="emoji-item">🐎</span>
+            <span class="emoji-item">🦄</span>
+            <span class="emoji-item">🦓</span>
+            <span class="emoji-item">🦌</span>
+            <span class="emoji-item">🦬</span>
+            <span class="emoji-item">🐮</span>
+            <span class="emoji-item">🐂</span>
+            <span class="emoji-item">🐃</span>
+            <span class="emoji-item">🐄</span>
+            <span class="emoji-item">🐷</span>
+            <span class="emoji-item">🐖</span>
+            <span class="emoji-item">🐗</span>
+            <span class="emoji-item">🐽</span>
+            <span class="emoji-item">🐏</span>
+            <span class="emoji-item">🐑</span>
+            <span class="emoji-item">🐐</span>
+            <span class="emoji-item">🐪</span>
+            <span class="emoji-item">🐫</span>
+            <span class="emoji-item">🦙</span>
+            <span class="emoji-item">🦒</span>
+            <span class="emoji-item">🐘</span>
+            <span class="emoji-item">🦣</span>
+            <span class="emoji-item">🦏</span>
+            <span class="emoji-item">🦛</span>
+            <span class="emoji-item">🐭</span>
+            <span class="emoji-item">🐁</span>
+            <span class="emoji-item">🐀</span>
+            <span class="emoji-item">🐹</span>
+            <span class="emoji-item">🐰</span>
+            <span class="emoji-item">🐇</span>
+            <span class="emoji-item">🐿️</span>
+            <span class="emoji-item">🦫</span>
+            <span class="emoji-item">🦔</span>
+            <span class="emoji-item">🦇</span>
+            <span class="emoji-item">🐻</span>
+            <span class="emoji-item">🐻‍❄️</span>
+            <span class="emoji-item">🐨</span>
+            <span class="emoji-item">🐼</span>
+            <span class="emoji-item">🦥</span>
+            <span class="emoji-item">🦦</span>
+            <span class="emoji-item">🦨</span>
+            <span class="emoji-item">🦘</span>
+            <span class="emoji-item">🦡</span>
+            <span class="emoji-item">🐾</span>
+            <span class="emoji-item">🦃</span>
+            <span class="emoji-item">🐔</span>
+            <span class="emoji-item">🐓</span>
+            <span class="emoji-item">🐣</span>
+            <span class="emoji-item">🐤</span>
+            <span class="emoji-item">🐥</span>
+            <span class="emoji-item">🐦</span>
+            <span class="emoji-item">🐧</span>
+            <span class="emoji-item">🕊️</span>
+            <span class="emoji-item">🦅</span>
+            <span class="emoji-item">🦆</span>
+            <span class="emoji-item">🦢</span>
+            <span class="emoji-item">🦉</span>
+            <span class="emoji-item">🦤</span>
+            <span class="emoji-item">🪶</span>
+            <span class="emoji-item">🦩</span>
+            <span class="emoji-item">🦚</span>
+            <span class="emoji-item">🦜</span>
+            <span class="emoji-item">🐸</span>
+            <span class="emoji-item">🐊</span>
+            <span class="emoji-item">🐢</span>
+            <span class="emoji-item">🦎</span>
+            <span class="emoji-item">🐍</span>
+            <span class="emoji-item">🐲</span>
+            <span class="emoji-item">🐉</span>
+            <span class="emoji-item">🦕</span>
+            <span class="emoji-item">🦖</span>
+            <span class="emoji-item">🐳</span>
+            <span class="emoji-item">🐋</span>
+            <span class="emoji-item">🐬</span>
+            <span class="emoji-item">🦭</span>
+            <span class="emoji-item">🐟</span>
+            <span class="emoji-item">🐠</span>
+            <span class="emoji-item">🐡</span>
+            <span class="emoji-item">🦈</span>
+            <span class="emoji-item">🐙</span>
+            <span class="emoji-item">🐚</span>
+            <span class="emoji-item">🪸</span>
+            <span class="emoji-item">🐌</span>
+            <span class="emoji-item">🦋</span>
+            <span class="emoji-item">🐛</span>
+            <span class="emoji-item">🐜</span>
+            <span class="emoji-item">🐝</span>
+            <span class="emoji-item">🪲</span>
+            <span class="emoji-item">🐞</span>
+            <span class="emoji-item">🦗</span>
+            <span class="emoji-item">🪳</span>
+            <span class="emoji-item">🕷️</span>
+            <span class="emoji-item">🕸️</span>
+            <span class="emoji-item">🦂</span>
+            <span class="emoji-item">🦟</span>
+            <span class="emoji-item">🪰</span>
+            <span class="emoji-item">🪱</span>
+            <span class="emoji-item">🦠</span>
+            <span class="emoji-item">💐</span>
+            <span class="emoji-item">🌸</span>
+            <span class="emoji-item">💮</span>
+            <span class="emoji-item">🪷</span>
+            <span class="emoji-item">🏵️</span>
+            <span class="emoji-item">🌹</span>
+            <span class="emoji-item">🥀</span>
+            <span class="emoji-item">🌺</span>
+            <span class="emoji-item">🌻</span>
+            <span class="emoji-item">🌼</span>
+            <span class="emoji-item">🌷</span>
+            <span class="emoji-item">🌱</span>
+            <span class="emoji-item">🪴</span>
+            <span class="emoji-item">🌲</span>
+            <span class="emoji-item">🌳</span>
+            <span class="emoji-item">🌴</span>
+            <span class="emoji-item">🌵</span>
+            <span class="emoji-item">🌾</span>
+            <span class="emoji-item">🌿</span>
+            <span class="emoji-item">☘️</span>
+            <span class="emoji-item">🍀</span>
+            <span class="emoji-item">🍁</span>
+            <span class="emoji-item">🍂</span>
+            <span class="emoji-item">🍃</span>
+            <span class="emoji-item">🪹</span>
+            <span class="emoji-item">🪺</span>
+          </div>
+        </div>
+        
+        <div class="emoji-section" data-category="objects">
+          <h4>Food & Drink</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">🍇</span>
+            <span class="emoji-item">🍈</span>
+            <span class="emoji-item">🍉</span>
+            <span class="emoji-item">🍊</span>
+            <span class="emoji-item">🍋</span>
+            <span class="emoji-item">🍌</span>
+            <span class="emoji-item">🍍</span>
+            <span class="emoji-item">🥭</span>
+            <span class="emoji-item">🍎</span>
+            <span class="emoji-item">🍏</span>
+            <span class="emoji-item">🍐</span>
+            <span class="emoji-item">🍑</span>
+            <span class="emoji-item">🍒</span>
+            <span class="emoji-item">🍓</span>
+            <span class="emoji-item">🫐</span>
+            <span class="emoji-item">🥝</span>
+            <span class="emoji-item">🍅</span>
+            <span class="emoji-item">🫒</span>
+            <span class="emoji-item">🥥</span>
+            <span class="emoji-item">🥑</span>
+            <span class="emoji-item">🍆</span>
+            <span class="emoji-item">🥔</span>
+            <span class="emoji-item">🥕</span>
+            <span class="emoji-item">🌽</span>
+            <span class="emoji-item">🌶️</span>
+            <span class="emoji-item">🫑</span>
+            <span class="emoji-item">🥒</span>
+            <span class="emoji-item">🥬</span>
+            <span class="emoji-item">🥦</span>
+            <span class="emoji-item">🧄</span>
+            <span class="emoji-item">🧅</span>
+            <span class="emoji-item">🍄</span>
+            <span class="emoji-item">🥜</span>
+            <span class="emoji-item">🫘</span>
+            <span class="emoji-item">🌰</span>
+            <span class="emoji-item">🍞</span>
+            <span class="emoji-item">🥐</span>
+            <span class="emoji-item">🥖</span>
+            <span class="emoji-item">🫓</span>
+            <span class="emoji-item">🥨</span>
+            <span class="emoji-item">🥯</span>
+            <span class="emoji-item">🥞</span>
+            <span class="emoji-item">🧇</span>
+            <span class="emoji-item">🧀</span>
+            <span class="emoji-item">🍖</span>
+            <span class="emoji-item">🍗</span>
+            <span class="emoji-item">🥩</span>
+            <span class="emoji-item">🥓</span>
+            <span class="emoji-item">🍔</span>
+            <span class="emoji-item">🍟</span>
+            <span class="emoji-item">🍕</span>
+            <span class="emoji-item">🌭</span>
+            <span class="emoji-item">🥪</span>
+            <span class="emoji-item">🌮</span>
+            <span class="emoji-item">🌯</span>
+            <span class="emoji-item">🫔</span>
+            <span class="emoji-item">🥙</span>
+            <span class="emoji-item">🧆</span>
+            <span class="emoji-item">🥚</span>
+            <span class="emoji-item">🍳</span>
+            <span class="emoji-item">🥘</span>
+            <span class="emoji-item">🍲</span>
+            <span class="emoji-item">🫕</span>
+            <span class="emoji-item">🥣</span>
+            <span class="emoji-item">🥗</span>
+            <span class="emoji-item">🍿</span>
+            <span class="emoji-item">🧈</span>
+            <span class="emoji-item">🧂</span>
+            <span class="emoji-item">🥫</span>
+            <span class="emoji-item">🍱</span>
+            <span class="emoji-item">🍘</span>
+            <span class="emoji-item">🍙</span>
+            <span class="emoji-item">🍚</span>
+            <span class="emoji-item">🍛</span>
+            <span class="emoji-item">🍜</span>
+            <span class="emoji-item">🍝</span>
+            <span class="emoji-item">🍠</span>
+            <span class="emoji-item">🍢</span>
+            <span class="emoji-item">🍣</span>
+            <span class="emoji-item">🍤</span>
+            <span class="emoji-item">🍥</span>
+            <span class="emoji-item">🥮</span>
+            <span class="emoji-item">🍡</span>
+            <span class="emoji-item">🥟</span>
+            <span class="emoji-item">🥠</span>
+            <span class="emoji-item">🥡</span>
+            <span class="emoji-item">🦀</span>
+            <span class="emoji-item">🦞</span>
+            <span class="emoji-item">🦐</span>
+            <span class="emoji-item">🦑</span>
+            <span class="emoji-item">🦪</span>
+            <span class="emoji-item">🍦</span>
+            <span class="emoji-item">🍧</span>
+            <span class="emoji-item">🍨</span>
+            <span class="emoji-item">🍩</span>
+            <span class="emoji-item">🍪</span>
+            <span class="emoji-item">🎂</span>
+            <span class="emoji-item">🍰</span>
+            <span class="emoji-item">🧁</span>
+            <span class="emoji-item">🥧</span>
+            <span class="emoji-item">🍫</span>
+            <span class="emoji-item">🍬</span>
+            <span class="emoji-item">🍭</span>
+            <span class="emoji-item">🍮</span>
+            <span class="emoji-item">🍯</span>
+            <span class="emoji-item">🍼</span>
+            <span class="emoji-item">🥛</span>
+            <span class="emoji-item">☕</span>
+            <span class="emoji-item">🫖</span>
+            <span class="emoji-item">🍵</span>
+            <span class="emoji-item">🍶</span>
+            <span class="emoji-item">🍾</span>
+            <span class="emoji-item">🍷</span>
+            <span class="emoji-item">🍸</span>
+            <span class="emoji-item">🍹</span>
+            <span class="emoji-item">🍺</span>
+            <span class="emoji-item">🍻</span>
+            <span class="emoji-item">🥂</span>
+            <span class="emoji-item">🥃</span>
+            <span class="emoji-item">🫗</span>
+            <span class="emoji-item">🥤</span>
+            <span class="emoji-item">🧋</span>
+            <span class="emoji-item">🧃</span>
+            <span class="emoji-item">🧉</span>
+            <span class="emoji-item">🧊</span>
+            <span class="emoji-item">🥢</span>
+            <span class="emoji-item">🍽️</span>
+            <span class="emoji-item">🍴</span>
+            <span class="emoji-item">🥄</span>
+            <span class="emoji-item">🔪</span>
+            <span class="emoji-item">🫙</span>
+          </div>
+          
+          <h4>Travel & Places</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">🌍</span>
+            <span class="emoji-item">🌎</span>
+            <span class="emoji-item">🌏</span>
+            <span class="emoji-item">🌐</span>
+            <span class="emoji-item">🗺️</span>
+            <span class="emoji-item">🗾</span>
+            <span class="emoji-item">🧭</span>
+            <span class="emoji-item">🏔️</span>
+            <span class="emoji-item">⛰️</span>
+            <span class="emoji-item">🌋</span>
+            <span class="emoji-item">🗻</span>
+            <span class="emoji-item">🏕️</span>
+            <span class="emoji-item">🏖️</span>
+            <span class="emoji-item">🏜️</span>
+            <span class="emoji-item">🏝️</span>
+            <span class="emoji-item">🏞️</span>
+            <span class="emoji-item">🏟️</span>
+            <span class="emoji-item">🏛️</span>
+            <span class="emoji-item">🏗️</span>
+            <span class="emoji-item">🧱</span>
+            <span class="emoji-item">🪨</span>
+            <span class="emoji-item">🪵</span>
+            <span class="emoji-item">🛖</span>
+            <span class="emoji-item">🏘️</span>
+            <span class="emoji-item">🏚️</span>
+            <span class="emoji-item">🏠</span>
+            <span class="emoji-item">🏡</span>
+            <span class="emoji-item">🏢</span>
+            <span class="emoji-item">🏣</span>
+            <span class="emoji-item">🏤</span>
+            <span class="emoji-item">🏥</span>
+            <span class="emoji-item">🏦</span>
+            <span class="emoji-item">🏨</span>
+            <span class="emoji-item">🏩</span>
+            <span class="emoji-item">🏪</span>
+            <span class="emoji-item">🏫</span>
+            <span class="emoji-item">🏬</span>
+            <span class="emoji-item">🏭</span>
+            <span class="emoji-item">🏯</span>
+            <span class="emoji-item">🏰</span>
+            <span class="emoji-item">💒</span>
+            <span class="emoji-item">🗼</span>
+            <span class="emoji-item">🗽</span>
+            <span class="emoji-item">⛪</span>
+            <span class="emoji-item">🕌</span>
+            <span class="emoji-item">🛕</span>
+            <span class="emoji-item">🕍</span>
+            <span class="emoji-item">⛩️</span>
+            <span class="emoji-item">🕋</span>
+            <span class="emoji-item">⛲</span>
+            <span class="emoji-item">⛺</span>
+            <span class="emoji-item">🌁</span>
+            <span class="emoji-item">🌃</span>
+            <span class="emoji-item">🏙️</span>
+            <span class="emoji-item">🌄</span>
+            <span class="emoji-item">🌅</span>
+            <span class="emoji-item">🌆</span>
+            <span class="emoji-item">🌇</span>
+            <span class="emoji-item">🌉</span>
+            <span class="emoji-item">♨️</span>
+            <span class="emoji-item">🎠</span>
+            <span class="emoji-item">🛝</span>
+            <span class="emoji-item">🎡</span>
+            <span class="emoji-item">🎢</span>
+            <span class="emoji-item">💈</span>
+            <span class="emoji-item">🎪</span>
+            <span class="emoji-item">🚂</span>
+            <span class="emoji-item">🚃</span>
+            <span class="emoji-item">🚄</span>
+            <span class="emoji-item">🚅</span>
+            <span class="emoji-item">🚆</span>
+            <span class="emoji-item">🚇</span>
+            <span class="emoji-item">🚈</span>
+            <span class="emoji-item">🚉</span>
+            <span class="emoji-item">🚊</span>
+            <span class="emoji-item">🚝</span>
+            <span class="emoji-item">🚞</span>
+            <span class="emoji-item">🚋</span>
+            <span class="emoji-item">🚌</span>
+            <span class="emoji-item">🚍</span>
+            <span class="emoji-item">🚎</span>
+            <span class="emoji-item">🚐</span>
+            <span class="emoji-item">🚑</span>
+            <span class="emoji-item">🚒</span>
+            <span class="emoji-item">🚓</span>
+            <span class="emoji-item">🚔</span>
+            <span class="emoji-item">🚕</span>
+            <span class="emoji-item">🚖</span>
+            <span class="emoji-item">🚗</span>
+            <span class="emoji-item">🚘</span>
+            <span class="emoji-item">🚙</span>
+            <span class="emoji-item">🛻</span>
+            <span class="emoji-item">🚚</span>
+            <span class="emoji-item">🚛</span>
+            <span class="emoji-item">🚜</span>
+            <span class="emoji-item">🏎️</span>
+            <span class="emoji-item">🏍️</span>
+            <span class="emoji-item">🛵</span>
+            <span class="emoji-item">🦽</span>
+            <span class="emoji-item">🦼</span>
+            <span class="emoji-item">🛺</span>
+            <span class="emoji-item">🚲</span>
+            <span class="emoji-item">🛴</span>
+            <span class="emoji-item">🛹</span>
+            <span class="emoji-item">🛼</span>
+            <span class="emoji-item">🚏</span>
+            <span class="emoji-item">🛣️</span>
+            <span class="emoji-item">🛤️</span>
+            <span class="emoji-item">🛢️</span>
+            <span class="emoji-item">⛽</span>
+            <span class="emoji-item">🛞</span>
+            <span class="emoji-item">🚨</span>
+            <span class="emoji-item">🚥</span>
+            <span class="emoji-item">🚦</span>
+            <span class="emoji-item">🛑</span>
+            <span class="emoji-item">🚧</span>
+            <span class="emoji-item">⚓</span>
+            <span class="emoji-item">🛟</span>
+            <span class="emoji-item">⛵</span>
+            <span class="emoji-item">🛶</span>
+            <span class="emoji-item">🚤</span>
+            <span class="emoji-item">🛳️</span>
+            <span class="emoji-item">⛴️</span>
+            <span class="emoji-item">🛥️</span>
+            <span class="emoji-item">🚢</span>
+            <span class="emoji-item">✈️</span>
+            <span class="emoji-item">🛩️</span>
+            <span class="emoji-item">🛫</span>
+            <span class="emoji-item">🛬</span>
+            <span class="emoji-item">🪂</span>
+            <span class="emoji-item">💺</span>
+            <span class="emoji-item">🚁</span>
+            <span class="emoji-item">🚟</span>
+            <span class="emoji-item">🚠</span>
+            <span class="emoji-item">🚡</span>
+            <span class="emoji-item">🛰️</span>
+            <span class="emoji-item">🚀</span>
+            <span class="emoji-item">🛸</span>
+          </div>
+          
+          <h4>Activities & Sports</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">⚽</span>
+            <span class="emoji-item">🏀</span>
+            <span class="emoji-item">🏈</span>
+            <span class="emoji-item">⚾</span>
+            <span class="emoji-item">🥎</span>
+            <span class="emoji-item">🎾</span>
+            <span class="emoji-item">🏐</span>
+            <span class="emoji-item">🏉</span>
+            <span class="emoji-item">🥏</span>
+            <span class="emoji-item">🎱</span>
+            <span class="emoji-item">🪀</span>
+            <span class="emoji-item">🏓</span>
+            <span class="emoji-item">🏸</span>
+            <span class="emoji-item">🏒</span>
+            <span class="emoji-item">🏑</span>
+            <span class="emoji-item">🥍</span>
+            <span class="emoji-item">🏏</span>
+            <span class="emoji-item">🪃</span>
+            <span class="emoji-item">🥅</span>
+            <span class="emoji-item">⛳</span>
+            <span class="emoji-item">🪁</span>
+            <span class="emoji-item">🏹</span>
+            <span class="emoji-item">🎣</span>
+            <span class="emoji-item">🤿</span>
+            <span class="emoji-item">🥊</span>
+            <span class="emoji-item">🥋</span>
+            <span class="emoji-item">🎽</span>
+            <span class="emoji-item">🛹</span>
+            <span class="emoji-item">🛼</span>
+            <span class="emoji-item">🛷</span>
+            <span class="emoji-item">⛸️</span>
+            <span class="emoji-item">🥌</span>
+            <span class="emoji-item">🎿</span>
+            <span class="emoji-item">⛷️</span>
+            <span class="emoji-item">🏂</span>
+            <span class="emoji-item">🪂</span>
+            <span class="emoji-item">🏋️</span>
+            <span class="emoji-item">🤼</span>
+            <span class="emoji-item">🤸</span>
+            <span class="emoji-item">🤺</span>
+            <span class="emoji-item">⛹️</span>
+            <span class="emoji-item">🤾</span>
+            <span class="emoji-item">🏌️</span>
+            <span class="emoji-item">🏇</span>
+            <span class="emoji-item">🧘</span>
+            <span class="emoji-item">🏄</span>
+            <span class="emoji-item">🏊</span>
+            <span class="emoji-item">🤽</span>
+            <span class="emoji-item">🚣</span>
+            <span class="emoji-item">🧗</span>
+            <span class="emoji-item">🚵</span>
+            <span class="emoji-item">🚴</span>
+            <span class="emoji-item">🏆</span>
+            <span class="emoji-item">🥇</span>
+            <span class="emoji-item">🥈</span>
+            <span class="emoji-item">🥉</span>
+            <span class="emoji-item">🏅</span>
+            <span class="emoji-item">🎖️</span>
+            <span class="emoji-item">🏵️</span>
+            <span class="emoji-item">🎗️</span>
+            <span class="emoji-item">🎫</span>
+            <span class="emoji-item">🎟️</span>
+            <span class="emoji-item">🎪</span>
+            <span class="emoji-item">🤹</span>
+            <span class="emoji-item">🎭</span>
+            <span class="emoji-item">🩰</span>
+            <span class="emoji-item">🎨</span>
+            <span class="emoji-item">🎬</span>
+            <span class="emoji-item">🎤</span>
+            <span class="emoji-item">🎧</span>
+            <span class="emoji-item">🎼</span>
+            <span class="emoji-item">🎹</span>
+            <span class="emoji-item">🪇</span>
+            <span class="emoji-item">🥁</span>
+            <span class="emoji-item">🪘</span>
+            <span class="emoji-item">🎷</span>
+            <span class="emoji-item">🎺</span>
+            <span class="emoji-item">🪗</span>
+            <span class="emoji-item">🎸</span>
+            <span class="emoji-item">🪕</span>
+            <span class="emoji-item">🎻</span>
+            <span class="emoji-item">🎲</span>
+            <span class="emoji-item">♟️</span>
+            <span class="emoji-item">🎯</span>
+            <span class="emoji-item">🎳</span>
+            <span class="emoji-item">🎮</span>
+            <span class="emoji-item">🎰</span>
+            <span class="emoji-item">🧩</span>
+          </div>
+          
+          <h4>Objects & Symbols</h4>
+          <div class="emoji-grid">
+            <span class="emoji-item">🔥</span>
+            <span class="emoji-item">✨</span>
+            <span class="emoji-item">💯</span>
+            <span class="emoji-item">💫</span>
+            <span class="emoji-item">⭐</span>
+            <span class="emoji-item">🌟</span>
+            <span class="emoji-item">💥</span>
+            <span class="emoji-item">💢</span>
+            <span class="emoji-item">💦</span>
+            <span class="emoji-item">💨</span>
+            <span class="emoji-item">🕳️</span>
+            <span class="emoji-item">💬</span>
+            <span class="emoji-item">👁️‍🗨️</span>
+            <span class="emoji-item">🗨️</span>
+            <span class="emoji-item">🗯️</span>
+            <span class="emoji-item">💭</span>
+            <span class="emoji-item">💤</span>
+            <span class="emoji-item">🎉</span>
+            <span class="emoji-item">🎊</span>
+            <span class="emoji-item">🎁</span>
+            <span class="emoji-item">🎈</span>
+            <span class="emoji-item">🎀</span>
+            <span class="emoji-item">🪩</span>
+            <span class="emoji-item">🪅</span>
+            <span class="emoji-item">🎆</span>
+            <span class="emoji-item">🎇</span>
+            <span class="emoji-item">🧨</span>
+            <span class="emoji-item">🎐</span>
+            <span class="emoji-item">🎏</span>
+            <span class="emoji-item">🎎</span>
+            <span class="emoji-item">🎑</span>
+            <span class="emoji-item">🧧</span>
+            <span class="emoji-item">🎀</span>
+            <span class="emoji-item">📱</span>
+            <span class="emoji-item">📲</span>
+            <span class="emoji-item">💻</span>
+            <span class="emoji-item">⌨️</span>
+            <span class="emoji-item">🖥️</span>
+            <span class="emoji-item">🖨️</span>
+            <span class="emoji-item">🖱️</span>
+            <span class="emoji-item">🖲️</span>
+            <span class="emoji-item">🕹️</span>
+            <span class="emoji-item">🗜️</span>
+            <span class="emoji-item">💽</span>
+            <span class="emoji-item">💾</span>
+            <span class="emoji-item">💿</span>
+            <span class="emoji-item">📀</span>
+            <span class="emoji-item">📼</span>
+            <span class="emoji-item">📷</span>
+            <span class="emoji-item">📸</span>
+            <span class="emoji-item">📹</span>
+            <span class="emoji-item">🎥</span>
+            <span class="emoji-item">📽️</span>
+            <span class="emoji-item">🎞️</span>
+            <span class="emoji-item">📞</span>
+            <span class="emoji-item">☎️</span>
+            <span class="emoji-item">📟</span>
+            <span class="emoji-item">📠</span>
+            <span class="emoji-item">📺</span>
+            <span class="emoji-item">📻</span>
+            <span class="emoji-item">🎙️</span>
+            <span class="emoji-item">🎚️</span>
+            <span class="emoji-item">🎛️</span>
+            <span class="emoji-item">🧭</span>
+            <span class="emoji-item">⏱️</span>
+            <span class="emoji-item">⏲️</span>
+            <span class="emoji-item">⏰</span>
+            <span class="emoji-item">🕰️</span>
+            <span class="emoji-item">⌛</span>
+            <span class="emoji-item">⏳</span>
+            <span class="emoji-item">📡</span>
+            <span class="emoji-item">🔋</span>
+            <span class="emoji-item">🪫</span>
+            <span class="emoji-item">🔌</span>
+            <span class="emoji-item">💡</span>
+            <span class="emoji-item">🔦</span>
+            <span class="emoji-item">🕯️</span>
+            <span class="emoji-item">🪔</span>
+            <span class="emoji-item">🧯</span>
+            <span class="emoji-item">🛢️</span>
+            <span class="emoji-item">💸</span>
+            <span class="emoji-item">💵</span>
+            <span class="emoji-item">💴</span>
+            <span class="emoji-item">💶</span>
+            <span class="emoji-item">💷</span>
+            <span class="emoji-item">🪙</span>
+            <span class="emoji-item">💰</span>
+            <span class="emoji-item">💳</span>
+            <span class="emoji-item">🪪</span>
+            <span class="emoji-item">💎</span>
+            <span class="emoji-item">⚖️</span>
+            <span class="emoji-item">🪜</span>
+            <span class="emoji-item">🧰</span>
+            <span class="emoji-item">🪛</span>
+            <span class="emoji-item">🔧</span>
+            <span class="emoji-item">🔨</span>
+            <span class="emoji-item">⚒️</span>
+            <span class="emoji-item">🛠️</span>
+            <span class="emoji-item">⛏️</span>
+            <span class="emoji-item">🪚</span>
+            <span class="emoji-item">🔩</span>
+            <span class="emoji-item">⚙️</span>
+            <span class="emoji-item">🪤</span>
+            <span class="emoji-item">🧱</span>
+            <span class="emoji-item">⛓️</span>
+            <span class="emoji-item">🧲</span>
+            <span class="emoji-item">🔫</span>
+            <span class="emoji-item">💣</span>
+            <span class="emoji-item">🧨</span>
+            <span class="emoji-item">🪓</span>
+            <span class="emoji-item">🔪</span>
+            <span class="emoji-item">🗡️</span>
+            <span class="emoji-item">⚔️</span>
+            <span class="emoji-item">🛡️</span>
+            <span class="emoji-item">🚬</span>
+            <span class="emoji-item">⚰️</span>
+            <span class="emoji-item">🪦</span>
+            <span class="emoji-item">⚱️</span>
+            <span class="emoji-item">🏺</span>
+            <span class="emoji-item">🔮</span>
+            <span class="emoji-item">📿</span>
+            <span class="emoji-item">🧿</span>
+            <span class="emoji-item">🪬</span>
+            <span class="emoji-item">💈</span>
+            <span class="emoji-item">⚗️</span>
+            <span class="emoji-item">🔭</span>
+            <span class="emoji-item">🔬</span>
+            <span class="emoji-item">🕳️</span>
+            <span class="emoji-item">🩹</span>
+            <span class="emoji-item">🩺</span>
+            <span class="emoji-item">🩻</span>
+            <span class="emoji-item">🩼</span>
+            <span class="emoji-item">💊</span>
+            <span class="emoji-item">💉</span>
+            <span class="emoji-item">🩸</span>
+            <span class="emoji-item">🧬</span>
+            <span class="emoji-item">🦠</span>
+            <span class="emoji-item">🧫</span>
+            <span class="emoji-item">🧪</span>
+            <span class="emoji-item">🌡️</span>
+            <span class="emoji-item">🧹</span>
+            <span class="emoji-item">🪠</span>
+            <span class="emoji-item">🧺</span>
+            <span class="emoji-item">🧻</span>
+            <span class="emoji-item">🚽</span>
+            <span class="emoji-item">🚰</span>
+            <span class="emoji-item">🚿</span>
+            <span class="emoji-item">🛁</span>
+            <span class="emoji-item">🛀</span>
+            <span class="emoji-item">🧼</span>
+            <span class="emoji-item">🪥</span>
+            <span class="emoji-item">🪒</span>
+            <span class="emoji-item">🧽</span>
+            <span class="emoji-item">🪣</span>
+            <span class="emoji-item">🧴</span>
+            <span class="emoji-item">🛎️</span>
+            <span class="emoji-item">🔑</span>
+            <span class="emoji-item">🗝️</span>
+            <span class="emoji-item">🚪</span>
+            <span class="emoji-item">🪑</span>
+            <span class="emoji-item">🛋️</span>
+            <span class="emoji-item">🛏️</span>
+            <span class="emoji-item">🛌</span>
+            <span class="emoji-item">🧸</span>
+            <span class="emoji-item">🪆</span>
+            <span class="emoji-item">🖼️</span>
+            <span class="emoji-item">🪞</span>
+            <span class="emoji-item">🪟</span>
+            <span class="emoji-item">🛍️</span>
+            <span class="emoji-item">🛒</span>
+            <span class="emoji-item">🎁</span>
+            <span class="emoji-item">🎀</span>
+            <span class="emoji-item">🎊</span>
+            <span class="emoji-item">🎉</span>
+            <span class="emoji-item">🎈</span>
+            <span class="emoji-item">🏮</span>
+            <span class="emoji-item">🎏</span>
+            <span class="emoji-item">✉️</span>
+            <span class="emoji-item">📩</span>
+            <span class="emoji-item">📨</span>
+            <span class="emoji-item">📧</span>
+            <span class="emoji-item">💌</span>
+            <span class="emoji-item">📥</span>
+            <span class="emoji-item">📤</span>
+            <span class="emoji-item">📦</span>
+            <span class="emoji-item">🏷️</span>
+            <span class="emoji-item">🪧</span>
+            <span class="emoji-item">📪</span>
+            <span class="emoji-item">📫</span>
+            <span class="emoji-item">📬</span>
+            <span class="emoji-item">📭</span>
+            <span class="emoji-item">📮</span>
+            <span class="emoji-item">📯</span>
+            <span class="emoji-item">📜</span>
+            <span class="emoji-item">📃</span>
+            <span class="emoji-item">📄</span>
+            <span class="emoji-item">📑</span>
+            <span class="emoji-item">🧾</span>
+            <span class="emoji-item">📊</span>
+            <span class="emoji-item">📈</span>
+            <span class="emoji-item">📉</span>
+            <span class="emoji-item">🗒️</span>
+            <span class="emoji-item">🗓️</span>
+            <span class="emoji-item">📆</span>
+            <span class="emoji-item">📅</span>
+            <span class="emoji-item">🗑️</span>
+            <span class="emoji-item">📇</span>
+            <span class="emoji-item">🗃️</span>
+            <span class="emoji-item">🗳️</span>
+            <span class="emoji-item">🗄️</span>
+            <span class="emoji-item">📋</span>
+            <span class="emoji-item">📁</span>
+            <span class="emoji-item">📂</span>
+            <span class="emoji-item">🗂️</span>
+            <span class="emoji-item">🗞️</span>
+            <span class="emoji-item">📰</span>
+            <span class="emoji-item">📓</span>
+            <span class="emoji-item">📔</span>
+            <span class="emoji-item">📒</span>
+            <span class="emoji-item">📕</span>
+            <span class="emoji-item">📗</span>
+            <span class="emoji-item">📘</span>
+            <span class="emoji-item">📙</span>
+            <span class="emoji-item">📚</span>
+            <span class="emoji-item">📖</span>
+            <span class="emoji-item">🔖</span>
+            <span class="emoji-item">🧷</span>
+            <span class="emoji-item">🔗</span>
+            <span class="emoji-item">📎</span>
+            <span class="emoji-item">🖇️</span>
+            <span class="emoji-item">📐</span>
+            <span class="emoji-item">📏</span>
+            <span class="emoji-item">🧮</span>
+            <span class="emoji-item">📌</span>
+            <span class="emoji-item">📍</span>
+            <span class="emoji-item">✂️</span>
+            <span class="emoji-item">🖊️</span>
+            <span class="emoji-item">🖋️</span>
+            <span class="emoji-item">✒️</span>
+            <span class="emoji-item">🖌️</span>
+            <span class="emoji-item">🖍️</span>
+            <span class="emoji-item">📝</span>
+            <span class="emoji-item">✏️</span>
+            <span class="emoji-item">🔍</span>
+            <span class="emoji-item">🔎</span>
+            <span class="emoji-item">🔏</span>
+            <span class="emoji-item">🔐</span>
+            <span class="emoji-item">🔒</span>
+            <span class="emoji-item">🔓</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

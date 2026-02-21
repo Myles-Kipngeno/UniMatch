@@ -3,35 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>UniMatch - Find Your Campus Connection</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="login.html">
-    <link rel="icon" href="/assets/images/favicon.ico">
-
-
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     
 </head>
 <body>
     
-
+  <!-- Navigation -->
   <nav class="navbar">
-    <div class="logo">❤️ UniMatch</div>
+    <div class="nav-container">
+      <div class="logo">
+        <span class="logo-icon">💖</span>
+        <span class="logo-text">UniMatch</span>
+      </div>
 
-    <ul class="nav-links">
-      <li><a href="#">Home</a></li>
-      <li><a href="#">Discover</a></li>
-      <li><a href="#">Matches</a></li>
-      <li><a href="#">Messages</a></li>
-      <li><a href="#">About</a></li>
-    </ul>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#about">About</a></li>
+      </ul>
 
-    <div class="nav-buttons">
-      <a href="login.html" class="login">Login</a>
-      <a href="signup.html" class="signup">Join Now</a>
+      <div class="nav-buttons">
+        <a href="login.html" class="btn-login">Login</a>
+        <a href="signup.html" class="btn-signup">Join Now</a>
+      </div>
+
+      <!-- Mobile Menu Button -->
+      <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
   </nav>
 
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-text">
+        <h1 class="hero-title">
+          Find Your Perfect
+          <span class="gradient-text">Campus Match</span>
+        </h1>
+        <p class="hero-subtitle">
+          Connect with students from your university. Make meaningful connections,
+          find study partners, or discover your perfect match on campus.
+        </p>
+        <div class="hero-buttons">
+          <a href="signup.html" class="btn-primary">
+            <span>Get Started</span>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M7.5 15l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </a>
+          <a href="#how-it-works" class="btn-secondary">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/>
+              <path d="M10 6v4l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Learn More</span>
+          </a>
+        </div>
+        <div class="stats">
+          <div class="stat-item">
+            <h3>10K+</h3>
+            <p>Active Students</p>
+          </div>
+          <div class="stat-item">
+            <h3>50+</h3>
+            <p>Universities</p>
+          </div>
+          <div class="stat-item">
+            <h3>5K+</h3>
+            <p>Matches Made</p>
+          </div>
+        </div>
+      </div>
+      <div class="hero-image">
+        <div class="mockup-card mockup-1">
+          <div class="card-header"></div>
+          <div class="card-image"></div>
+          <div class="card-info">
+            <div class="info-line long"></div>
+            <div class="info-line short"></div>
+          </div>
+        </div>
+        <div class="mockup-card mockup-2">
+          <div class="card-header"></div>
+          <div class="card-image"></div>
+          <div class="card-info">
+            <div class="info-line long"></div>
+            <div class="info-line short"></div>
+          </div>
+        </div>
+        <div class="floating-icon icon-1">❤️‍🩹💓</div>
+        <div class="floating-icon icon-2">✨⚜️</div>
+        <div class="floating-icon icon-3">💬</div>
+      </div>
+    </div>
+  </section>
 
+  <!-- Features Section -->
+  <section id="features" class="features">
+    <div class="section-container">
+      <h2 class="section-title">Why Choose UniMatch?</h2>
+      <p class="section-subtitle">Everything you need to find your perfect campus connection</p>
+      
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M16 4C9.373 4 4 9.373 4 16s5.373 12 12 12 12-5.373 12-12S22.627 4 16 4z" stroke="currentColor" stroke-width="2"/>
+              <path d="M16 8v8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>Campus Verified</h3>
+          <p>Only real students from Kabarak University. Verified @kabarak.ac.ke emails for authentic connections.</p>
+        </div>
 
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M16 2C8.268 2 2 8.268 2 16s6.268 14 14 14 14-6.268 14-14S23.732 2 16 2z" stroke="currentColor" stroke-width="2"/>
+              <path d="M16 10v6l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>Smart Matching</h3>
+          <p>Advanced algorithm matches you with students who share your interests and campus.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <rect x="6" y="6" width="20" height="20" rx="2" stroke="currentColor" stroke-width="2"/>
+              <path d="M6 12h20M12 6v6M20 6v6" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <h3>Safe & Private</h3>
+          <p>Your data is protected. Control who sees your profile and chat only with matches.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path d="M28 16c0 6.627-5.373 12-12 12s-12-5.373-12-12S9.373 4 16 4s12 5.373 12 12z" stroke="currentColor" stroke-width="2"/>
+              <path d="M16 10v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>Real-Time Chat</h3>
+          <p>Instant messaging with your matches. Share photos, emojis, and plan meetups.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works Section -->
+  <section id="how-it-works" class="how-it-works">
+    <div class="section-container">
+      <h2 class="section-title">How It Works</h2>
+      <p class="section-subtitle">Getting started is easy</p>
+      
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Create Your Profile</h3>
+            <p>Sign up with your university email and create an amazing profile that shows who you are.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Discover Students</h3>
+            <p>Browse profiles of students from your campus. Like the ones you're interested in.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Match & Connect</h3>
+            <p>When someone likes you back, it's a match! Start chatting and make a real connection.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta">
+    <div class="cta-content">
+      <h2>Ready to Find Your Match?</h2>
+      <p>Join thousands of students already making connections on UniMatch</p>
+      <a href="signup.html" class="btn-cta">
+        <span>Join Now - It's Free</span>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M7.5 15l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-logo">
+        <span class="logo-icon">💖</span>
+        <span class="logo-text">UniMatch</span>
+      </div>
+      <p class="footer-text">© 2026 UniMatch. Making campus connections easier.</p>
+    </div>
+  </footer>
+
+  <script src="index.js"></script>
 </body>
 </html>

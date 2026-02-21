@@ -16,6 +16,18 @@ import {
 
 const container = document.getElementById("discoverContainer");
 
+// Global references to the bottom indicator buttons
+const passIndicator = document.querySelector(".indicator.pass");
+const likeIndicator = document.querySelector(".indicator.like");
+
+// Tracks the currently visible card and its state
+let activeCard = null;
+let activeTargetUid = null;
+let activeLikedUids = null;
+let activeLikeAction = null;
+let activePassAction = null;
+let passedCards = [];
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = "login.html";
@@ -51,7 +63,6 @@ onAuthStateChanged(auth, async (user) => {
     const likedUids = new Set(likesSnap.docs.map(d => d.data().to));
 
     let hasCards = false;
-    let passedCards = []; // Store passed cards for undo
 
     for (const snap of usersSnap.docs) {
       const targetUid = snap.id;
@@ -68,8 +79,6 @@ onAuthStateChanged(auth, async (user) => {
       const card = document.createElement("div");
       card.className = "user-card";
 
-      const isLiked = likedUids.has(targetUid);
-
       card.innerHTML = `
         <img src="${data.photoURL || "./assets/images/default-avatar.png"}" alt="${data.name}">
         
@@ -85,16 +94,8 @@ onAuthStateChanged(auth, async (user) => {
           <p>📍 ${data.campus}</p>
           <p>📚 ${data.course}</p>
         </div>
-        <div class="card-actions">
-          <button class="action-btn pass-btn" data-action="pass">✕</button>
-          <button class="action-btn like-btn ${isLiked ? 'liked' : ''}" data-action="like">
-            ${isLiked ? '💔' : '❤️'}
-          </button>
-        </div>
       `;
 
-      const likeBtn = card.querySelector('[data-action="like"]');
-      const passBtn = card.querySelector('[data-action="pass"]');
       const infoBtn = card.querySelector('[data-action="info"]');
 
       // Info button handler - show profile details modal
@@ -120,10 +121,10 @@ onAuthStateChanged(auth, async (user) => {
         showProfileModal(data, targetUid);
       };
 
-      // Like button handler
-      likeBtn.onclick = async (e) => {
-        e.stopPropagation();
-        likeBtn.disabled = true;
+      // --- Like action for this card ---
+      const doLike = async () => {
+        if (likeIndicator.disabled) return;
+        likeIndicator.disabled = true;
 
         const from = user.uid;
         const to = targetUid;
@@ -137,8 +138,7 @@ onAuthStateChanged(auth, async (user) => {
             console.log("Unliking user:", to);
             await deleteDoc(doc(db, "likes", likeId));
             likedUids.delete(to);
-            likeBtn.classList.remove('liked');
-            likeBtn.textContent = '❤️';
+            updateLikeIndicator(false);
             
             // Delete match if it exists
             try {
@@ -151,12 +151,6 @@ onAuthStateChanged(auth, async (user) => {
             card.classList.add('swiping-right');
             
             console.log("Creating like from", from, "to", to);
-            console.log("Like data:", {
-              from,
-              to,
-              createdAt: "serverTimestamp()"
-            });
-            
             await setDoc(doc(db, "likes", likeId), {
               from,
               to,
@@ -180,16 +174,18 @@ onAuthStateChanged(auth, async (user) => {
               
               console.log("Match created successfully!");
               
-              // Show match celebration
               setTimeout(() => {
                 alert("🎉 It's a Match! Check your matches page!");
               }, 300);
             }
             
-            // Remove card after animation
+            // Remove card after animation and advance to next
             setTimeout(() => {
               card.classList.add('swipe-right');
-              setTimeout(() => card.remove(), 500);
+              setTimeout(() => {
+                card.remove();
+                updateActiveCard();
+              }, 500);
             }, 100);
           }
         } catch (err) {
@@ -205,12 +201,11 @@ onAuthStateChanged(auth, async (user) => {
           card.classList.remove('swiping-right');
         }
 
-        likeBtn.disabled = false;
+        likeIndicator.disabled = false;
       };
 
-      // Pass button handler with undo
-      passBtn.onclick = (e) => {
-        e.stopPropagation();
+      // --- Pass action for this card ---
+      const doPass = () => {
         card.classList.add('swiping-left');
         
         // Show undo notification
@@ -218,16 +213,29 @@ onAuthStateChanged(auth, async (user) => {
           // Undo callback - bring card back
           card.classList.remove('swiping-left', 'swipe-left');
           card.style.display = 'block';
+          // Re-attach this card as active
+          activeCard = card;
+          activeTargetUid = targetUid;
+          activeLikeAction = doLike;
+          activePassAction = doPass;
+          updateLikeIndicator(likedUids.has(targetUid));
         });
         
         setTimeout(() => {
           card.classList.add('swipe-left');
           setTimeout(() => {
-            card.style.display = 'none'; // Hide instead of remove
+            card.style.display = 'none';
             passedCards.push(card);
+            updateActiveCard();
           }, 500);
         }, 100);
       };
+
+      // Store actions on the card element for later binding
+      card._likeAction = doLike;
+      card._passAction = doPass;
+      card._targetUid = targetUid;
+      card._likedUids = likedUids;
 
       container.appendChild(card);
     }
@@ -240,7 +248,12 @@ onAuthStateChanged(auth, async (user) => {
           <button onclick="location.href='dashboard.html'">Back to Dashboard</button>
         </div>
       `;
+      disableIndicators();
+      return;
     }
+
+    // Set up the first active card
+    updateActiveCard();
 
   } catch (err) {
     console.error("Discover error:", err);
@@ -251,12 +264,80 @@ onAuthStateChanged(auth, async (user) => {
         <button onclick="location.reload()">Retry</button>
       </div>
     `;
+    disableIndicators();
   }
 });
 
-// Undo notification function
+// Wire up the bottom indicator buttons
+if (passIndicator) {
+  passIndicator.addEventListener("click", () => {
+    if (activePassAction) activePassAction();
+  });
+}
+
+if (likeIndicator) {
+  likeIndicator.addEventListener("click", () => {
+    if (activeLikeAction) activeLikeAction();
+  });
+}
+
+/**
+ * Finds the topmost visible card and makes it the active one,
+ * binding the bottom Pass/Like buttons to it.
+ */
+function updateActiveCard() {
+  const cards = [...container.querySelectorAll(".user-card")].filter(
+    c => c.style.display !== "none"
+  );
+
+  if (cards.length === 0) {
+    activeCard = null;
+    activeTargetUid = null;
+    activeLikeAction = null;
+    activePassAction = null;
+    disableIndicators();
+    return;
+  }
+
+  // The last appended visible card is on top (DOM stacking)
+  const card = cards[cards.length - 1];
+  activeCard = card;
+  activeTargetUid = card._targetUid;
+  activeLikeAction = card._likeAction;
+  activePassAction = card._passAction;
+
+  updateLikeIndicator(card._likedUids && card._likedUids.has(activeTargetUid));
+  enableIndicators();
+}
+
+function updateLikeIndicator(isLiked) {
+  if (!likeIndicator) return;
+  const svg = likeIndicator.querySelector("svg");
+  const span = likeIndicator.querySelector("span");
+
+  if (isLiked) {
+    likeIndicator.classList.add("liked");
+    if (span) span.textContent = "Unlike";
+  } else {
+    likeIndicator.classList.remove("liked");
+    if (span) span.textContent = "Like";
+  }
+}
+
+function enableIndicators() {
+  if (passIndicator) passIndicator.style.pointerEvents = "auto";
+  if (likeIndicator) likeIndicator.style.pointerEvents = "auto";
+}
+
+function disableIndicators() {
+  if (passIndicator) passIndicator.style.pointerEvents = "none";
+  if (likeIndicator) likeIndicator.style.pointerEvents = "none";
+}
+
+// =====================
+// Undo notification
+// =====================
 function showUndoNotification(undoCallback) {
-  // Remove existing undo notification if any
   const existing = document.querySelector('.undo-notification');
   if (existing) existing.remove();
 
@@ -269,7 +350,6 @@ function showUndoNotification(undoCallback) {
 
   document.body.appendChild(notification);
 
-  // Show with animation
   setTimeout(() => notification.classList.add('show'), 10);
 
   const undoBtn = notification.querySelector('.undo-btn');
@@ -282,7 +362,6 @@ function showUndoNotification(undoCallback) {
     setTimeout(() => notification.remove(), 300);
   };
 
-  // Auto-hide after 3 seconds
   setTimeout(() => {
     if (!undoClicked) {
       notification.classList.remove('show');
@@ -291,13 +370,13 @@ function showUndoNotification(undoCallback) {
   }, 3000);
 }
 
-// Profile details modal function
+// =====================
+// Profile details modal
+// =====================
 async function showProfileModal(userData, userId) {
-  // Remove existing modal if any
   const existing = document.querySelector('.profile-modal');
   if (existing) existing.remove();
 
-  // Fetch user's photo posts
   let photoPosts = [];
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
@@ -308,15 +387,12 @@ async function showProfileModal(userData, userId) {
     console.error("Error fetching photo posts:", err);
   }
 
-  // Create modal
   const modal = document.createElement('div');
   modal.className = 'profile-modal';
   
-  // Build photo gallery HTML
   let photosHTML = '';
   
   if (photoPosts.length === 0) {
-    // No posts - show placeholder
     photosHTML = `
       <div class="no-photos">
         <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
@@ -328,7 +404,6 @@ async function showProfileModal(userData, userId) {
       </div>
     `;
   } else {
-    // Has posts - show gallery
     photoPosts.forEach((photoUrl, index) => {
       photosHTML += `
         <div class="photo-item ${index === 0 ? 'active' : ''}">
@@ -415,10 +490,8 @@ async function showProfileModal(userData, userId) {
 
   document.body.appendChild(modal);
 
-  // Show modal with animation
   setTimeout(() => modal.classList.add('show'), 10);
 
-  // Gallery navigation (only if there are photos)
   if (totalPhotos > 1) {
     let currentPhotoIndex = 0;
     const photoItems = modal.querySelectorAll('.photo-item');
@@ -455,7 +528,6 @@ async function showProfileModal(userData, userId) {
     });
   }
 
-  // Close modal
   const closeBtn = modal.querySelector('.modal-close');
   const overlay = modal.querySelector('.modal-overlay');
 
