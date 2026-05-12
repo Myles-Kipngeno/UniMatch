@@ -6,19 +6,129 @@
   <title>Complete Profile | UniMatch</title>
   <link rel="stylesheet" href="profile.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <style>
+    /* ── Three-dot menu ── */
+    .card {
+      position: relative; /* ensure absolute children are anchored here */
+    }
+
+    .profile-card-menu {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 50;
+    }
+
+    .profile-menu-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(8px);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .profile-menu-btn:hover {
+      background: rgba(255, 255, 255, 0.30);
+      transform: scale(1.08);
+    }
+
+    .profile-menu-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+      min-width: 190px;
+      opacity: 0;
+      transform: scale(0.92) translateY(-6px);
+      transform-origin: top right;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .profile-menu-dropdown.open {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      pointer-events: auto;
+    }
+
+    .profile-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 18px;
+      color: #1a1a2e;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.15s ease;
+    }
+
+    .profile-menu-item:hover {
+      background: #f5f3ff;
+      color: #667eea;
+    }
+
+    .profile-menu-item svg {
+      flex-shrink: 0;
+      color: #667eea;
+    }
+
+    .profile-menu-item + .profile-menu-item {
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+    }
+  </style>
 </head>
 <body>
-  
+
   <div class="bg-gradient"></div>
-  
+
   <div class="container">
     <div class="card">
+
+      <!-- ── Three-dot menu (only shown in edit mode) ── -->
+      <div class="profile-card-menu" id="profileCardMenu" style="display:none">
+        <button class="profile-menu-btn" id="profileMenuBtn" title="More options">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="5"  r="2"/>
+            <circle cx="12" cy="12" r="2"/>
+            <circle cx="12" cy="19" r="2"/>
+          </svg>
+        </button>
+        <div class="profile-menu-dropdown" id="profileMenuDropdown">
+          <a href="upload-photos.html" class="profile-menu-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+              <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>Upload Photos</span>
+          </a>
+          <a href="dashboard.html" class="profile-menu-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M9 22V12h6v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>Back to Home</span>
+          </a>
+        </div>
+      </div>
+
       <div class="header">
         <h2>💖 UniMatch</h2>
         <p class="subtitle">Create your profile</p>
       </div>
 
-      <!-- 📸 Profile photo -->
+      <!-- Profile photo -->
       <div class="photo-section">
         <div class="photo-container">
           <img id="profilePreview" src="default-avatar.png" alt="Profile">
@@ -46,7 +156,6 @@
               <option value="male">Male</option>
               <option value="female">Female</option>
             </select>
-
             <input type="number" id="age" placeholder="Age" min="18" max="99" required>
           </div>
 
@@ -59,7 +168,7 @@
           </div>
 
           <div class="form-group">
-            <textarea id="bio" placeholder="Write something about yourself... (optional)" rows="3"></textarea>
+            <textarea id="bio" placeholder="Write something about yourself..." rows="3"></textarea>
           </div>
 
           <div class="form-group">
@@ -85,5 +194,24 @@
   </div>
 
   <script type="module" src="./profile.js"></script>
+  <script>
+    // Show three-dot menu only in edit mode
+    const isEdit = new URLSearchParams(window.location.search).get("edit") === "true";
+    if (isEdit) {
+      document.getElementById("profileCardMenu").style.display = "block";
+    }
+
+    // Toggle dropdown
+    const menuBtn  = document.getElementById("profileMenuBtn");
+    const dropdown = document.getElementById("profileMenuDropdown");
+
+    menuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dropdown.classList.toggle("open");
+    });
+
+    document.addEventListener("click", () => dropdown.classList.remove("open"));
+    dropdown.addEventListener("click", (e) => e.stopPropagation());
+  </script>
 </body>
 </html>

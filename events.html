@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events | UniMatch</title>
+  <link rel="stylesheet" href="events.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="bg-mesh"></div>
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="nav-content">
+      <div class="logo" onclick="location.href='dashboard.html'">
+        <div class="logo-mark">U</div>
+        <div class="logo-words">
+          <span class="logo-main">UniMatch</span>
+          <span class="logo-sub">Your campus, connected</span>
+        </div>
+      </div>
+      <div class="nav-center">
+        <a href="dashboard.html" class="nav-link">Home</a>
+        <a href="discover.html"  class="nav-link">Discover</a>
+        <a href="events.html"    class="nav-link active">Events</a>
+        <a href="feed.html"      class="nav-link">Feed</a>
+      </div>
+      <div class="nav-right">
+        <button class="btn-create" id="openCreateBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+          Create Event
+        </button>
+        <button class="nav-back" onclick="location.href='dashboard.html'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="events-page">
+
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">Campus Events</h1>
+        <p class="page-sub">Discover what's happening at your university</p>
+      </div>
+      <div class="header-filters">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="study">Study</button>
+        <button class="filter-chip" data-filter="social">Social</button>
+        <button class="filter-chip" data-filter="sports">Sports</button>
+        <button class="filter-chip" data-filter="academic">Academic</button>
+        <button class="filter-chip" data-filter="other">Other</button>
+      </div>
+    </div>
+
+    <!-- EVENTS GRID -->
+    <div class="events-grid" id="eventsGrid">
+      <div class="loading-state" id="loadingState">
+        <div class="spinner"></div>
+        <p>Loading events...</p>
+      </div>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-icon">🎪</div>
+      <h3>No events yet</h3>
+      <p>Be the first to create an event for your campus</p>
+      <button class="btn-primary" id="emptyCreateBtn">Create First Event</button>
+    </div>
+
+  </main>
+
+  <!-- ═══════════════════════════════
+       CREATE EVENT MODAL
+  ═══════════════════════════════ -->
+  <div class="modal-backdrop" id="createModal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Create Event</h2>
+        <button class="modal-close" id="closeCreateBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <form id="createEventForm" class="modal-body">
+
+        <div class="form-group">
+          <label>Event Title *</label>
+          <input type="text" id="eventTitle" placeholder="e.g. Contract Law Study Session" maxlength="80" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Category *</label>
+            <select id="eventCategory" required>
+              <option value="">Select category</option>
+              <option value="study">📚 Study</option>
+              <option value="social">🎉 Social</option>
+              <option value="sports">⚽ Sports</option>
+              <option value="academic">🎓 Academic</option>
+              <option value="other">✨ Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Max Attendees</label>
+            <input type="number" id="eventMax" placeholder="No limit" min="2" max="500">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date *</label>
+            <input type="date" id="eventDate" required>
+          </div>
+          <div class="form-group">
+            <label>Time *</label>
+            <input type="time" id="eventTime" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Location *</label>
+          <input type="text" id="eventLocation" placeholder="e.g. Library Block B, Room 204" required>
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="eventDesc" placeholder="What's this event about? Who should come?" rows="3" maxlength="500"></textarea>
+          <span class="char-count"><span id="descCount">0</span>/500</span>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-ghost" id="cancelCreateBtn">Cancel</button>
+          <button type="submit" class="btn-primary" id="submitEventBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Publish Event
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════
+       EVENT DETAIL MODAL
+  ═══════════════════════════════ -->
+  <div class="modal-backdrop" id="detailModal" style="display:none">
+    <div class="modal modal-detail">
+      <button class="modal-close" id="closeDetailBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <div class="detail-category-bar" id="detailCategoryBar"></div>
+
+      <div class="modal-body detail-body">
+        <div class="detail-header">
+          <div class="detail-meta-top">
+            <span class="detail-category-tag" id="detailCategory"></span>
+            <span class="detail-date-tag" id="detailDateTag"></span>
+          </div>
+          <h2 class="detail-title" id="detailTitle"></h2>
+          <div class="detail-host">
+            <img class="host-avatar" id="detailHostAvatar" src="./assets/images/default-avatar.png">
+            <div>
+              <span class="host-label">Hosted by</span>
+              <span class="host-name" id="detailHostName"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-info-grid">
+          <div class="detail-info-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <div><span class="info-label">Date & Time</span><span class="info-val" id="detailDateTime"></span></div>
+          </div>
+          <div class="detail-info-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2C8.134 2 5 5.134 5 9c0 6.25 7 13 7 13s7-6.75 7-13c0-3.866-3.134-7-7-7z" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="12" cy="9" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            <div><span class="info-label">Location</span><span class="info-val" id="detailLocation"></span></div>
+          </div>
+          <div class="detail-info-item">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <div><span class="info-label">Attendees</span><span class="info-val" id="detailAttendees"></span></div>
+          </div>
+        </div>
+
+        <div class="detail-desc" id="detailDesc"></div>
+
+        <!-- Attendees avatars -->
+        <div class="attendees-section" id="attendeesSection">
+          <h4>Who's going</h4>
+          <div class="attendees-row" id="attendeesRow"></div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="btn-rsvp" id="rsvpBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="rsvpBtnText">RSVP — I'm going</span>
+          </button>
+          <button class="btn-delete-event" id="deleteEventBtn" style="display:none">Delete Event</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="auth-guard.js"></script>
+  <script type="module" src="events.js"></script>
+</body>
+</html>

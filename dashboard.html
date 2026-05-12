@@ -6,149 +6,218 @@
   <title>Dashboard | UniMatch</title>
   <link rel="stylesheet" href="dashboard.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Animated background -->
-  <div class="bg-animation">
-    <div class="shape shape-1"></div>
-    <div class="shape shape-2"></div>
-    <div class="shape shape-3"></div>
-  </div>
+  <div class="bg-mesh"></div>
+  <div class="bg-grid"></div>
 
+  <!-- NAVBAR -->
   <nav class="navbar">
     <div class="nav-content">
-      <h1 class="logo">
-        <span class="logo-icon">💖</span>
-        <span class="logo-text">UniMatch</span>
-      </h1>
-      <button id="logoutBtn" class="logout-btn">
-        <span>Logout</span>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M6 14H3.33333C2.97971 14 2.64057 13.8595 2.39052 13.6095C2.14048 13.3594 2 13.0203 2 12.6667V3.33333C2 2.97971 2.14048 2.64057 2.39052 2.39052C2.64057 2.14048 2.97971 2 3.33333 2H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M10.6667 11.3333L14 8L10.6667 4.66667" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M14 8H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
+      <div class="logo">
+        <div class="logo-mark">U</div>
+        <div class="logo-words">
+          <span class="logo-main">UniMatch</span>
+          <span class="logo-sub">Your campus, connected</span>
+        </div>
+      </div>
+
+      <div class="nav-center">
+        <a href="dashboard.html" class="nav-link active">Home</a>
+        <a href="discover.html"  class="nav-link">Discover</a>
+        <a href="groups.html"    class="nav-link">Groups</a>
+        <a href="events.html"    class="nav-link">Events</a>
+        <a href="feed.html"      class="nav-link">Feed</a>
+      </div>
+
+      <div class="nav-right">
+        <button class="nav-icon-btn" onclick="location.href='matches.html'" title="Messages">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+          <span class="nav-badge" id="msgBadge" style="display:none"></span>
+        </button>
+        <div class="nav-avatar" id="navAvatar" onclick="location.href='profile.html?edit=true'">
+          <img id="navPhoto" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+" alt="You">
+        </div>
+        <button id="logoutBtn" class="logout-btn">Logout</button>
+      </div>
     </div>
   </nav>
 
-  <main class="dashboard page">
+  <main class="dashboard">
 
-    <section class="welcome">
-      <div class="profile-section">
-        <div class="profile-pic-container">
-          <img
-            id="profilePhoto"
-            src="./assets/images/default-avatar.png"
-            class="profile-pic"
-            alt="Profile photo"
-          />
-          <div class="online-indicator"></div>
+    <!-- HERO WELCOME -->
+    <section class="hero">
+      <div class="hero-left">
+        <div class="hero-avatar-wrap">
+          <img id="profilePhoto" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+" class="hero-avatar" alt="Profile">
+          <div class="online-dot"></div>
         </div>
-        
-        <div class="welcome-text">
-          <h2 id="welcomeName">Welcome back! 👋</h2>
-          <p id="profileSummary">Loading your profile...</p>
+        <div class="hero-text">
+          <p class="hero-greeting" id="greetingLine">Good morning</p>
+          <h2 class="hero-name" id="welcomeName">Loading...</h2>
+          <p class="hero-meta" id="profileSummary">Loading your profile...</p>
         </div>
       </div>
+      <div class="hero-right">
+        <button class="btn-primary" id="editProfileBtn">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+            <path d="M12.75 2.25L15.75 5.25L5.25 15.75H2.25V12.75L12.75 2.25Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Edit Profile
+        </button>
+      </div>
+    </section>
 
-      <button id="editProfileBtn" class="edit-profile-btn">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <path d="M12.75 2.25L15.75 5.25L5.25 15.75H2.25V12.75L12.75 2.25Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span>Edit Profile</span>
+    <!-- STATS ROW -->
+    <section class="stats-row">
+      <button class="stat-pill stat-pill-btn" id="pill-views">
+        <span class="stat-num" id="profileViews">0</span>
+        <span class="stat-label">Profile Views</span>
+      </button>
+      <div class="stat-divider"></div>
+      <button class="stat-pill stat-pill-btn" id="pill-likes">
+        <span class="stat-num" id="likesReceived">0</span>
+        <span class="stat-label">Likes Received</span>
+      </button>
+      <div class="stat-divider"></div>
+      <button class="stat-pill stat-pill-btn highlight" id="pill-matches">
+        <span class="stat-num" id="totalMatches">0</span>
+        <span class="stat-label">Matches</span>
       </button>
     </section>
 
-    <section class="stats-section">
-      <div class="stat-card">
-        <div class="stat-icon">👀</div>
-        <div class="stat-content">
-          <h3 id="profileViews">0</h3>
-          <p>Profile Views</p>
+    <!-- SECTION LABEL -->
+    <div class="section-label">
+      <span>Your Campus Hub</span>
+    </div>
+
+    <!-- MAIN FEATURE GRID -->
+    <section class="feature-grid">
+
+      <div class="feature-card card-discover" onclick="location.href='discover.html'">
+        <div class="card-glow"></div>
+        <div class="card-body">
+          <div class="card-tag">Meet People</div>
+          <h3>Discover</h3>
+          <p>Swipe through profiles from your campus and find your people</p>
+          <div class="card-arrow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="card-visual discover-visual">
+          <div class="mini-card mc1"></div>
+          <div class="mini-card mc2"></div>
+          <div class="mini-card mc3"></div>
         </div>
       </div>
-      
-      <div class="stat-card">
-        <div class="stat-icon">❤️</div>
-        <div class="stat-content">
-          <h3 id="likesReceived">0</h3>
-          <p>Likes Received</p>
+
+      <div class="feature-card card-matches" id="matchesCard">
+        <div class="card-body">
+          <div class="card-tag">Connections</div>
+          <h3>Matches</h3>
+          <p id="matchCount">See who liked you back</p>
+          <div class="card-badge-pill" id="matchBadge" style="display:none"></div>
+        </div>
+        <div class="card-visual">
+          <div class="hearts-visual"><span>💖</span><span>💕</span><span>✨</span></div>
         </div>
       </div>
-      
-      <div class="stat-card highlight">
-        <div class="stat-icon">✨</div>
-        <div class="stat-content">
-          <h3 id="totalMatches">0</h3>
-          <p>Total Matches</p>
+
+      <div class="feature-card card-messages" id="chatCard">
+        <div class="card-body">
+          <div class="card-tag">Chat</div>
+          <h3>Messages</h3>
+          <p>Continue your conversations</p>
+          <div class="card-badge-pill" id="unreadBadge" style="display:none"></div>
+        </div>
+        <div class="card-visual">
+          <div class="bubbles-visual">
+            <div class="bubble b1"></div>
+            <div class="bubble b2"></div>
+            <div class="bubble b3"></div>
+          </div>
         </div>
       </div>
+
+      <div class="feature-card card-groups" onclick="location.href='groups.html'">
+        <div class="card-body">
+          <div class="card-tag">Academic</div>
+          <h3>Study Groups</h3>
+          <p>Create or join groups tied to your course and units</p>
+        </div>
+        <div class="card-visual">
+          <div class="groups-visual">
+            <div class="group-avatar ga1"></div>
+            <div class="group-avatar ga2"></div>
+            <div class="group-avatar ga3"></div>
+            <div class="group-avatar ga4">+</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-card card-feed" onclick="location.href='feed.html'">
+        <div class="card-body">
+          <div class="card-tag">Knowledge</div>
+          <h3>Course Feed</h3>
+          <p>Share notes, ask questions and post resources for your course</p>
+        </div>
+        <div class="card-visual">
+          <div class="feed-visual">
+            <div class="feed-line fl1"></div>
+            <div class="feed-line fl2"></div>
+            <div class="feed-line fl3"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-card card-events" onclick="location.href='events.html'">
+        <div class="card-body">
+          <div class="card-tag">Campus Life</div>
+          <h3>Events</h3>
+          <p>Discover campus events, study sessions and society meetups</p>
+        </div>
+        <div class="card-visual">
+          <div class="events-visual">
+            <div class="event-dot ed1"></div>
+            <div class="event-dot ed2"></div>
+            <div class="event-dot ed3"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-card card-upload" onclick="location.href='upload-photos.html'">
+        <div class="card-body">
+          <div class="card-tag">Profile</div>
+          <h3>Upload Photos</h3>
+          <p>Add photos to your profile to stand out</p>
+        </div>
+        <div class="card-visual">
+          <div class="upload-visual">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+              <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
     </section>
 
-    <section class="actions">
-      <div class="action-card discover-card" onclick="location.href='discover.html'">
-        <div class="card-icon">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
-            <circle cx="16" cy="16" r="4" fill="currentColor"/>
-            <path d="M16 2v4M16 26v4M2 16h4M26 16h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h3>Discover</h3>
-        <p>Find new connections</p>
-      </div>
-
-      <div class="action-card matches-card" id="matchesCard">
-        <div class="card-icon">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <path d="M16 28c6.627 0 12-5.373 12-12S22.627 4 16 4 4 9.373 4 16s5.373 12 12 12z" stroke="currentColor" stroke-width="2"/>
-            <path d="M16 11v10M11 16h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h3>Matches</h3>
-        <p id="matchCount">Loading...</p>
-        <div class="card-badge" id="matchBadge" style="display: none;"></div>
-      </div>
-
-      <div class="action-card chat-card" id="chatCard">
-        <div class="card-icon">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <path d="M28 16c0 6.627-5.373 12-12 12-1.5 0-2.927-.276-4.245-.781L6 28l1.031-5.755A11.952 11.952 0 014 16C4 9.373 9.373 4 16 4s12 5.373 12 12z" stroke="currentColor" stroke-width="2"/>
-            <circle cx="12" cy="16" r="1.5" fill="currentColor"/>
-            <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
-            <circle cx="20" cy="16" r="1.5" fill="currentColor"/>
-          </svg>
-        </div>
-        <h3>Messages</h3>
-        <p>Start chatting</p>
-        <div class="card-badge" id="unreadBadge" style="display: none;"></div>
-      </div>
-
-      <div class="action-card upload-card" id="uploadPhotoCard" onclick="location.href='upload-photos.html'">
-        <div class="card-icon">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <rect x="4" y="8" width="24" height="20" rx="2" stroke="currentColor" stroke-width="2"/>
-            <circle cx="16" cy="16" r="4" stroke="currentColor" stroke-width="2"/>
-            <path d="M24 8L28 4M8 8L4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h3>Upload Photo</h3>
-        <p>Share your photos</p>
-      </div>
-    </section>
+    <div class="platform-note">
+      <span>🚀 UniMatch is growing — study groups, course feeds and events are live!</span>
+    </div>
 
   </main>
 
-  <!-- Auth + profile guard -->
   <script type="module" src="auth-guard.js"></script>
-
-  <!-- Dashboard logic -->
   <script type="module" src="dashboard.js"></script>
-
-  <!-- Logout -->
   <script type="module" src="logout.js"></script>
-
 </body>
 </html>

@@ -3,14 +3,102 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Upload Photos | UniMatch</title>
+  <title>Media | UniMatch</title>
   <link rel="stylesheet" href="upload-photos.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <style>
+    .top-navbar {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: rgba(10,10,26,0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 1px 12px rgba(0,0,0,0.3);
+    }
+    .top-nav-content {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .top-nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .top-nav-logo-mark {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #6c47ff, #a855f7);
+      color: white; font-size: 15px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(108,71,255,0.4);
+    }
+    .top-nav-logo-words { display: flex; flex-direction: column; line-height: 1; }
+    .top-nav-logo-main  { font-size: 14px; font-weight: 700; color: white; letter-spacing: -0.3px; }
+    .top-nav-logo-sub   { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+    .top-nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 50px;
+      padding: 4px;
+    }
+    .top-nav-link {
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.5);
+      padding: 6px 15px;
+      border-radius: 50px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .top-nav-link:hover  { color: white; background: rgba(255,255,255,0.1); }
+    .top-nav-link.active { color: #a78bfa; background: rgba(108,71,255,0.25); font-weight: 600; }
+    @media (max-width: 600px) {
+      .top-nav-logo-words { display: none; }
+      .top-nav-link { padding: 6px 10px; font-size: 12px; }
+      .top-nav-content { padding: 0 12px; }
+    }
+  </style>
 </head>
 <body>
 
   <div class="bg-gradient"></div>
 
+  <!-- Shared Top Nav -->
+  <nav class="top-navbar">
+    <div class="top-nav-content">
+      <div class="top-nav-logo" onclick="location.href='dashboard.html'">
+        <div class="top-nav-logo-mark">U</div>
+        <div class="top-nav-logo-words">
+          <span class="top-nav-logo-main">UniMatch</span>
+          <span class="top-nav-logo-sub">Your campus, connected</span>
+        </div>
+      </div>
+      <div class="top-nav-links">
+        <a href="dashboard.html" class="top-nav-link">Home</a>
+        <a href="discover.html"  class="top-nav-link">Discover</a>
+        <a href="matches.html"   class="top-nav-link">Messages</a>
+        <a href="groups.html"    class="top-nav-link">Groups</a>
+        <a href="feed.html"      class="top-nav-link">Feed</a>
+        <a href="events.html"    class="top-nav-link">Events</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page Navbar -->
   <nav class="navbar">
     <div class="nav-content">
       <button onclick="location.href='dashboard.html'" class="back-btn">
@@ -18,21 +106,18 @@
           <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      
-      <h1 class="page-title">My Photo Posts</h1>
-      
+      <h1 class="page-title">My Media</h1>
       <div class="spacer"></div>
     </div>
   </nav>
 
   <main class="upload-page">
-    
+
     <!-- User Profile Section -->
     <div class="profile-header">
       <div class="profile-photo-large">
-        <img id="userProfilePhoto" src="./assets/images/default-avatar.png" alt="Profile">
+        <img id="userProfilePhoto" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%231a1a2e'/%3E%3Ccircle cx='50' cy='38' r='18' fill='%23444466'/%3E%3Cellipse cx='50' cy='85' rx='28' ry='20' fill='%23444466'/%3E%3C/svg%3E" alt="Profile">
       </div>
-      
       <div class="profile-info">
         <h2 id="userName">Username</h2>
         <div class="profile-stats">
@@ -40,23 +125,27 @@
             <span class="stat-value" id="photoCount">0</span>
             <span class="stat-label">photos</span>
           </div>
+          <div class="stat">
+            <span class="stat-value" id="videoCount">0</span>
+            <span class="stat-label">videos</span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Upload Button -->
     <div class="upload-actions">
-      <button class="upload-photo-btn" id="uploadPhotoBtn">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M2 13l4-4 3 3 6-6 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <button class="upload-btn upload-photo-btn" id="uploadPhotoBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <polyline points="17 8 12 3 7 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        <span>Upload Photo</span>
-        <input type="file" id="fileInput" accept="image/*" multiple hidden>
+        <span>Upload</span>
+        <input type="file" id="fileInput" accept="image/*,video/*" multiple hidden>
       </button>
     </div>
-    
+
     <div id="uploadProgress" class="upload-progress" style="display: none;">
       <div class="progress-bar">
         <div class="progress-fill" id="progressFill"></div>
@@ -64,11 +153,38 @@
       <p id="progressText">Uploading...</p>
     </div>
 
-    <!-- Photos Grid -->
-    <div class="photos-grid" id="photosGrid">
-      <div class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>Loading your photos...</p>
+    <!-- Photos Section -->
+    <div class="media-section" id="photosSection">
+      <h3 class="section-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+          <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Photos
+      </h3>
+      <div class="media-grid" id="photosGrid">
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Videos Section -->
+    <div class="media-section" id="videosSection">
+      <h3 class="section-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M16 9l6-4v14l-6-4V9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        Videos
+      </h3>
+      <div class="media-grid" id="videosGrid">
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading...</p>
+        </div>
       </div>
     </div>
 

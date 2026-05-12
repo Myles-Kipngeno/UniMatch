@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Group Chat | UniMatch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="group-chat.css" />
+</head>
+<body>
+
+<!-- ░░ Background mesh ░░ -->
+<div class="bg-mesh"></div>
+
+<!-- ══════════════════════════════════════
+     NAVBAR
+══════════════════════════════════════ -->
+<nav class="navbar">
+  <div class="nav-content">
+
+    <!-- Back button + group info -->
+    <div class="chat-mode-nav">
+      <button class="chat-back-btn" id="chatBackBtn" title="Back to group">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M19 12H5M12 19l-7-7 7-7"
+                stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="chat-nav-info">
+        <div class="chat-nav-name"    id="chatNavName">Group Chat</div>
+        <div class="chat-nav-members" id="chatNavMembers"></div>
+      </div>
+    </div>
+
+    <!-- Three-dot menu button (moved here from header bar) -->
+    <button class="chat-more-btn" id="chatMoreBtn" title="More options">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="5"  r="1.2" fill="currentColor"/>
+        <circle cx="12" cy="12" r="1.2" fill="currentColor"/>
+        <circle cx="12" cy="19" r="1.2" fill="currentColor"/>
+      </svg>
+    </button>
+
+    <!-- Three-dot dropdown (anchored inside navbar now) -->
+    <div class="chat-dropdown-menu" id="chatDropdownMenu" style="display:none">
+      <button class="chat-menu-item" id="gcMediaBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2"
+                stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+          <path d="M21 15l-5-5L5 21"
+                stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        Media &amp; Files
+      </button>
+
+      <button class="chat-menu-item" id="gcMuteBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9
+                   M13.73 21a2 2 0 01-3.46 0"
+                stroke="currentColor" stroke-width="1.6"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="gcMuteLabel">Mute Notifications</span>
+      </button>
+
+      <div class="chat-menu-divider"></div>
+
+      <button class="chat-menu-item" id="gcClearChat">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
+                stroke="currentColor" stroke-width="1.6"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Clear Chat
+      </button>
+
+      <button class="chat-menu-item danger" id="gcLeaveChat">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4
+                   M16 17l5-5-5-5M21 12H9"
+                stroke="currentColor" stroke-width="1.6"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Leave Group
+      </button>
+    </div>
+
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     CHAT PANEL
+══════════════════════════════════════ -->
+<div class="chat-page-wrap">
+
+  <!-- ── Select-mode toolbar ── -->
+  <div class="chat-select-toolbar" id="chatSelectToolbar" style="display:none">
+    <button class="select-cancel-btn" id="chatCancelSelect">Cancel</button>
+    <span   class="select-count"     id="chatSelectedCount">0 selected</span>
+    <button class="select-delete-btn" id="chatDeleteSelected">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+        <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
+              stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Delete
+    </button>
+  </div>
+
+  <!-- ── Messages ── -->
+  <div class="chat-messages" id="chatMessages">
+    <p class="chat-empty-hint">Loading messages…</p>
+  </div>
+
+  <!-- ── Compose bar ── -->
+  <div class="chat-compose" id="chatComposeBar">
+    <div class="compose-avatar-wrap" id="chatAvatarWrap">
+      <img class="compose-avatar sm" id="chatAvatar"
+           src="" alt="" style="display:none" />
+      <div class="compose-avatar-initials" id="chatAvatarInitials">?</div>
+    </div>
+
+    <div class="chat-input-wrap">
+      <button class="chat-emoji-btn" id="chatEmojiBtn" title="Emoji">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+          <circle cx="9" cy="10" r="0.5" fill="currentColor" stroke="none"/>
+          <circle cx="15" cy="10" r="0.5" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+
+      <input class="chat-input" id="chatInput"
+             placeholder="Type a message…" autocomplete="off" />
+
+      <label class="chat-attach-btn" title="Attach file">
+        <input type="file" id="chatFileInput" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19
+                   a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"
+                stroke="currentColor" stroke-width="1.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </label>
+    </div>
+
+    <button class="btn-send" id="chatSendBtn" title="Send">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
+              stroke="white" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+
+</div><!-- /chat-page-wrap -->
+
+
+<!-- ══════════════════════════════════════
+     CONTEXT MENU
+══════════════════════════════════════ -->
+<div class="gc-context-menu" id="gcContextMenu" style="display:none">
+  <div class="gc-reaction-row">
+    <button class="gc-reaction-btn" data-emoji="❤️">❤️</button>
+    <button class="gc-reaction-btn" data-emoji="😂">😂</button>
+    <button class="gc-reaction-btn" data-emoji="👍">👍</button>
+    <button class="gc-reaction-btn" data-emoji="😮">😮</button>
+    <button class="gc-reaction-btn" data-emoji="😢">😢</button>
+    <button class="gc-reaction-btn" data-emoji="🔥">🔥</button>
+    <button class="gc-reaction-btn gc-reaction-more" data-emoji="" title="More">＋</button>
+  </div>
+  <button class="gc-menu-item" data-action="reply">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <path d="M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-6l-4 4v-4z"
+            stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Reply
+  </button>
+  <div class="gc-menu-divider"></div>
+  <button class="gc-menu-item" data-action="select">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"
+            stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Select Message
+  </button>
+  <div class="gc-menu-divider"></div>
+  <button class="gc-menu-item gc-menu-danger" data-action="delete">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
+            stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Delete Message
+  </button>
+</div>
+
+<!-- ── Full emoji picker (reactions) ── -->
+<div class="gc-emoji-picker" id="gcEmojiPicker" style="display:none">
+  <div class="gc-emoji-header">
+    <input class="gc-emoji-search" id="gcEmojiSearch"
+           type="text" placeholder="Search emoji…" />
+    <button class="gc-emoji-close" id="gcEmojiClose">✕</button>
+  </div>
+  <div class="gc-emoji-grid" id="gcEmojiGrid"></div>
+</div>
+
+<!-- ── Input emoji picker (compose bar) ── -->
+<div class="gc-input-emoji-picker" id="gcInputEmojiPicker" style="display:none">
+  <div class="gc-emoji-header">
+    <input class="gc-emoji-search" id="gcInputEmojiSearch"
+           type="text" placeholder="Search emoji…" />
+    <button class="gc-emoji-close" id="gcInputEmojiClose">✕</button>
+  </div>
+  <div class="gc-emoji-grid" id="gcInputEmojiGrid"></div>
+</div>
+
+<!-- ── Click-outside overlay ── -->
+<div class="gc-menu-overlay" id="gcMenuOverlay" style="display:none"></div>
+
+
+<!-- ══════════════════════════════════════
+     MEDIA & FILES MODAL
+══════════════════════════════════════ -->
+<div class="gc-media-modal" id="gcMediaModal" style="display:none">
+  <div class="gc-media-inner">
+    <div class="gc-media-header">
+      <h3>Media &amp; Files</h3>
+      <button class="gc-media-close" id="gcMediaClose">✕</button>
+    </div>
+    <div class="gc-media-tabs">
+      <button class="gc-media-tab active" data-tab="images">🖼 Images</button>
+      <button class="gc-media-tab"        data-tab="files">📄 Files</button>
+      <button class="gc-media-tab"        data-tab="links">🔗 Links</button>
+    </div>
+    <div class="gc-media-body">
+      <div class="gc-media-section active" id="gcMediaImages">
+        <div class="gc-media-grid" id="gcImageGrid"></div>
+      </div>
+      <div class="gc-media-section" id="gcMediaFiles">
+        <div id="gcFilesList"></div>
+      </div>
+      <div class="gc-media-section" id="gcMediaLinks">
+        <div id="gcLinksList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+     TOAST
+══════════════════════════════════════ -->
+<div class="group-toast" id="groupToast"></div>
+
+
+<!-- ══════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════ -->
+<script type="module" src="group-chat.js"></script>
+
+</body>
+</html>

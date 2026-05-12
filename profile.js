@@ -116,20 +116,25 @@ form.addEventListener("submit", async (e) => {
       photoURL = await getDownloadURL(photoRef);
     }
 
+    // Build profile data — only include photoURL if a new photo was actually uploaded
+    // This prevents wiping out an existing photo URL when editing without changing the photo
+    const profileData = {
+      name,
+      gender,
+      age,
+      campus,
+      course,
+      bio,
+      preference,
+      profileComplete: true,
+      updatedAt: serverTimestamp()
+    };
+
+    if (photoURL) profileData.photoURL = photoURL;
+
     await setDoc(
       doc(db, "users", currentUser.uid),
-      {
-        name,
-        gender,
-        age,
-        campus,
-        course,
-        bio,
-        preference,        // ✅ IMPORTANT
-        photoURL,
-        profileComplete: true,
-        updatedAt: serverTimestamp()
-      },
+      profileData,
       { merge: true }
     );
 
