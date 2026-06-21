@@ -1,6 +1,5 @@
 import { auth, db, storage } from "./firebase.js";
-import { onAuthStateChanged } from
-  "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { requireAuth } from "./auth-guard.js";
 
 import {
   collection,
@@ -129,8 +128,8 @@ function formatTime(timestamp) {
   return `${hours % 12 || 12}:${mins.toString().padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
 }
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user || !matchId) {
+requireAuth().then(async (user) => {
+  if (!matchId) {
     showToast("Invalid chat link!");
     window.location.href = "matches.html";
     return;

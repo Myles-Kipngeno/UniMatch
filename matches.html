@@ -174,13 +174,7 @@
       content: ''; flex: 1; height: 1px; background: var(--border);
     }
 
-    /* Group row icon */
-    .conv-group-icon {
-      width: 46px; height: 46px; border-radius: 14px;
-      background: linear-gradient(135deg, #00c9a7, #0891b2);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; flex-shrink: 0;
-    }
+
 
     /* MOBILE */
     @media (max-width: 700px) {
@@ -202,8 +196,6 @@
       <a href="dashboard.html" class="top-nav-link">Home</a>
       <a href="discover.html"  class="top-nav-link">Discover</a>
       <a href="matches.html"   class="top-nav-link active">Messages</a>
-      <a href="groups.html"    class="top-nav-link">Groups</a>
-      <a href="feed.html"      class="top-nav-link">Feed</a>
       <a href="events.html"    class="top-nav-link">Events</a>
     </div>
   </nav>
@@ -257,16 +249,15 @@
     let currentUser   = null;
     let activeMatchId = null;
     let allConvs      = [];   // DM conversations
-    let allGroups     = [];   // group chats
     let onlineCache   = {};   // uid → boolean
 
     (async () => {
       try {
         currentUser = await requireAuth();
         listenConversations();
-        listenGroups();
+
         const openId = new URLSearchParams(location.search).get("open");
-        if (openId) openChat(openId, "dm");
+        if (openId) openChat(openId);
       } catch (err) { window.location.replace("login.html"); }
     })();
 
@@ -343,59 +334,7 @@
       });
     }
 
-    // ── Group chats ───────────────────────────────────────────
-    function listenGroups() {
-      const q = query(collection(db, "groups"), where("members", "array-contains", currentUser.uid));
-      onSnapshot(q, async snap => {
-        const groups = [];
-        for (const d of snap.docs) {
-          const data = d.data();
-          let preview = data.lastMessage || null;
-          let ts      = data.lastMessageAt || data.createdAt || null;
 
-          if (!preview) {
-            try {
-              const msgSnap = await getDocs(
-                query(
-                  collection(db, "groups", d.id, "messages"),
-                  orderBy("createdAt", "desc"),
-                  limit(1)
-                )
-              );
-              if (!msgSnap.empty) {
-                const last = msgSnap.docs[0].data();
-                const sender = last.authorName ? last.authorName.split(" ")[0] + ": " : "";
-                preview = last.text
-                  ? sender + last.text
-                  : (last.fileUrl ? sender + "📎 " + (last.fileName || "File") : null)
-                  || (last.imageUrl ? sender + "📷 Photo" : null)
-                  || null;
-                ts = last.createdAt || ts;
-                if (preview) {
-                  updateDoc(doc(db, "groups", d.id), {
-                    lastMessage:   preview,
-                    lastMessageAt: ts || serverTimestamp()
-                  }).catch(() => {});
-                }
-              }
-            } catch(_) {}
-          }
-
-          groups.push({
-            type:    "group",
-            groupId: d.id,
-            name:    data.name  || "Group",
-            emoji:   data.emoji || "👥",
-            preview: preview    || "Say something 👋",
-            ts,
-            unread:  data.unreadCounts?.[currentUser.uid] || 0,
-          });
-        }
-        allGroups = groups;
-        allGroups.sort((a, b) => (b.ts?.toMillis?.() || 0) - (a.ts?.toMillis?.() || 0));
-        renderAll();
-      });
-    }
 
     // ── Watch a user's online status ──────────────────────────
     function watchOnline(uid) {
@@ -415,12 +354,11 @@
 
     // ── Render everything ─────────────────────────────────────
     function renderAll() {
-      const q      = searchInput.value.toLowerCase().trim();
-      const dms    = q ? allConvs.filter(c  => c.name.toLowerCase().includes(q))  : allConvs;
-      const groups = q ? allGroups.filter(g => g.name.toLowerCase().includes(q))  : allGroups;
+      const q   = searchInput.value.toLowerCase().trim();
+      const dms = q ? allConvs.filter(c => c.name.toLowerCase().includes(q)) : allConvs;
 
-      if (!dms.length && !groups.length) {
-        if (allConvs.length === 0 && allGroups.length === 0) {
+      if (!dms.length) {
+        if (allConvs.length === 0) {
           convList.innerHTML = `<div class="sidebar-state">
             <div style="font-size:28px">💔</div>
             <span>No matches yet</span>
@@ -433,24 +371,7 @@
       }
 
       convList.innerHTML = "";
-
-      // DM section
-      if (dms.length) {
-        const dmLabel = document.createElement("div");
-        dmLabel.className = "conv-section-label";
-        dmLabel.textContent = "Direct Messages";
-        convList.appendChild(dmLabel);
-        dms.forEach(conv => convList.appendChild(buildDMRow(conv)));
-      }
-
-      // Groups section
-      if (groups.length) {
-        const gLabel = document.createElement("div");
-        gLabel.className = "conv-section-label";
-        gLabel.textContent = "Group Chats";
-        convList.appendChild(gLabel);
-        groups.forEach(g => convList.appendChild(buildGroupRow(g)));
-      }
+      dms.forEach(conv => convList.appendChild(buildDMRow(conv)));
     }
 
     // ── Build DM row ──────────────────────────────────────────
@@ -480,43 +401,20 @@
         </div>
         ${conv.unread > 0 ? `<div class="conv-badge">${conv.unread > 99 ? "99+" : conv.unread}</div>` : ""}`;
 
-      row.addEventListener("click", () => openChat(conv.matchId, "dm"));
+      row.addEventListener("click", () => openChat(conv.matchId));
       return row;
     }
 
-    // ── Build Group row ───────────────────────────────────────
-    function buildGroupRow(g) {
-      const row     = document.createElement("div");
-      row.className = "conv-row" + (g.groupId === activeMatchId ? " active" : "");
-      row.dataset.matchId = g.groupId;
 
-      row.innerHTML = `
-        <div class="conv-avatar-wrap">
-          <div class="conv-group-icon">${g.emoji}</div>
-        </div>
-        <div class="conv-body">
-          <div class="conv-top">
-            <span class="conv-name">${esc(g.name)}</span>
-            <span class="conv-time">${fmtTs(g.ts)}</span>
-          </div>
-          <div class="conv-preview${g.unread > 0 ? " unread" : ""}">${esc(g.preview)}</div>
-        </div>
-        ${g.unread > 0 ? `<div class="conv-badge">${g.unread > 99 ? "99+" : g.unread}</div>` : ""}`;
-
-      row.addEventListener("click", () => openChat(g.groupId, "group"));
-      return row;
-    }
 
     // ── Open chat ─────────────────────────────────────────────
-    function openChat(id, type) {
+    function openChat(id) {
       activeMatchId = id;
       convList.querySelectorAll(".conv-row").forEach(r =>
         r.classList.toggle("active", r.dataset.matchId === id));
       chatEmpty.style.display = "none";
       chatIframe.classList.add("visible");
-      chatIframe.src = type === "group"
-        ? "group-chat.html?id=" + id
-        : "chat.html?matchId=" + id;
+      chatIframe.src = "chat.html?matchId=" + id;
       if (window.innerWidth <= 700) sidebar.classList.add("hidden");
     }
 
@@ -552,5 +450,35 @@
       return d.innerHTML;
     }
   </script>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <style>
+    .mobile-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:rgba(10,10,26,0.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,0.08);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));align-items:center;justify-content:space-around;box-shadow:0 -4px 24px rgba(0,0,0,0.3)}
+    .bottom-nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 12px;border-radius:16px;text-decoration:none;color:rgba(255,255,255,0.4);font-size:10px;font-weight:600;letter-spacing:.2px;transition:all .25s cubic-bezier(.34,1.56,.64,1);position:relative;-webkit-tap-highlight-color:transparent;min-width:56px}
+    .bottom-nav-item svg{width:22px;height:22px;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+    .bottom-nav-item:active svg{transform:scale(.85)}
+    .bottom-nav-item.active{color:#a78bfa}
+    .bottom-nav-item.active svg{transform:scale(1.1)}
+    .bottom-nav-item.active::before{content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:20px;height:3px;border-radius:0 0 3px 3px;background:#6c47ff;box-shadow:0 2px 8px rgba(108,71,255,.4)}
+    @media(max-width:700px){.mobile-bottom-nav{display:flex}}
+  </style>
+  <nav class="mobile-bottom-nav">
+    <a href="dashboard.html" class="bottom-nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1m-2 0h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Home</span>
+    </a>
+    <a href="discover.html" class="bottom-nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Discover</span>
+    </a>
+    <a href="matches.html" class="bottom-nav-item active">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      <span>Messages</span>
+    </a>
+    <a href="events.html" class="bottom-nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Events</span>
+    </a>
+  </nav>
 
 </body>

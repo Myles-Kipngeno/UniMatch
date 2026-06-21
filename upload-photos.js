@@ -1,5 +1,5 @@
 import { auth, db, storage } from "./firebase.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { requireAuth } from "./auth-guard.js";
 import {
   doc, getDoc, updateDoc, arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -8,26 +8,25 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 // ── DOM refs ──────────────────────────────────────────────────
-const uploadPhotoBtn  = document.getElementById("uploadPhotoBtn");
-const fileInput       = document.getElementById("fileInput");
+const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
+const fileInput = document.getElementById("fileInput");
 
-const photosGrid      = document.getElementById("photosGrid");
-const videosGrid      = document.getElementById("videosGrid");
+const photosGrid = document.getElementById("photosGrid");
+const videosGrid = document.getElementById("videosGrid");
 
-const uploadProgress  = document.getElementById("uploadProgress");
-const progressFill    = document.getElementById("progressFill");
-const progressText    = document.getElementById("progressText");
+const uploadProgress = document.getElementById("uploadProgress");
+const progressFill = document.getElementById("progressFill");
+const progressText = document.getElementById("progressText");
 
 const userProfilePhoto = document.getElementById("userProfilePhoto");
-const userName        = document.getElementById("userName");
-const photoCount      = document.getElementById("photoCount");
-const videoCount      = document.getElementById("videoCount");
+const userName = document.getElementById("userName");
+const photoCount = document.getElementById("photoCount");
+const videoCount = document.getElementById("videoCount");
 
 let currentUser = null;
 
 // ── Auth ──────────────────────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { window.location.href = "login.html"; return; }
+requireAuth().then(async (user) => {
   currentUser = user;
 
   try {
@@ -60,7 +59,7 @@ fileInput.onchange = (e) => {
 async function loadMedia() {
   try {
     const snap = await getDoc(doc(db, "users", currentUser.uid));
-    const d    = snap.data() || {};
+    const d = snap.data() || {};
     const photos = d.photoPosts || [];
     const videos = d.videoPosts || [];
 
@@ -218,11 +217,11 @@ function openViewer(url, type) {
 
 // ── Upload files ──────────────────────────────────────────────
 async function uploadFiles(files, type) {
-  const isPhoto  = type === "photo";
-  const maxSize  = isPhoto ? 5 * 1024 * 1024 : 100 * 1024 * 1024; // 5MB photos, 100MB videos
-  const label    = isPhoto ? "photo" : "video";
-  const folder   = isPhoto ? "photo-posts" : "profile-videos";
-  const field    = isPhoto ? "photoPosts" : "videoPosts";
+  const isPhoto = type === "photo";
+  const maxSize = isPhoto ? 5 * 1024 * 1024 : 100 * 1024 * 1024; // 5MB photos, 100MB videos
+  const label = isPhoto ? "photo" : "video";
+  const folder = isPhoto ? "photo-posts" : "profile-videos";
+  const field = isPhoto ? "photoPosts" : "videoPosts";
 
   const valid = files.filter(f => {
     if (f.size > maxSize) {
@@ -299,7 +298,7 @@ async function deleteMedia(url, type) {
       [field]: arrayRemove(url)
     });
     // Also remove from Storage (best-effort)
-    try { await deleteObject(ref(storage, url)); } catch (_) {}
+    try { await deleteObject(ref(storage, url)); } catch (_) { }
     loadMedia();
   } catch (err) {
     console.error("Delete error:", err);

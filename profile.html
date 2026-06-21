@@ -125,66 +125,158 @@
 
       <div class="header">
         <h2>💖 UniMatch</h2>
-        <p class="subtitle">Create your profile</p>
+        <p class="subtitle" id="pageSubtitle">Create your profile</p>
       </div>
 
-      <!-- Profile photo -->
-      <div class="photo-section">
-        <div class="photo-container">
-          <img id="profilePreview" src="default-avatar.png" alt="Profile">
-          <div class="photo-overlay">
-            <label class="upload-label">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" stroke-width="2"/>
-                <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/>
-              </svg>
-              <input type="file" id="photoInput" accept="image/*" hidden>
-            </label>
+      <!-- ── Tab System for Edit Mode ── -->
+      <div class="profile-tabs" id="profileTabs" style="display:none">
+        <button type="button" class="tab-btn active" id="tabViewBtn">My Card</button>
+        <button type="button" class="tab-btn" id="tabEditBtn">Update Profile</button>
+      </div>
+
+      <!-- ── Onboarding Progress Bar ── -->
+      <div class="onboarding-progress" id="onboardingProgress">
+        <div class="progress-steps">
+          <span class="step-dot active" data-step="1">1</span>
+          <span class="step-dot" data-step="2">2</span>
+          <span class="step-dot" data-step="3">3</span>
+          <span class="step-dot" data-step="4">4</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="progressBarFill" style="width: 25%"></div>
+        </div>
+      </div>
+
+      <!-- ── TAB 1: View Profile Card (Only shown in Edit mode) ── -->
+      <div class="view-profile-tab" id="viewProfileTab" style="display:none">
+        <div class="preview-card">
+          <div class="preview-img-wrap">
+            <img id="viewPhoto" src="default-avatar.png" alt="Profile">
+            <div class="preview-overlay">
+              <h3 id="viewNameAge">Name, Age</h3>
+              <p id="viewLocation">📍 Location</p>
+              <p id="viewCourseDetail">📚 Course</p>
+            </div>
+          </div>
+          <div class="preview-bio-section">
+            <h4>About Me</h4>
+            <p id="viewBio">Bio details will appear here.</p>
+          </div>
+          <div class="preview-interests-section">
+            <h4>My Hobbies & Interests</h4>
+            <div class="preview-interests-grid" id="viewInterests">
+              <!-- Dynamically populated -->
+            </div>
           </div>
         </div>
       </div>
 
       <form id="profileForm">
-        <div class="form-grid">
-          <div class="form-group">
-            <input type="text" id="name" placeholder="Full name" required>
-          </div>
+        <!-- Step 1: Basics -->
+        <div class="wizard-step" data-step="1" id="stepBasics">
+          <h3 class="step-title">Tell us about yourself</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <input type="text" id="name" placeholder="Full name" required>
+            </div>
 
-          <div class="form-row">
-            <select id="gender" required>
-              <option value="">Gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-            <input type="number" id="age" placeholder="Age" min="18" max="99" required>
-          </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Gender</label>
+                <select id="gender" required>
+                  <option value="">Select Gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="nonbinary">Non-Binary</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Age</label>
+                <input type="number" id="age" placeholder="Age" min="18" max="99" required>
+              </div>
+            </div>
 
-          <div class="form-group">
-            <input type="text" id="campus" placeholder="University / Campus" required>
-          </div>
+            <div class="form-group">
+              <label class="form-label">University / Campus</label>
+              <input type="text" id="campus" placeholder="University / Campus" required>
+            </div>
 
-          <div class="form-group">
-            <input type="text" id="course" placeholder="Course / Major" required>
+            <div class="form-group">
+              <label class="form-label">Course / Major</label>
+              <input type="text" id="course" placeholder="Course / Major" required>
+            </div>
           </div>
+        </div>
 
-          <div class="form-group">
-            <textarea id="bio" placeholder="Write something about yourself..." rows="3"></textarea>
+        <!-- Step 2: Hobbies & Interests -->
+        <div class="wizard-step" data-step="2" id="stepInterests" style="display:none">
+          <h3 class="step-title">Select your interests</h3>
+          <p class="step-subtitle">Select at least 3 things you love to help us find matches</p>
+          <div class="interests-grid" id="interestsGrid">
+            <!-- Populated via Javascript -->
           </div>
+        </div>
 
-          <div class="form-group">
-            <select id="preference" required>
-              <option value="">Show me</option>
-              <option value="all">Everyone</option>
-              <option value="male">Men</option>
-              <option value="female">Women</option>
-            </select>
+        <!-- Step 3: Bio & Match Preference -->
+        <div class="wizard-step" data-step="3" id="stepBioPreference" style="display:none">
+          <h3 class="step-title">Bio & Matching</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Bio</label>
+              <textarea id="bio" placeholder="Write a short bio about yourself..." rows="4"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Show Me</label>
+              <select id="preference" required>
+                <option value="">Show me...</option>
+                <option value="all">Everyone</option>
+                <option value="male">Men</option>
+                <option value="female">Women</option>
+                <option value="nonbinary">Non-Binary</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Profile Picture -->
+        <div class="wizard-step" data-step="4" id="stepPhoto" style="display:none">
+          <h3 class="step-title">Add your photo</h3>
+          <p class="step-subtitle">Upload a clear profile picture</p>
+          <div class="photo-section">
+            <div class="photo-container">
+              <img id="profilePreview" src="default-avatar.png" alt="Profile">
+              <div class="photo-overlay">
+                <label class="upload-label">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                  <input type="file" id="photoInput" accept="image/*" hidden>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
         <p id="error" class="error"></p>
 
-        <button type="submit" class="save-btn">
-          <span>Save & Continue</span>
+        <!-- Onboarding Wizard Navigation Buttons -->
+        <div class="wizard-buttons" id="wizardButtons">
+          <button type="button" class="wizard-btn btn-prev" id="btnPrev" style="display:none">Back</button>
+          <button type="button" class="wizard-btn btn-next" id="btnNext">Continue</button>
+          <button type="submit" class="save-btn" id="btnSubmit" style="display:none">
+            <span>Finish & Save</span>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M7.5 15l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Edit Mode Save Button -->
+        <button type="submit" class="save-btn" id="btnSaveEdit" style="display:none">
+          <span>Save Updates</span>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M7.5 15l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>

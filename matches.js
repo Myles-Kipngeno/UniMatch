@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { requireAuth } from "./auth-guard.js";
 import {
   collection, query, where,
   onSnapshot, getDoc, getDocs, doc
@@ -9,8 +9,7 @@ const matchesContainer   = document.getElementById("matchesContainer");
 const noMatchesContainer = document.getElementById("noMatchesContainer");
 const loadingContainer   = document.getElementById("loadingContainer");
 
-onAuthStateChanged(auth, (user) => {
-  if (!user) { window.location.href = "login.html"; return; }
+requireAuth().then((user) => {
 
   const q = query(
     collection(db, "matches"),

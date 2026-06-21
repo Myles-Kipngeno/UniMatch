@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database Cleanup | UniMatch Admin</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: #0f0e17;
+      color: #f0eeff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .panel {
+      background: #1a1927;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 550px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p { font-size: 14px; color: #9e9bb8; margin-bottom: 28px; line-height: 1.6; }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 28px; border-radius: 50px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px; font-weight: 600;
+      border: none; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-danger {
+      background: #ff5c8a; color: white;
+      box-shadow: 0 4px 16px rgba(255,92,138,0.25);
+    }
+    .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,92,138,0.4); }
+    .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    
+    .btn-warning {
+      background: #fbbf24; color: #1a1927;
+      box-shadow: 0 4px 16px rgba(251,191,36,0.25);
+    }
+    .btn-warning:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(251,191,36,0.4); }
+    .btn-warning:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    
+    #log {
+      margin-top: 20px;
+      text-align: left;
+      font-size: 13px;
+      color: #9e9bb8;
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      padding: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+      white-space: pre-wrap;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .success { color: #00c9a7; }
+    .error { color: #ff5c8a; }
+    .warn { color: #fbbf24; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>🗑️ Database Cleanup Utility</h1>
+    <p>
+      Use this panel to permanently delete deprecated collection data from Firestore. Log in with your UniMatch account first.
+      <br><br>
+      <strong style="color:#ff5c8a">⚠️ These actions cannot be undone.</strong>
+    </p>
+    <div class="btn-group">
+      <button class="btn btn-danger" id="deleteGroupsBtn">Delete All Groups Data</button>
+      <button class="btn btn-warning" id="deletePostsBtn">Delete All Feed Posts</button>
+    </div>
+    <div id="log"></div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import { requireAuth } from "./auth-guard.js";
+    import {
+      collection, getDocs, deleteDoc, doc, query, limit
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const log = document.getElementById("log");
+    const deleteGroupsBtn = document.getElementById("deleteGroupsBtn");
+    const deletePostsBtn = document.getElementById("deletePostsBtn");
+
+    function appendLog(msg, cls = "") {
+      log.style.display = "block";
+      const line = document.createElement("div");
+      if (cls) line.className = cls;
+      line.textContent = msg;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // ── Delete Groups ──
+    deleteGroupsBtn.addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to permanently delete ALL groups and their messages?")) return;
+
+      disableButtons();
+      deleteGroupsBtn.textContent = "Deleting Groups...";
+
+      try {
+        await requireAuth();
+        appendLog("✓ Authenticated", "success");
+
+        const groupsSnap = await getDocs(collection(db, "groups"));
+        appendLog(`Found ${groupsSnap.size} group(s)`);
+
+        if (groupsSnap.size === 0) {
+          appendLog("Nothing to delete — groups collection is already empty.", "warn");
+          enableButtons();
+          return;
+        }
+
+        let deleted = 0;
+        for (const groupDoc of groupsSnap.docs) {
+          const groupId = groupDoc.id;
+          appendLog(`Deleting group: ${groupDoc.data().name || groupId}`);
+
+          // Delete messages subcollection (batch of 500)
+          let msgCount = 0;
+          let hasMore = true;
+          while (hasMore) {
+            const msgsSnap = await getDocs(
+              query(collection(db, "groups", groupId, "messages"), limit(500))
+            );
+            if (msgsSnap.empty) { hasMore = false; break; }
+            for (const msgDoc of msgsSnap.docs) {
+              await deleteDoc(doc(db, "groups", groupId, "messages", msgDoc.id));
+              msgCount++;
+            }
+          }
+          if (msgCount) appendLog(`  → Deleted ${msgCount} sub-messages`);
+
+          // Delete the group document
+          await deleteDoc(doc(db, "groups", groupId));
+          deleted++;
+          appendLog(`  → Group deleted ✓`, "success");
+        }
+
+        appendLog(`\nDone! Deleted ${deleted} group(s) and messages.`, "success");
+      } catch (err) {
+        appendLog(`Error: ${err.message}`, "error");
+      }
+      enableButtons();
+    });
+
+    // ── Delete Feed Posts ──
+    deletePostsBtn.addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to permanently delete ALL feed posts from Firestore?")) return;
+
+      disableButtons();
+      deletePostsBtn.textContent = "Deleting Posts...";
+
+      try {
+        await requireAuth();
+        appendLog("✓ Authenticated", "success");
+
+        const postsSnap = await getDocs(collection(db, "posts"));
+        appendLog(`Found ${postsSnap.size} post(s)`);
+
+        if (postsSnap.size === 0) {
+          appendLog("Nothing to delete — posts collection is already empty.", "warn");
+          enableButtons();
+          return;
+        }
+
+        let deleted = 0;
+        for (const postDoc of postsSnap.docs) {
+          appendLog(`Deleting post: ${postDoc.id}`);
+          await deleteDoc(doc(db, "posts", postDoc.id));
+          deleted++;
+        }
+
+        appendLog(`\nDone! Deleted ${deleted} post(s) from Firestore.`, "success");
+      } catch (err) {
+        appendLog(`Error: ${err.message}`, "error");
+      }
+      enableButtons();
+    });
+
+    function disableButtons() {
+      deleteGroupsBtn.disabled = true;
+      deletePostsBtn.disabled = true;
+      log.innerHTML = "";
+    }
+
+    function enableButtons() {
+      deleteGroupsBtn.disabled = false;
+      deleteGroupsBtn.textContent = "Delete All Groups Data";
+      deletePostsBtn.disabled = false;
+      deletePostsBtn.textContent = "Delete All Feed Posts";
+    }
+  </script>
+</body>
+</html>

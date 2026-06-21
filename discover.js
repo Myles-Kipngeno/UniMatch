@@ -90,6 +90,20 @@ if (likeIndicator) likeIndicator.addEventListener("click", () => { if (activeLik
       );
     });
 
+    // ─── SORT CANDIDATES BY SHARED INTERESTS ───
+    candidates.sort((aSnap, bSnap) => {
+      const a = aSnap.data();
+      const b = bSnap.data();
+      const aInterests = a.interests || [];
+      const bInterests = b.interests || [];
+      const myInterests = me.interests || [];
+      
+      const aSharedCount = aInterests.filter(i => myInterests.includes(i)).length;
+      const bSharedCount = bInterests.filter(i => myInterests.includes(i)).length;
+      
+      return bSharedCount - aSharedCount; // descending order
+    });
+
     if (candidates.length === 0 && likedLane.length === 0 && passedLane.length === 0) {
       showEmpty("No More Profiles",
         "You've seen everyone in your area. Check back later!",
@@ -448,6 +462,52 @@ function buildCard(data, targetUid) {
       <h3>${data.name}, ${data.age}</h3>
       <p>📍 ${data.campus}</p>
       <p>📚 ${data.course}</p>
+      ${(() => {
+        const myInterests = currentUserData?.interests || [];
+        const targetInterests = data.interests || [];
+        if (targetInterests.length === 0) return "";
+        
+        // Show up to 3 interests, prioritizing shared ones
+        const sortedTargetInterests = [...targetInterests].sort((a, b) => {
+          const aShared = myInterests.includes(a);
+          const bShared = myInterests.includes(b);
+          if (aShared && !bShared) return -1;
+          if (!aShared && bShared) return 1;
+          return 0;
+        });
+
+        return `
+          <div class="card-interests" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
+            ${sortedTargetInterests.slice(0, 3).map(interest => {
+              const isShared = myInterests.includes(interest);
+              const emojiMap = {
+                "Music": "🎵", "Sports": "⚽", "Gaming": "🎮", "Coding": "💻", 
+                "Traveling": "✈️", "Movies": "🍿", "Books": "📚", "Cooking": "🍳", 
+                "Hiking": "🥾", "Art": "🎨", "Photography": "📷", "Dancing": "💃", 
+                "Gym": "🏋️", "Coffee": "☕", "Writing": "✍️", "Music Instruments": "🎹"
+              };
+              const emoji = emojiMap[interest] || "✨";
+              return `
+                <span class="card-interest-pill" style="
+                  padding: 4px 8px;
+                  border-radius: 50px;
+                  font-size: 10.5px;
+                  font-weight: 600;
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 3px;
+                  background: ${isShared ? 'rgba(108,71,255,0.18)' : 'rgba(255,255,255,0.06)'};
+                  color: ${isShared ? '#a78bfa' : '#9e9bb8'};
+                  border: 1px solid ${isShared ? 'rgba(108,71,255,0.3)' : 'rgba(255,255,255,0.1)'};
+                ">
+                  <span>${emoji}</span>
+                  <span>${interest}</span>
+                </span>
+              `;
+            }).join("")}
+          </div>
+        `;
+      })()}
     </div>`;
 
   // Info button — only when card is center-front
@@ -665,6 +725,40 @@ async function showProfileModal(userData, userId) {
         ${freshData.campus ? `<div class="pm-about-row"><span>📍</span><span>${freshData.campus}</span></div>` : ""}
         ${freshData.course ? `<div class="pm-about-row"><span>📚</span><span>${freshData.course}</span></div>` : ""}
         ${freshData.bio    ? `<div class="pm-about-bio"><h3>About</h3><p>${freshData.bio}</p></div>` : ""}
+        ${freshData.interests && freshData.interests.length > 0 ? `
+          <div class="pm-about-interests" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+            <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6b6882; margin-bottom: 8px;">Interests</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              ${freshData.interests.map(i => {
+                const emojiMap = {
+                  "Music": "🎵", "Sports": "⚽", "Gaming": "🎮", "Coding": "💻", 
+                  "Traveling": "✈️", "Movies": "🍿", "Books": "📚", "Cooking": "🍳", 
+                  "Hiking": "🥾", "Art": "🎨", "Photography": "📷", "Dancing": "💃", 
+                  "Gym": "🏋️", "Coffee": "☕", "Writing": "✍️", "Music Instruments": "🎹"
+                };
+                const emoji = emojiMap[i] || "✨";
+                const isShared = (currentUserData?.interests || []).includes(i);
+                return `
+                  <span style="
+                    padding: 4px 10px;
+                    border-radius: 50px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    background: ${isShared ? 'rgba(108,71,255,0.18)' : 'rgba(255,255,255,0.06)'};
+                    color: ${isShared ? '#a78bfa' : '#9e9bb8'};
+                    border: 1px solid ${isShared ? 'rgba(108,71,255,0.3)' : 'rgba(255,255,255,0.1)'};
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 3px;
+                  ">
+                    <span>${emoji}</span>
+                    <span>${i}</span>
+                  </span>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        ` : ""}
       </div>
 
     </div>`;
