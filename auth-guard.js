@@ -12,16 +12,43 @@ import { auth, db } from "./firebase.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// Hide body immediately to prevent flashing while checking profile status
-const styleEl = document.createElement("style");
-styleEl.id = "auth-guard-style";
-styleEl.innerHTML = "body { opacity: 0 !important; }";
-document.head.appendChild(styleEl);
+// Show a branded loading overlay instead of a blank white page
+const _authOverlay = document.createElement("div");
+_authOverlay.id = "auth-guard-overlay";
+_authOverlay.innerHTML = `
+  <div style="
+    position:fixed;inset:0;z-index:99999;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;
+    background:#f7f6fb;
+    transition:opacity 0.35s ease,visibility 0.35s ease;
+  ">
+    <div style="
+      width:48px;height:48px;border-radius:14px;
+      background:linear-gradient(135deg,#6c47ff,#a855f7);
+      color:#fff;font-size:24px;font-weight:800;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 4px 20px rgba(108,71,255,0.35);
+      animation:authPulse 1.2s ease-in-out infinite;
+    ">U</div>
+    <div style="font-family:'Outfit',sans-serif;font-size:13px;color:#8b8a9a;font-weight:500;letter-spacing:0.3px;">Loading...</div>
+  </div>
+`;
+const _authStyle = document.createElement("style");
+_authStyle.textContent = `@keyframes authPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.85}}`;
+document.head.appendChild(_authStyle);
+document.body.appendChild(_authOverlay);
 
 function showBody() {
-  if (styleEl && styleEl.parentNode) {
-    styleEl.parentNode.removeChild(styleEl);
+  const overlay = document.getElementById("auth-guard-overlay");
+  if (overlay) {
+    const inner = overlay.firstElementChild;
+    if (inner) {
+      inner.style.opacity = "0";
+      inner.style.visibility = "hidden";
+    }
+    setTimeout(() => overlay.remove(), 350);
   }
+  if (_authStyle && _authStyle.parentNode) _authStyle.parentNode.removeChild(_authStyle);
   document.body.classList.add("auth-checked");
 }
 
@@ -42,15 +69,16 @@ export function requireAuth(redirectTo = "login.html") {
       }
 
       try {
-        const snap = await getDoc(doc(db, "users", user.uid));
-        if (!snap.exists() || !snap.data().profileComplete) {
-          window.location.replace("profile.html");
-          return;
-        }
+        // ⚠️ DEV BYPASS — skip profileComplete check (revert for production)
+        // const snap = await getDoc(doc(db, "users", user.uid));
+        // if (!snap.exists() || !snap.data().profileComplete) {
+        //   window.location.replace("profile.html");
+        //   return;
+        // }
 
         // Show page contents now that verification has passed
         showBody();
-        resolve(user); // ✅ confirmed logged in and profile complete
+        resolve(user); // ✅ confirmed logged in
       } catch (err) {
         console.error("Auth guard check failed:", err);
         window.location.replace(redirectTo);

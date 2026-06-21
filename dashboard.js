@@ -34,19 +34,24 @@ let currentUid = null;
     const user = await requireAuth();
     currentUid = user.uid;
 
-    const snap = await getDoc(doc(db, "users", currentUid));
-    if (!snap.exists() || !snap.data().profileComplete) {
-      window.location.replace("profile.html");
-      return;
+    let data = {};
+    try {
+      const snap = await getDoc(doc(db, "users", currentUid));
+      // ⚠️ DEV BYPASS — skip profileComplete redirect (revert for production)
+      // if (!snap.exists() || !snap.data().profileComplete) {
+      //   window.location.replace("profile.html");
+      //   return;
+      // }
+      if (snap.exists()) data = snap.data();
+    } catch (_) {
+      console.warn("Could not fetch user profile, using defaults");
     }
-
-    const data = snap.data();
 
     const hour = new Date().getHours();
     const greeting = hour >= 5 && hour < 12 ? "Good morning" : hour >= 12 && hour < 17 ? "Good afternoon" : hour >= 17 && hour < 21 ? "Good evening" : "Good night";
     if (greetingLine)   greetingLine.textContent  = greeting;
-    if (welcomeName)    welcomeName.textContent    = data.name;
-    if (profileSummary) profileSummary.textContent = `${data.course} • ${data.campus}`;
+    if (welcomeName)    welcomeName.textContent    = data.name || user.email || "Student";
+    if (profileSummary) profileSummary.textContent = `${data.course || "Your course"} • ${data.campus || "Your campus"}`;
 
     if (data.photoURL) {
       if (profilePhoto) profilePhoto.src = data.photoURL;
