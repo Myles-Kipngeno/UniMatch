@@ -47,6 +47,11 @@ if (likeIndicator) likeIndicator.addEventListener("click", () => { if (activeLik
     const me = meSnap.data();
     currentUserData = me;
 
+    if (me.photoURL) {
+      const navPhoto = document.getElementById("navPhoto");
+      if (navPhoto) navPhoto.src = me.photoURL;
+    }
+
     const [usersSnap, likesSnap, passesSnap] = await Promise.all([
       getDocs(query(collection(db, "users"), where("profileComplete", "==", true))),
       getDocs(query(collection(db, "likes"),  where("from", "==", currentUser.uid))),

@@ -6,6 +6,7 @@ const logoutBtn = document.getElementById("logoutBtn");
 
 logoutBtn.addEventListener("click", async () => {
   try {
+    sessionStorage.clear();
     await signOut(auth);  // Sign the user out
     alert("You have been logged out.");
     window.location.href = "login.html";  // Redirect to login page

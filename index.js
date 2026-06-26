@@ -1,10 +1,39 @@
-// Mobile menu toggle (optional - for future implementation)
-const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+// Theme Toggle Functionality
+const themeToggleBtn = document.getElementById('themeToggle');
+const mobileThemeToggleBtn = document.getElementById('mobileThemeToggle');
 
-if (mobileMenuBtn) {
+function updateThemeIcons(isDark) {
+  const sunIcons = document.querySelectorAll('.sun-icon');
+  const moonIcons = document.querySelectorAll('.moon-icon');
+  sunIcons.forEach(icon => icon.style.display = isDark ? 'none' : 'block');
+  moonIcons.forEach(icon => icon.style.display = isDark ? 'block' : 'none');
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark-theme');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  updateThemeIcons(isDark);
+}
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', toggleTheme);
+}
+if (mobileThemeToggleBtn) {
+  mobileThemeToggleBtn.addEventListener('click', toggleTheme);
+}
+
+// Initialize theme icons state
+const currentTheme = localStorage.getItem('theme');
+const initialIsDark = currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+updateThemeIcons(initialIsDark);
+
+// Mobile menu toggle
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const mobileNav = document.getElementById('mobileNav');
+
+if (mobileMenuBtn && mobileNav) {
   mobileMenuBtn.addEventListener('click', () => {
-    // Mobile menu functionality can be added here
-    console.log('Mobile menu clicked');
+    mobileNav.classList.toggle('open');
   });
 }
 

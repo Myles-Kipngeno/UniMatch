@@ -735,3 +735,102 @@ body {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+/* ═══════════════════════════════════════════
+   DARK MODE
+   ═══════════════════════════════════════════ */
+:root {
+  --theme-transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+/* Theme Toggle Button Styling */
+.theme-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink);
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+.theme-toggle-btn:hover {
+  background-color: var(--surface-2);
+  transform: scale(1.1);
+}
+
+/* Apply transitions to body and key components */
+body, .navbar, .mobile-nav, .hero, .features, .feature-card, .how-it-works, .testimonials, .testimonial-card, .stats-strip, .hero-badge, .btn-secondary {
+  transition: var(--theme-transition);
+}
+
+/* Dark Theme Variables */
+.dark-theme {
+  --ink:          #f0eeff;
+  --ink-soft:     #c5c3e0;
+  --ink-muted:    #9e9bb8;
+  --surface:      #0f0e17;
+  --surface-2:    #1a1927;
+  --surface-3:    #211f30;
+  --border:       rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.14);
+  --violet-light: rgba(108,71,255,0.15);
+  --rose-light:   rgba(255,92,138,0.15);
+  --teal-light:   rgba(0,201,167,0.15);
+  --amber-light:  rgba(245,166,35,0.15);
+}
+
+.dark-theme .navbar {
+  background: rgba(15, 14, 23, 0.85);
+  border-bottom-color: var(--border);
+}
+
+.dark-theme .mobile-nav {
+  background: rgba(15, 14, 23, 0.98);
+  border-top-color: var(--border);
+}
+
+.dark-theme .hero {
+  background: linear-gradient(180deg, #161524 0%, #1a192d 40%, #201524 70%, var(--surface) 100%);
+}
+
+.dark-theme .hero-badge {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.dark-theme .btn-secondary {
+  background: var(--surface-2);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+.dark-theme .btn-secondary:hover {
+  border-color: var(--violet);
+  background: var(--violet-light);
+  color: var(--violet);
+}
+
+.dark-theme .stats-strip {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.dark-theme .trust-avatar {
+  border-color: var(--surface);
+}
+
+.dark-theme .match-bubble {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.dark-theme .testimonial-card:not(.testimonial-featured) {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.dark-theme .step-number {
+  box-shadow: 0 4px 14px rgba(108, 71, 255, 0.4);
+}
