@@ -6,810 +6,1122 @@ import {
   serverTimestamp, query, where
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const container     = document.getElementById("discoverContainer");
-const passIndicator = document.querySelector(".indicator.pass");
-const likeIndicator = document.querySelector(".indicator.like");
+// Curated Hobbies & Interests List (mirrored from profile.js)
+const CURATED_INTERESTS = [
+  { name: "Music", emoji: "🎵" },
+  { name: "Sports", emoji: "⚽" },
+  { name: "Gaming", emoji: "🎮" },
+  { name: "Coding", emoji: "💻" },
+  { name: "Traveling", emoji: "✈️" },
+  { name: "Movies", emoji: "🍿" },
+  { name: "Books", emoji: "📚" },
+  { name: "Cooking", emoji: "🍳" },
+  { name: "Hiking", emoji: "🥾" },
+  { name: "Art", emoji: "🎨" },
+  { name: "Photography", emoji: "📷" },
+  { name: "Dancing", emoji: "💃" },
+  { name: "Gym", emoji: "🏋️" },
+  { name: "Coffee", emoji: "☕" },
+  { name: "Writing", emoji: "✍️" },
+  { name: "Music Instruments", emoji: "🎹" },
+  { name: "Netflix & Chill", emoji: "🎬" },
+  { name: "Partying/Clubbing", emoji: "🍻" },
+  { name: "TikTok & Reels", emoji: "📱" },
+  { name: "Anime & Manga", emoji: "🌸" },
+  { name: "Memes & Humor", emoji: "😂" },
+  { name: "Sleeping/Naps", emoji: "😴" },
+  { name: "Fast Food/Foodie", emoji: "🍔" },
+  { name: "Studying/Library", emoji: "📖" },
+  { name: "Board Games", emoji: "🎲" },
+  { name: "e-sports", emoji: "🏆" },
+  { name: "Podcasts", emoji: "🎙️" },
+  { name: "Volunteering", emoji: "🤝" }
+];
 
-// ─── Three-lane carousel state ───────────────────────────────────
-// passedLane  ← left  (blurry red tint)
-// centerLane  ← active card
-// likedLane   → right (blurry green tint)
-let passedLane  = [];   // [{card, uid, data}]  newest at index 0
-let centerQueue = [];   // [{card, uid, data}]  0 = front/active
-let likedLane   = [];   // [{card, uid, data}]  newest at index 0
+const PERSONALITIES = ["Adventurer 🏕️", "Intellect 🧠", "Creative 🎨", "Socialite 🥳", "Harmonizer ☕"];
 
-let activeLikeAction = null;
-let activePassAction = null;
-let currentUser      = null;
-let currentUserData  = null;
-let likedUids        = new Set();
-let passedUids       = new Set();
+// DOM elements
+const container = document.getElementById("discoverContainer");
+const indicatorPass = document.getElementById("indicatorPass");
+const indicatorLike = document.getElementById("indicatorLike");
+const indicatorSuperLike = document.getElementById("indicatorSuperLike");
+const recsList = document.getElementById("recommendationsList");
 
-if (passIndicator) passIndicator.addEventListener("click", () => { if (activePassAction) activePassAction(); });
-if (likeIndicator) likeIndicator.addEventListener("click", () => { if (activeLikeAction) activeLikeAction(); });
+// Filters elements
+const filterCampus = document.getElementById("filterCampus");
+const filterCourse = document.getElementById("filterCourse");
+const filterYear = document.getElementById("filterYear");
+const filterPreference = document.getElementById("filterPreference");
+const applyFiltersBtn = document.getElementById("applyFiltersBtn");
+const resetFiltersBtn = document.getElementById("resetFiltersBtn");
+const openInterestsModalBtn = document.getElementById("openInterestsModalBtn");
+const interestsFilterTags = document.getElementById("interestsFilterTags");
+const interestsCountSpan = document.getElementById("interestsCount");
+
+// Interests Modal elements
+const interestsModalOverlay = document.getElementById("interestsModalOverlay");
+const closeInterestsModalBtn = document.getElementById("closeInterestsModalBtn");
+const modalInterestsGrid = document.getElementById("modalInterestsGrid");
+const applyInterestsBtn = document.getElementById("applyInterestsBtn");
+
+// Mobile Filters elements
+const mobileFilterTriggerBtn = document.getElementById("mobileFilterTriggerBtn");
+const mobileFiltersOverlay = document.getElementById("mobileFiltersOverlay");
+const closeFiltersModalBtn = document.getElementById("closeFiltersModalBtn");
+const mobileFiltersBody = document.getElementById("mobileFiltersBody");
+const mobileApplyFiltersBtn = document.getElementById("mobileApplyFiltersBtn");
+
+// Match Celebration Modal
+const matchCelebrationOverlay = document.getElementById("matchCelebrationOverlay");
+const celebrationMatchName = document.getElementById("celebrationMatchName");
+const celebrationViewerPhoto = document.getElementById("celebrationViewerPhoto");
+const celebrationTargetPhoto = document.getElementById("celebrationTargetPhoto");
+const celebrationIcebreakers = document.getElementById("celebrationIcebreakers");
+const celebrationChatBtn = document.getElementById("celebrationChatBtn");
+const celebrationCloseBtn = document.getElementById("celebrationCloseBtn");
+
+// State variables
+let currentUser = null;
+let currentUserData = null;
+let allUsers = [];            // Raw candidates loaded from DB
+let candidates = [];          // Filtered list of candidates in play
+let likedUids = new Set();
+let passedUids = new Set();
+let passedLane = [];          // Swipe history (left) - newest at index 0
+let likedLane = [];           // Swipe history (right) - newest at index 0
+
+// Swipe gesture state
+let startX = 0, startY = 0, currentX = 0, currentY = 0, isDragging = false;
+let activeCardElement = null;
+
+// Filter Selected Interests
+let selectedFilterInterests = new Set();
 
 // ─────────────────────────────────────────
-// BOOT
+// BOOTSTRAP DISCOVERY
 // ─────────────────────────────────────────
 (async () => {
   try {
     currentUser = await requireAuth();
-    container.innerHTML = "";
+    container.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><p>Connecting to campus network...</p></div>`;
 
+    // Fetch self user doc
     const meSnap = await getDoc(doc(db, "users", currentUser.uid));
     if (!meSnap.exists() || !meSnap.data().profileComplete) {
-      showEmpty("Complete Your Profile",
-        "Finish setting up your profile to start discovering connections",
-        "Complete Profile", () => location.href = "profile.html");
+      showEmpty("Complete Your Profile", "Finish setting up your profile to start discovering connections.", "Complete Profile", () => location.href = "profile.html");
       return;
     }
 
-    const me = meSnap.data();
-    currentUserData = me;
-
-    if (me.photoURL) {
+    currentUserData = meSnap.data();
+    if (currentUserData.photoURL) {
       const navPhoto = document.getElementById("navPhoto");
-      if (navPhoto) navPhoto.src = me.photoURL;
+      if (navPhoto) navPhoto.src = currentUserData.photoURL;
     }
 
+    // Initialize Filter tag counts and preferences
+    if (currentUserData.preference) {
+      filterPreference.value = currentUserData.preference;
+    }
+
+    // Parallel fetch collections
     const [usersSnap, likesSnap, passesSnap] = await Promise.all([
       getDocs(query(collection(db, "users"), where("profileComplete", "==", true))),
       getDocs(query(collection(db, "likes"),  where("from", "==", currentUser.uid))),
       getDocs(query(collection(db, "passes"), where("from", "==", currentUser.uid)))
     ]);
 
-    likedUids  = new Set(likesSnap.docs.map(d => d.data().to));
+    likedUids = new Set(likesSnap.docs.map(d => d.data().to));
     passedUids = new Set(passesSnap.docs.map(d => d.data().to));
 
-    // Restore liked lane from Firestore (right side)
-    for (const d of likesSnap.docs) {
-      const toUid = d.data().to;
-      const uSnap = usersSnap.docs.find(s => s.id === toUid);
-      if (uSnap) {
-        const card = buildCard(uSnap.data(), toUid);
-        container.appendChild(card);
-        likedLane.push({ card, uid: toUid, data: uSnap.data() });
-      }
+    // Populate passed/liked lanes from DB for pulling back functionality
+    allUsers = usersSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+
+    // Reconstruct swipe history arrays
+    for (const toUid of likedUids) {
+      const uData = allUsers.find(u => u.uid === toUid);
+      if (uData) likedLane.push({ uid: toUid, data: uData });
+    }
+    for (const toUid of passedUids) {
+      const uData = allUsers.find(u => u.uid === toUid);
+      if (uData) passedLane.push({ uid: toUid, data: uData });
     }
 
-    // Restore passed lane from Firestore (left side)
-    for (const d of passesSnap.docs) {
-      const toUid = d.data().to;
-      const uSnap = usersSnap.docs.find(s => s.id === toUid);
-      if (uSnap) {
-        const card = buildCard(uSnap.data(), toUid);
-        container.appendChild(card);
-        passedLane.push({ card, uid: toUid, data: uSnap.data() });
-      }
-    }
+    updateCarouselCountBadges();
 
-    const candidates = usersSnap.docs.filter(snap => {
-      const targetUid = snap.id;
-      const data      = snap.data();
-      return !(
-        targetUid === currentUser.uid ||
-        likedUids.has(targetUid)  ||
-        passedUids.has(targetUid) ||
-        (me.preference !== "all" && data.gender !== me.preference) ||
-        data.campus !== me.campus
-      );
-    });
-
-    // ─── SORT CANDIDATES BY SHARED INTERESTS ───
-    candidates.sort((aSnap, bSnap) => {
-      const a = aSnap.data();
-      const b = bSnap.data();
-      const aInterests = a.interests || [];
-      const bInterests = b.interests || [];
-      const myInterests = me.interests || [];
-      
-      const aSharedCount = aInterests.filter(i => myInterests.includes(i)).length;
-      const bSharedCount = bInterests.filter(i => myInterests.includes(i)).length;
-      
-      return bSharedCount - aSharedCount; // descending order
-    });
-
-    if (candidates.length === 0 && likedLane.length === 0 && passedLane.length === 0) {
-      showEmpty("No More Profiles",
-        "You've seen everyone in your area. Check back later!",
-        "Back to Dashboard", () => location.href = "dashboard.html");
-      disableIndicators();
-      return;
-    }
-
-    centerQueue = [];
-    for (const snap of candidates) {
-      const card = buildCard(snap.data(), snap.id);
-      container.appendChild(card);
-      centerQueue.push({ card, uid: snap.id, data: snap.data() });
-    }
-
-    renderCarousel();
-    bindFrontCard();
-    if (centerQueue.length > 0) {
-      recordView(centerQueue[0].uid, centerQueue[0].data, currentUser.uid, me);
-    }
+    // Prepare core discovery pool (excluding self, already liked/passed users)
+    applyClientFiltering(true);
+    
+    // Bind interaction elements
+    setupInterestsModal();
+    setupFilters();
+    setupMobileFilters();
+    setupKeyboardControls();
 
   } catch (err) {
-    console.error("Discover error:", err);
-    showEmpty("Something Went Wrong",
-      "We couldn't load profiles. Please try again.",
-      "Retry", () => location.reload());
-    disableIndicators();
+    console.error("Discover boot error:", err);
+    showEmpty("Connection Failed", "Unable to establish secure database connection. Please try again.", "Retry", () => location.reload());
   }
 })();
 
 // ─────────────────────────────────────────
-// CAROUSEL RENDERER
-// Three lanes: passed(left) | center | liked(right)
+// FILTERING & DATA COMPILING
 // ─────────────────────────────────────────
-function renderCarousel() {
-  // Remove all position classes from every card in play
-  const allEntries = [...passedLane, ...centerQueue, ...likedLane];
-  allEntries.forEach(e => {
-    e.card.className = "user-card";
-    e.card.style.cssText = "";
-    // Make sure it's in DOM
-    if (!container.contains(e.card)) container.appendChild(e.card);
-  });
+function applyClientFiltering(resetDeck = false) {
+  // Read inputs
+  const campusVal = filterCampus.value.toLowerCase().trim();
+  const courseVal = filterCourse.value.toLowerCase().trim();
+  const yearVal = filterYear.value;
+  const prefVal = filterPreference.value;
 
-  // ── CENTER QUEUE (right-to-left stacking, front = index 0) ──
-  centerQueue.forEach((e, i) => {
-    if (i === 0) {
-      e.card.classList.add("lane-center");
-    } else if (i === 1) {
-      e.card.classList.add("lane-queue-1");
-    } else if (i === 2) {
-      e.card.classList.add("lane-queue-2");
-    } else {
-      e.card.classList.add("lane-queue-hidden");
+  // Filter candidates
+  candidates = allUsers.filter(u => {
+    if (u.uid === currentUser.uid) return false;
+    if (likedUids.has(u.uid) || passedUids.has(u.uid)) return false;
+
+    // Preference mapping
+    if (prefVal !== "all" && u.gender !== prefVal) return false;
+
+    // Optional inputs
+    if (campusVal && (!u.campus || !u.campus.toLowerCase().includes(campusVal))) return false;
+    if (courseVal && (!u.course || !u.course.toLowerCase().includes(courseVal))) return false;
+    if (yearVal && u.yearOfStudy !== yearVal) return false;
+
+    // Selected Interests (requires candidate to have at least one of the selected filter interests, if any are selected)
+    if (selectedFilterInterests.size > 0) {
+      const targetInterests = u.interests || [];
+      const hasOverlap = targetInterests.some(i => selectedFilterInterests.has(i));
+      if (!hasOverlap) return false;
     }
+
+    return true;
   });
 
-  // ── PASSED LANE (left side) ──
-  passedLane.forEach((e, i) => {
-    if (i === 0) e.card.classList.add("lane-passed-0");
-    else if (i === 1) e.card.classList.add("lane-passed-1");
-    else              e.card.classList.add("lane-side-hidden");
+  // Calculate compatibility for each candidate and sort by score
+  candidates.forEach(c => {
+    c._compatibility = calculateCompatibility(currentUserData, c);
   });
+  candidates.sort((a, b) => b._compatibility - a._compatibility);
 
-  // ── LIKED LANE (right side) ──
-  likedLane.forEach((e, i) => {
-    if (i === 0) e.card.classList.add("lane-liked-0");
-    else if (i === 1) e.card.classList.add("lane-liked-1");
-    else              e.card.classList.add("lane-side-hidden");
-  });
-
-  // Side lane click targets — pulse hint on first items
-  if (passedLane.length > 0) {
-    passedLane[0].card.classList.add("lane-clickable");
-  }
-  if (likedLane.length > 0) {
-    likedLane[0].card.classList.add("lane-clickable");
-  }
-
-  updateCarouselCountBadges();
-
-  if (centerQueue.length === 0) {
-    disableIndicators();
-    if (passedLane.length === 0 && likedLane.length === 0) {
-      setTimeout(() => {
-        showEmpty("No More Profiles",
-          "You've seen everyone in your area. Check back later!",
-          "Back to Dashboard", () => location.href = "dashboard.html");
-      }, 400);
-    }
-  }
+  // Re-render
+  renderSwiperDeck();
+  renderRecommendations();
 }
 
-function updateCarouselCountBadges() {
-  // Remove old inline badges
-  container.querySelectorAll(".lane-badge").forEach(b => b.remove());
+function calculateCompatibility(me, target) {
+  let score = 30; // base score (for randomized campus vibe)
 
-  // Update side arrow buttons
-  const leftArrow   = document.getElementById("sideArrowLeft");
-  const rightArrow  = document.getElementById("sideArrowRight");
-  const passedBadge = document.getElementById("passedBadge");
-  const likedBadge  = document.getElementById("likedBadge");
+  // 1. Same campus check (+30%)
+  if (me.campus && target.campus && me.campus.toLowerCase().trim() === target.campus.toLowerCase().trim()) {
+    score += 30;
+  }
+  
+  // 2. Common major/course major check (+15%)
+  if (me.course && target.course && me.course.toLowerCase().trim() === target.course.toLowerCase().trim()) {
+    score += 15;
+  }
 
-  if (leftArrow) {
-    leftArrow.style.display = passedLane.length > 0 ? "flex" : "none";
-    if (passedBadge) passedBadge.textContent = passedLane.length;
+  // 3. Shared interests (+10% per interest, max +40%)
+  const myInterests = me.interests || [];
+  const targetInterests = target.interests || [];
+  const commonInterests = targetInterests.filter(i => myInterests.includes(i));
+  score += Math.min(commonInterests.length * 10, 40);
+
+  // 4. Age proximity (+15% if within 1 year)
+  if (me.age && target.age && Math.abs(me.age - target.age) <= 1) {
+    score += 15;
   }
-  if (rightArrow) {
-    rightArrow.style.display = likedLane.length > 0 ? "flex" : "none";
-    if (likedBadge) likedBadge.textContent = likedLane.length;
-  }
+
+  // Cap at 99%
+  return Math.min(score, 99);
 }
 
-// Wire up arrow buttons once DOM is ready
-document.getElementById("sideArrowLeft")?.addEventListener("click",  () => openSideDrawer("passed"));
-document.getElementById("sideArrowRight")?.addEventListener("click", () => openSideDrawer("liked"));
+function getPersonalityType(uid) {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = uid.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return PERSONALITIES[Math.abs(hash) % PERSONALITIES.length];
+}
+
+function getMatchReasons(me, target) {
+  const reasons = [];
+  
+  // Same campus
+  if (me.campus && target.campus && me.campus.toLowerCase().trim() === target.campus.toLowerCase().trim()) {
+    reasons.push("Same Campus");
+  }
+
+  // Common interests
+  const myInterests = me.interests || [];
+  const targetInterests = target.interests || [];
+  const common = targetInterests.filter(i => myInterests.includes(i));
+  if (common.length > 0) {
+    reasons.push(`${common.length} Common Interest${common.length > 1 ? 's' : ''}`);
+  }
+
+  // Personality match (deterministic)
+  const myPers = getPersonalityType(me.uid || currentUser.uid);
+  const targetPers = getPersonalityType(target.uid);
+  if (myPers === targetPers) {
+    reasons.push("Matching Vibe");
+  } else {
+    reasons.push("Complementary Vibe");
+  }
+
+  return reasons;
+}
 
 // ─────────────────────────────────────────
-// BIND ACTIONS TO FRONT CARD
+// DECK RENDER & physics GESTURE BINDING
 // ─────────────────────────────────────────
-function bindFrontCard() {
-  if (centerQueue.length === 0) {
-    activeLikeAction = null;
-    activePassAction = null;
-    disableIndicators();
+function renderSwiperDeck() {
+  container.innerHTML = "";
+  if (candidates.length === 0) {
+    showEmptyDeck();
     return;
   }
-  const front = centerQueue[0];
-  activeLikeAction = front.card._likeAction;
-  activePassAction = front.card._passAction;
-  updateLikeIndicator(likedUids.has(front.uid));
-  enableIndicators();
-}
 
-// ─────────────────────────────────────────
-// LIKE — moves card to right liked lane
-// ─────────────────────────────────────────
-async function doLikeCard() {
-  if (centerQueue.length === 0) return;
-  const entry  = centerQueue[0];
-  const { card, uid, data } = entry;
-  const from          = currentUser.uid;
-  const to            = uid;
-  const likeId        = `${from}_${to}`;
-  const reverseLikeId = `${to}_${from}`;
-  const matchId       = [from, to].sort().join("_");
-
-  if (likeIndicator) likeIndicator.disabled = true;
-
-  try {
-    if (likedUids.has(to)) {
-      // Already liked — unlike it, pull from liked lane back to center
-      await deleteDoc(doc(db, "likes", likeId));
-      likedUids.delete(to);
-      try { await deleteDoc(doc(db, "matches", matchId)); } catch (_) {}
-      // Find in liked lane and pull back
-      const idx = likedLane.findIndex(e => e.uid === uid);
-      if (idx !== -1) likedLane.splice(idx, 1);
-      centerQueue.unshift(entry);
-      updateLikeIndicator(false);
-    } else {
-      // Like — move to liked lane
-      await setDoc(doc(db, "likes", likeId), { from, to, createdAt: serverTimestamp() });
-      likedUids.add(to);
-      card.classList.add("swiping-right");
-
-      const rev = await getDoc(doc(db, "likes", reverseLikeId));
-      if (rev.exists()) {
-        await setDoc(doc(db, "matches", matchId), { users: [from, to], createdAt: serverTimestamp() });
-        setTimeout(() => showMatchNotification(data.name || "Someone"), 350);
-      }
-
-      // Remove from passed lane if it was there
-      const pi = passedLane.findIndex(e => e.uid === uid);
-      if (pi !== -1) passedLane.splice(pi, 1);
-
-      centerQueue.shift();
-      likedLane.unshift(entry);
-
-      // Record view for new front card
-      if (centerQueue.length > 0) {
-        recordView(centerQueue[0].uid, centerQueue[0].data, currentUser.uid, currentUserData || {});
-      }
+  // Show up to 3 cards in the deck for 3D stacking depth
+  const cardsToRender = candidates.slice(0, 3);
+  cardsToRender.forEach((user, index) => {
+    const card = buildCardElement(user, index);
+    container.appendChild(card);
+    
+    // Bind touch/drag events only on the active front card
+    if (index === 0) {
+      bindSwipeGestures(card);
     }
-  } catch (err) {
-    console.error("Like error:", err);
-    card.classList.remove("swiping-right");
-    alert(err.code === "permission-denied"
-      ? "Permission denied. Check your Firestore rules."
-      : `Action failed: ${err.message}`);
-  }
-
-  if (likeIndicator) likeIndicator.disabled = false;
-  renderCarousel();
-  bindFrontCard();
-  refreshHistoryIfOpen();
-}
-
-// ─────────────────────────────────────────
-// PASS — moves card to left passed lane
-// ─────────────────────────────────────────
-async function doPassCard() {
-  if (centerQueue.length === 0) return;
-  const entry  = centerQueue[0];
-  const { card, uid, data } = entry;
-
-  card.classList.add("swiping-left");
-
-  centerQueue.shift();
-  passedLane.unshift(entry);
-  passedUids.add(uid);
-
-  // Persist to Firestore
-  try {
-    await setDoc(doc(db, "passes", `${currentUser.uid}_${uid}`), {
-      from: currentUser.uid, to: uid, createdAt: serverTimestamp()
-    });
-  } catch (err) { console.error("Pass write error:", err); }
-
-  if (centerQueue.length > 0) {
-    recordView(centerQueue[0].uid, centerQueue[0].data, currentUser.uid, currentUserData || {});
-  }
-
-  renderCarousel();
-  bindFrontCard();
-  refreshHistoryIfOpen();
-}
-
-// ─────────────────────────────────────────
-// PULL SIDE CARD BACK TO CENTER
-// ─────────────────────────────────────────
-// SIDE DRAWER
-// ─────────────────────────────────────────
-function openSideDrawer(side) {
-  // side = "liked" | "passed"
-  const lane    = side === "liked" ? likedLane : passedLane;
-  const color   = side === "liked" ? "#43e97b" : "#ff4458";
-  const label   = side === "liked" ? "💚 Liked" : "✕ Passed";
-  const emptyMsg = side === "liked" ? "No liked profiles yet" : "No passed profiles yet";
-
-  const existing = document.getElementById("side-drawer-backdrop");
-  if (existing) existing.remove();
-
-  const backdrop = document.createElement("div");
-  backdrop.id = "side-drawer-backdrop";
-  backdrop.className = "side-drawer-backdrop";
-  backdrop.addEventListener("click", e => { if (e.target === backdrop) closeSideDrawer(); });
-
-  const drawer = document.createElement("div");
-  drawer.className = `side-drawer side-drawer-${side}`;
-  drawer.innerHTML = `
-    <div class="side-drawer-header">
-      <span class="side-drawer-title">${label}</span>
-      <button class="side-drawer-close" onclick="closeSideDrawer()">✕</button>
-    </div>
-    <div class="side-drawer-body" id="side-drawer-body">
-      ${lane.length === 0
-        ? `<div class="side-drawer-empty">${emptyMsg}</div>`
-        : lane.map(e => `
-          <div class="side-drawer-row" data-uid="${e.uid}">
-            <img class="side-drawer-avatar"
-              src="${e.data.photoURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'}"
-              onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'">
-            <div class="side-drawer-info">
-              <div class="side-drawer-name">${e.data.name || ""}${e.data.age ? `, ${e.data.age}` : ""}</div>
-              <div class="side-drawer-meta">${[e.data.course, e.data.campus].filter(Boolean).join(" · ")}</div>
-            </div>
-            <button class="side-drawer-pull-btn" data-uid="${e.uid}" data-side="${side}">
-              Pull back
-            </button>
-          </div>`).join("")
-      }
-    </div>`;
-
-  backdrop.appendChild(drawer);
-  document.body.appendChild(backdrop);
-  setTimeout(() => { backdrop.classList.add("open"); drawer.classList.add("open"); }, 10);
-
-  // Pull back buttons
-  drawer.querySelectorAll(".side-drawer-pull-btn").forEach(btn => {
-    btn.addEventListener("click", e => {
-      e.stopPropagation();
-      const uid  = btn.dataset.uid;
-      const side = btn.dataset.side;
-      closeSideDrawer();
-      if (side === "liked")  pullFromLiked(uid);
-      else                   pullFromPassed(uid);
-    });
   });
 }
 
-function closeSideDrawer() {
-  const backdrop = document.getElementById("side-drawer-backdrop");
-  if (!backdrop) return;
-  backdrop.classList.remove("open");
-  backdrop.querySelector(".side-drawer").classList.remove("open");
-  setTimeout(() => backdrop.remove(), 300);
+function showEmptyDeck() {
+  container.innerHTML = `
+    <div class="empty-state">
+      <h3>No Profiles Found</h3>
+      <p>Adjust your discovery parameters in the filter sidebar to find more students on campus.</p>
+      <button id="resetFiltersDeckBtn">Clear Filters</button>
+    </div>`;
+
+  const btn = document.getElementById("resetFiltersDeckBtn");
+  if (btn) {
+    btn.onclick = () => {
+      resetAllFilters();
+    };
+  }
+  disableControls();
 }
 
-async function pullFromLiked(uid) {
-  const idx = likedLane.findIndex(e => e.uid === uid);
-  if (idx === -1) return;
-  const entry = likedLane.splice(idx, 1)[0];
-  entry.card.classList.remove("swiping-right");
-  centerQueue.unshift(entry);
-  likedUids.delete(uid);
+function buildCardElement(user, index) {
+  const card = document.createElement("div");
+  card.className = "user-card";
+  
+  // Assign 3D stack classes
+  if (index === 0) card.classList.add("active-card");
+  else if (index === 1) card.classList.add("next-card");
+  else if (index === 2) card.classList.add("third-card");
+  else card.classList.add("hidden-card");
 
-  // Remove like + match from Firestore
+  const myPers = getPersonalityType(user.uid);
+  const reasons = getMatchReasons(currentUserData, user);
+  const interestsList = user.interests || [];
+
+  // Year label helper
+  const getYearLabel = (val) => {
+    const mapping = { "1": "1st Year", "2": "2nd Year", "3": "3rd Year", "4": "4th Year", "5": "Graduate" };
+    return mapping[val] || "Undergrad";
+  };
+
+  card.innerHTML = `
+    <!-- Action Stamps -->
+    <div class="stamp stamp-like">Like</div>
+    <div class="stamp stamp-nope">Nope</div>
+    <div class="stamp stamp-super">Crush</div>
+
+    <img src="${user.photoURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'}" alt="${user.name}">
+    
+    <button class="info-btn" data-action="info">
+      <i class="fa-solid fa-circle-info"></i>
+    </button>
+
+    <div class="card-info">
+      <div class="card-title-row">
+        <span class="card-name">${user.name}</span>
+        <span class="card-age">${user.age}</span>
+        <span class="card-compat-badge">${user._compatibility}% Match</span>
+      </div>
+      
+      <div class="card-meta-row">
+        <div class="card-meta-item"><i class="fa-solid fa-graduation-cap"></i> <span>${user.course} (${getYearLabel(user.yearOfStudy)})</span></div>
+        <div class="card-meta-item"><i class="fa-solid fa-building-columns"></i> <span>${user.campus}</span></div>
+      </div>
+
+      <p class="card-bio">${user.bio || "No campus bio updated yet."}</p>
+
+      <!-- Match Reasons tags -->
+      <div class="match-reasons-container">
+        <span class="reason-tag" style="background: rgba(168, 85, 247, 0.12); border-color: rgba(168, 85, 247, 0.3); color: #c084fc;">
+          <i class="fa-solid fa-user-tag"></i> ${myPers}
+        </span>
+        ${reasons.map(r => `
+          <span class="reason-tag">
+            <i class="fa-solid ${r.includes('Campus') ? 'fa-map-pin' : r.includes('Vibe') ? 'fa-bolt' : 'fa-heart'}"></i> ${r}
+          </span>
+        `).join("")}
+      </div>
+
+      <!-- Interests Preview -->
+      <div class="card-interests">
+        ${interestsList.slice(0, 3).map(interest => {
+          const isShared = (currentUserData?.interests || []).includes(interest);
+          const matchItem = CURATED_INTERESTS.find(i => i.name === interest);
+          const emoji = matchItem ? matchItem.emoji : "✨";
+          return `
+            <span class="card-interest-pill ${isShared ? 'shared-interest' : ''}">
+              <span>${emoji}</span>
+              <span>${interest}</span>
+            </span>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+
+  // Details button click -> Opens Modal
+  card.querySelector('[data-action="info"]').onclick = (e) => {
+    e.stopPropagation();
+    showProfileModal(user, user.uid);
+  };
+
+  card._uid = user.uid;
+  card._data = user;
+  return card;
+}
+
+// ─────────────────────────────────────────
+// CARD GESTURES & INTERACTION
+// ─────────────────────────────────────────
+function bindSwipeGestures(card) {
+  activeCardElement = card;
+  card.addEventListener("mousedown", onDragStart);
+  card.addEventListener("touchstart", onDragStart, { passive: true });
+}
+
+function onDragStart(e) {
+  if (e.target.closest(".info-btn") || e.target.closest(".card-interests") || e.target.closest("button")) return;
+  isDragging = true;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  startX = clientX;
+  startY = clientY;
+
+  activeCardElement.style.transition = "none";
+  activeCardElement.style.cursor = "grabbing";
+
+  document.addEventListener("mousemove", onDragMove);
+  document.addEventListener("touchmove", onDragMove, { passive: false });
+  document.addEventListener("mouseup", onDragEnd);
+  document.addEventListener("touchend", onDragEnd);
+}
+
+function onDragMove(e) {
+  if (!isDragging || !activeCardElement) return;
+  if (e.cancelable) e.preventDefault();
+
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  currentX = clientX - startX;
+  currentY = clientY - startY;
+
+  // Swiping calculations (rotation and displacement)
+  const rotation = currentX * 0.08;
+  activeCardElement.style.transform = `translate3d(${currentX}px, ${currentY}px, 0) rotate(${rotation}deg)`;
+
+  // Stamp opacities
+  const stampLike = activeCardElement.querySelector(".stamp-like");
+  const stampNope = activeCardElement.querySelector(".stamp-nope");
+  const stampSuper = activeCardElement.querySelector(".stamp-super");
+
+  if (currentY < -60 && Math.abs(currentX) < Math.abs(currentY)) {
+    // Upward drag -> Super Like / Secret Crush stamp
+    if (stampSuper) stampSuper.style.opacity = Math.min(Math.abs(currentY) / 120, 0.95);
+    if (stampLike) stampLike.style.opacity = 0;
+    if (stampNope) stampNope.style.opacity = 0;
+  } else if (currentX > 0) {
+    // Right drag -> Like
+    if (stampLike) stampLike.style.opacity = Math.min(currentX / 120, 0.95);
+    if (stampNope) stampNope.style.opacity = 0;
+    if (stampSuper) stampSuper.style.opacity = 0;
+  } else {
+    // Left drag -> Nope
+    if (stampNope) stampNope.style.opacity = Math.min(Math.abs(currentX) / 120, 0.95);
+    if (stampLike) stampLike.style.opacity = 0;
+    if (stampSuper) stampSuper.style.opacity = 0;
+  }
+}
+
+function onDragEnd() {
+  if (!isDragging || !activeCardElement) return;
+  isDragging = false;
+  activeCardElement.style.cursor = "grab";
+
+  document.removeEventListener("mousemove", onDragMove);
+  document.removeEventListener("touchmove", onDragMove);
+  document.removeEventListener("mouseup", onDragEnd);
+  document.removeEventListener("touchend", onDragEnd);
+
+  const threshold = 130;
+  if (currentX > threshold) {
+    swipeAction("right");
+  } else if (currentX < -threshold) {
+    swipeAction("left");
+  } else if (currentY < -threshold) {
+    swipeAction("up");
+  } else {
+    // Snap back
+    activeCardElement.style.transition = "transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+    activeCardElement.style.transform = "translate3d(0,0,0) rotate(0deg)";
+    
+    // Hide stamps
+    const stamps = activeCardElement.querySelectorAll(".stamp");
+    stamps.forEach(s => s.style.opacity = 0);
+  }
+}
+
+function swipeAction(direction) {
+  if (!activeCardElement) return;
+  const card = activeCardElement;
+  const uid = card._uid;
+  const uData = card._data;
+  
+  let targetTransform = "";
+  if (direction === "right") {
+    targetTransform = `translate3d(${window.innerWidth + 200}px, ${currentY}px, 0) rotate(45deg)`;
+  } else if (direction === "left") {
+    targetTransform = `translate3d(${-window.innerWidth - 200}px, ${currentY}px, 0) rotate(-45deg)`;
+  } else if (direction === "up") {
+    targetTransform = `translate3d(${currentX}px, ${-window.innerHeight - 200}px, 0) rotate(0deg)`;
+  }
+
+  // Animate card fly-off
+  card.style.transition = "transform 0.45s ease-in, opacity 0.45s ease-in";
+  card.style.transform = targetTransform;
+  card.style.opacity = 0;
+
+  // Shift from main swiper queue in memory
+  candidates.shift();
+
+  // Execute database operations after animation finish
+  setTimeout(async () => {
+    card.remove();
+    
+    if (direction === "right") {
+      await registerLike(uid, uData, false);
+    } else if (direction === "left") {
+      registerPass(uid, uData);
+    } else if (direction === "up") {
+      await registerLike(uid, uData, true); // superLike = true
+    }
+
+    renderSwiperDeck();
+  }, 250);
+}
+
+// ─────────────────────────────────────────
+// BUTTON CLICKS / KEYBOARD SWIPES
+// ─────────────────────────────────────────
+if (indicatorPass) indicatorPass.onclick = () => buttonSwipe("left");
+if (indicatorLike) indicatorLike.onclick = () => buttonSwipe("right");
+if (indicatorSuperLike) indicatorSuperLike.onclick = () => buttonSwipe("up");
+
+function buttonSwipe(direction) {
+  const card = container.querySelector(".active-card");
+  if (!card) return;
+  
+  activeCardElement = card;
+  const stamp = card.querySelector(`.stamp-${direction === "right" ? "like" : direction === "left" ? "nope" : "super"}`);
+  if (stamp) {
+    stamp.style.opacity = 0.95;
+    stamp.style.transform = "scale(1.1) rotate(0deg)";
+  }
+
+  setTimeout(() => {
+    swipeAction(direction);
+  }, 100);
+}
+
+function setupKeyboardControls() {
+  document.addEventListener("keydown", (e) => {
+    // Only swipe if no modal or text inputs are open
+    if (document.querySelector(".profile-modal") || 
+        document.querySelector(".mobile-filters-overlay.open") || 
+        document.querySelector(".interests-modal-overlay.open") ||
+        document.activeElement.tagName === "INPUT" || 
+        document.activeElement.tagName === "SELECT") return;
+
+    if (e.key === "ArrowRight") {
+      buttonSwipe("right");
+    } else if (e.key === "ArrowLeft") {
+      buttonSwipe("left");
+    } else if (e.key === "ArrowUp") {
+      buttonSwipe("up");
+    }
+  });
+}
+
+function disableControls() {
+  if (indicatorPass) indicatorPass.style.pointerEvents = "none";
+  if (indicatorLike) indicatorLike.style.pointerEvents = "none";
+  if (indicatorSuperLike) indicatorSuperLike.style.pointerEvents = "none";
+}
+
+function enableControls() {
+  if (indicatorPass) indicatorPass.style.pointerEvents = "auto";
+  if (indicatorLike) indicatorLike.style.pointerEvents = "auto";
+  if (indicatorSuperLike) indicatorSuperLike.style.pointerEvents = "auto";
+}
+
+// ─────────────────────────────────────────
+// FIRESTORE ACTIONS & MATCHES
+// ─────────────────────────────────────────
+async function registerLike(targetUid, targetData, isSuperLike = false) {
+  const from = currentUser.uid;
+  const to = targetUid;
+  const likeId = `${from}_${to}`;
+  const reverseLikeId = `${to}_${from}`;
+  const matchId = [from, to].sort().join("_");
+
+  likedUids.add(to);
+  likedLane.unshift({ uid: to, data: targetData });
+  updateCarouselCountBadges();
+
   try {
-    await deleteDoc(doc(db, "likes", `${currentUser.uid}_${uid}`));
-    const matchId = [currentUser.uid, uid].sort().join("_");
-    try { await deleteDoc(doc(db, "matches", matchId)); } catch (_) {}
-  } catch (err) { console.error("Unlike error:", err); }
+    // Save like to Firestore
+    await setDoc(doc(db, "likes", likeId), {
+      from,
+      to,
+      superLike: isSuperLike,
+      createdAt: serverTimestamp()
+    });
 
-  showSideToast("💚 Pulled back — like again or pass?", "green");
-  renderCarousel();
-  bindFrontCard();
-  refreshHistoryIfOpen();
+    // Check for match
+    const revSnap = await getDoc(doc(db, "likes", reverseLikeId));
+    if (revSnap.exists()) {
+      // Create match document
+      await setDoc(doc(db, "matches", matchId), {
+        users: [from, to],
+        createdAt: serverTimestamp(),
+        unreadCounts: { [from]: 0, [to]: 0 },
+        lastMessage: isSuperLike ? "🌟 Sent a Super Like! Say hello 👋" : "You matched! Say hello 👋",
+        lastMessageAt: serverTimestamp()
+      });
+
+      // Trigger Celebration!
+      showCelebrationOverlay(targetData);
+    } else {
+      showSideToast(isSuperLike ? "⭐ Super Liked profile!" : "💚 Profile liked!", "green");
+    }
+
+  } catch (err) {
+    console.error("Like save failed:", err);
+    showSideToast("Action failed. Connection error.", "red");
+  }
+}
+
+async function registerPass(targetUid, targetData) {
+  const from = currentUser.uid;
+  const to = targetUid;
+  const passId = `${from}_${to}`;
+
+  passedUids.add(to);
+  passedLane.unshift({ uid: to, data: targetData });
+  updateCarouselCountBadges();
+
+  // Show undo panel popup for a quick undo callback
+  showUndoNotification(() => {
+    // Undo callback
+    pullFromPassed(to);
+  });
+
+  try {
+    await setDoc(doc(db, "passes", passId), {
+      from,
+      to,
+      createdAt: serverTimestamp()
+    });
+  } catch (err) {
+    console.error("Pass save failed:", err);
+  }
 }
 
 async function pullFromPassed(uid) {
   const idx = passedLane.findIndex(e => e.uid === uid);
   if (idx === -1) return;
+  
   const entry = passedLane.splice(idx, 1)[0];
-  entry.card.classList.remove("swiping-left");
-  centerQueue.unshift(entry);
   passedUids.delete(uid);
+  updateCarouselCountBadges();
 
-  // Remove from Firestore
+  // Return to swiper deck list
+  candidates.unshift(entry.data);
+  renderSwiperDeck();
+  enableControls();
+
   try {
     await deleteDoc(doc(db, "passes", `${currentUser.uid}_${uid}`));
-  } catch (err) { console.error("Unpass error:", err); }
+    showSideToast("🔄 Restored profile to campus list!", "blue");
+  } catch (err) {
+    console.error("Pass undo failed:", err);
+  }
+}
 
-  showSideToast("🔄 Back in play — decide again!", "blue");
-  renderCarousel();
-  bindFrontCard();
-  refreshHistoryIfOpen();
+async function pullFromLiked(uid) {
+  const idx = likedLane.findIndex(e => e.uid === uid);
+  if (idx === -1) return;
+  
+  const entry = likedLane.splice(idx, 1)[0];
+  likedUids.delete(uid);
+  updateCarouselCountBadges();
+
+  candidates.unshift(entry.data);
+  renderSwiperDeck();
+  enableControls();
+
+  try {
+    await deleteDoc(doc(db, "likes", `${currentUser.uid}_${uid}`));
+    const matchId = [currentUser.uid, uid].sort().join("_");
+    await deleteDoc(doc(db, "matches", matchId)).catch(() => {});
+    showSideToast("🔄 Restored profile to campus list!", "blue");
+  } catch (err) {
+    console.error("Like undo failed:", err);
+  }
 }
 
 // ─────────────────────────────────────────
-// BUILD CARD
+// RECOMMENDATIONS SIDEBAR (DESKTOP)
 // ─────────────────────────────────────────
-function buildCard(data, targetUid) {
-  const card = document.createElement("div");
-  card.className = "user-card";
+function renderRecommendations() {
+  if (!recsList) return;
+  recsList.innerHTML = "";
 
-  card.innerHTML = `
-    <img src="${data.photoURL || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+"}" alt="${data.name}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'">
-    <button class="info-btn" data-action="info">
-      <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2"/>
-        <path d="M10 14v-4M10 6h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-    <div class="card-info">
-      <h3>${data.name}, ${data.age}</h3>
-      <p>📍 ${data.campus}</p>
-      <p>📚 ${data.course}</p>
-      ${(() => {
-        const myInterests = currentUserData?.interests || [];
-        const targetInterests = data.interests || [];
-        if (targetInterests.length === 0) return "";
-        
-        // Show up to 3 interests, prioritizing shared ones
-        const sortedTargetInterests = [...targetInterests].sort((a, b) => {
-          const aShared = myInterests.includes(a);
-          const bShared = myInterests.includes(b);
-          if (aShared && !bShared) return -1;
-          if (!aShared && bShared) return 1;
-          return 0;
-        });
+  const available = allUsers.filter(u => {
+    return u.uid !== currentUser.uid && !likedUids.has(u.uid) && !passedUids.has(u.uid);
+  });
 
-        return `
-          <div class="card-interests" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
-            ${sortedTargetInterests.slice(0, 3).map(interest => {
-              const isShared = myInterests.includes(interest);
-              const emojiMap = {
-                "Music": "🎵", "Sports": "⚽", "Gaming": "🎮", "Coding": "💻", 
-                "Traveling": "✈️", "Movies": "🍿", "Books": "📚", "Cooking": "🍳", 
-                "Hiking": "🥾", "Art": "🎨", "Photography": "📷", "Dancing": "💃", 
-                "Gym": "🏋️", "Coffee": "☕", "Writing": "✍️", "Music Instruments": "🎹"
-              };
-              const emoji = emojiMap[interest] || "✨";
-              return `
-                <span class="card-interest-pill" style="
-                  padding: 4px 8px;
-                  border-radius: 50px;
-                  font-size: 10.5px;
-                  font-weight: 600;
-                  display: inline-flex;
-                  align-items: center;
-                  gap: 3px;
-                  background: ${isShared ? 'rgba(108,71,255,0.18)' : 'rgba(255,255,255,0.06)'};
-                  color: ${isShared ? '#a78bfa' : '#9e9bb8'};
-                  border: 1px solid ${isShared ? 'rgba(108,71,255,0.3)' : 'rgba(255,255,255,0.1)'};
-                ">
-                  <span>${emoji}</span>
-                  <span>${interest}</span>
-                </span>
-              `;
-            }).join("")}
-          </div>
-        `;
-      })()}
-    </div>`;
+  if (available.length === 0) {
+    recsList.innerHTML = `<p class="rec-empty-msg">No suggestions. Try clearing likes or passes.</p>`;
+    return;
+  }
 
-  // Info button — only when card is center-front
-  card.querySelector('[data-action="info"]').onclick = async (e) => {
-    e.stopPropagation();
-    const isFront = centerQueue.length > 0 && centerQueue[0].uid === targetUid;
-    const isInLiked  = likedLane.some(e => e.uid === targetUid);
-    const isInPassed = passedLane.some(e => e.uid === targetUid);
-    if (!isFront && !isInLiked && !isInPassed) return;
-    await recordView(targetUid, data, currentUser.uid, currentUserData || {});
-    showProfileModal(data, targetUid);
+  // Calculate compatibility, sort, and grab top 3
+  const scored = available.map(u => ({
+    ...u,
+    _compatibility: calculateCompatibility(currentUserData, u)
+  })).sort((a, b) => b._compatibility - a._compatibility).slice(0, 3);
+
+  scored.forEach(u => {
+    const item = document.createElement("div");
+    item.className = "rec-item";
+    
+    const myPers = getPersonalityType(u.uid);
+    const commonInterests = (u.interests || []).filter(i => (currentUserData.interests || []).includes(i));
+    const reasonText = commonInterests.length > 0 
+      ? `Shared: ${commonInterests.slice(0, 2).join(', ')}` 
+      : `Vibe: ${myPers.split(' ')[0]}`;
+
+    item.innerHTML = `
+      <img class="rec-avatar" src="${u.photoURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'}">
+      <div class="rec-info">
+        <div class="rec-name-wrap">
+          <span class="rec-name">${u.name}</span>
+          <span class="rec-score">${u._compatibility}%</span>
+        </div>
+        <div class="rec-meta">${u.campus}</div>
+        <div class="rec-reasons"><i class="fa-solid fa-sparkles" style="color:var(--primary); font-size:10px;"></i> ${reasonText}</div>
+      </div>
+    `;
+
+    // Click triggers modal display
+    item.onclick = () => showProfileModal(u, u.uid);
+    recsList.appendChild(item);
+  });
+}
+
+// ─────────────────────────────────────────
+// INTERESTS SELECTOR MODAL
+// ─────────────────────────────────────────
+function setupInterestsModal() {
+  if (!openInterestsModalBtn) return;
+
+  // Render modal selector pills
+  modalInterestsGrid.innerHTML = "";
+  CURATED_INTERESTS.forEach(item => {
+    const pill = document.createElement("div");
+    pill.className = "interest-selector-pill";
+    pill.innerHTML = `<span>${item.emoji}</span><span>${item.name}</span>`;
+    
+    pill.onclick = () => {
+      if (selectedFilterInterests.has(item.name)) {
+        selectedFilterInterests.delete(item.name);
+        pill.classList.remove("active");
+      } else {
+        selectedFilterInterests.add(item.name);
+        pill.classList.add("active");
+      }
+    };
+    modalInterestsGrid.appendChild(pill);
+  });
+
+  openInterestsModalBtn.onclick = () => {
+    // Sync active state from state set
+    modalInterestsGrid.querySelectorAll(".interest-selector-pill").forEach(pill => {
+      const name = pill.querySelector("span:last-child").textContent;
+      pill.classList.toggle("active", selectedFilterInterests.has(name));
+    });
+    interestsModalOverlay.classList.add("open");
   };
 
-  card._likeAction = doLikeCard;
-  card._passAction = doPassCard;
-  card._targetUid  = targetUid;
-  card._data       = data;
-  return card;
-}
-// ─────────────────────────────────────────
-// RECORD VIEW
-// ─────────────────────────────────────────
-async function recordView(targetUid, targetData, viewerUid, viewerData) {
-  if (!targetUid || !viewerUid || targetUid === viewerUid) return;
-  try {
-    // Write to views collection — viewer writes about themselves viewing target
-    // This works with standard Firestore rules (user writing their own activity)
-    const viewId = `${viewerUid}_${targetUid}_${Date.now()}`;
-    await setDoc(doc(db, "views", viewId), {
-      viewerUid,
-      targetUid,
-      viewerName:     viewerData.name     || "",
-      viewerPhoto:    viewerData.photoURL || "",
-      viewerCourse:   viewerData.course   || "",
-      viewerCampus:   viewerData.campus   || "",
-      viewedAt:       serverTimestamp()
+  closeInterestsModalBtn.onclick = () => interestsModalOverlay.classList.remove("open");
+  
+  applyInterestsBtn.onclick = () => {
+    interestsModalOverlay.classList.remove("open");
+    interestsCountSpan.textContent = selectedFilterInterests.size;
+    
+    // Render selected filter tags
+    interestsFilterTags.innerHTML = "";
+    selectedFilterInterests.forEach(name => {
+      const tag = document.createElement("span");
+      tag.className = "filter-tag";
+      tag.innerHTML = `<span>${name}</span><span class="remove-tag">✕</span>`;
+      tag.querySelector(".remove-tag").onclick = (e) => {
+        e.stopPropagation();
+        selectedFilterInterests.delete(name);
+        interestsCountSpan.textContent = selectedFilterInterests.size;
+        tag.remove();
+        applyClientFiltering();
+      };
+      interestsFilterTags.appendChild(tag);
     });
 
-    // Also increment profileViews on own doc (viewer writes to their own tracking)
-    // Update target's profileViews counter via the views collection count instead
-  } catch (err) { console.error("recordView error:", err); }
-}
-
-
-// ─────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────
-function updateLikeIndicator(isLiked) {
-  if (!likeIndicator) return;
-  const span = likeIndicator.querySelector("span");
-  likeIndicator.classList.toggle("liked", isLiked);
-  if (span) span.textContent = isLiked ? "Unlike" : "Like";
-}
-
-function enableIndicators() {
-  if (passIndicator) passIndicator.style.pointerEvents = "auto";
-  if (likeIndicator) likeIndicator.style.pointerEvents = "auto";
-}
-
-function disableIndicators() {
-  if (passIndicator) passIndicator.style.pointerEvents = "none";
-  if (likeIndicator) likeIndicator.style.pointerEvents = "none";
-}
-
-function showEmpty(title, msg, btnText, btnAction) {
-  container.innerHTML = `
-    <div class="empty-state">
-      <h3>${title}</h3>
-      <p>${msg}</p>
-      <button id="emptyBtn">${btnText}</button>
-    </div>`;
-  const btn = document.getElementById("emptyBtn");
-  if (btn) btn.onclick = btnAction;
-}
-
-function showSideToast(msg, color) {
-  const existing = document.querySelector(".side-toast");
-  if (existing) existing.remove();
-  const t = document.createElement("div");
-  t.className = "side-toast";
-  t.style.setProperty("--toast-color", color === "green" ? "#43e97b" : color === "red" ? "#ff4458" : "#667eea");
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.classList.add("show"), 10);
-  setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2500);
-}
-
-function showUndoNotification(undoCallback) {
-  const existing = document.querySelector(".undo-notification");
-  if (existing) existing.remove();
-  const n = document.createElement("div");
-  n.className = "undo-notification";
-  n.innerHTML = `<span>Profile passed</span><button class="undo-btn">Undo</button>`;
-  document.body.appendChild(n);
-  setTimeout(() => n.classList.add("show"), 10);
-  let clicked = false;
-  n.querySelector(".undo-btn").onclick = () => {
-    clicked = true;
-    undoCallback();
-    n.classList.remove("show");
-    setTimeout(() => n.remove(), 300);
+    applyClientFiltering();
   };
-  setTimeout(() => {
-    if (!clicked) { n.classList.remove("show"); setTimeout(() => n.remove(), 300); }
-  }, 3000);
 }
 
 // ─────────────────────────────────────────
-// MATCH NOTIFICATION
+// FILTER FORMS BINDING
 // ─────────────────────────────────────────
-function showMatchNotification(matchName) {
-  const existing = document.querySelector(".match-notification");
-  if (existing) existing.remove();
+function setupFilters() {
+  if (!applyFiltersBtn) return;
 
-  const n = document.createElement("div");
-  n.className = "match-notification";
-  n.innerHTML = `
-    <div class="match-notif-inner">
-      <div class="match-notif-emoji">🎉</div>
-      <div class="match-notif-text">
-        <strong>It's a Match!</strong>
-        <span>You and ${matchName} liked each other</span>
-      </div>
-      <button class="match-notif-btn" onclick="location.href='matches.html'">View</button>
-      <button class="match-notif-close">✕</button>
-    </div>`;
-  document.body.appendChild(n);
-  setTimeout(() => n.classList.add("show"), 10);
-
-  n.querySelector(".match-notif-close").onclick = () => {
-    n.classList.remove("show");
-    setTimeout(() => n.remove(), 400);
+  applyFiltersBtn.onclick = () => {
+    applyClientFiltering();
   };
 
-  setTimeout(() => {
-    if (document.body.contains(n)) {
-      n.classList.remove("show");
-      setTimeout(() => n.remove(), 400);
-    }
-  }, 5000);
+  resetFiltersBtn.onclick = () => {
+    resetAllFilters();
+  };
+}
+
+function resetAllFilters() {
+  filterCampus.value = "";
+  filterCourse.value = "";
+  filterYear.value = "";
+  filterPreference.value = currentUserData.preference || "all";
+  selectedFilterInterests.clear();
+  if (interestsCountSpan) interestsCountSpan.textContent = "0";
+  if (interestsFilterTags) interestsFilterTags.innerHTML = "";
+  
+  // Reset mobile ones too if open
+  const mCampus = document.getElementById("mFilterCampus");
+  const mCourse = document.getElementById("mFilterCourse");
+  const mYear = document.getElementById("mFilterYear");
+  const mPref = document.getElementById("mFilterPreference");
+  if (mCampus) mCampus.value = "";
+  if (mCourse) mCourse.value = "";
+  if (mYear) mYear.value = "";
+  if (mPref) mPref.value = currentUserData.preference || "all";
+
+  applyClientFiltering();
+  showSideToast("Filters reset successfully!", "blue");
+}
+
+function setupMobileFilters() {
+  if (!mobileFilterTriggerBtn) return;
+
+  // Build mobile menu form
+  mobileFilterTriggerBtn.onclick = () => {
+    mobileFiltersBody.innerHTML = `
+      <form class="filters-form" id="mobileFormWrapper">
+        <div class="filter-group">
+          <label class="filter-label">Campus</label>
+          <input type="text" id="mFilterCampus" value="${filterCampus.value}" placeholder="e.g. Main Campus">
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Course / Major</label>
+          <input type="text" id="mFilterCourse" value="${filterCourse.value}" placeholder="e.g. Computer Science">
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Year of Study</label>
+          <select id="mFilterYear">
+            <option value="" ${filterYear.value === "" ? "selected" : ""}>All Years</option>
+            <option value="1" ${filterYear.value === "1" ? "selected" : ""}>1st Year</option>
+            <option value="2" ${filterYear.value === "2" ? "selected" : ""}>2nd Year</option>
+            <option value="3" ${filterYear.value === "3" ? "selected" : ""}>3rd Year</option>
+            <option value="4" ${filterYear.value === "4" ? "selected" : ""}>4th Year</option>
+            <option value="5" ${filterYear.value === "5" ? "selected" : ""}>Graduate</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Show Me</label>
+          <select id="mFilterPreference">
+            <option value="all" ${filterPreference.value === "all" ? "selected" : ""}>Everyone</option>
+            <option value="male" ${filterPreference.value === "male" ? "selected" : ""}>Men</option>
+            <option value="female" ${filterPreference.value === "female" ? "selected" : ""}>Women</option>
+            <option value="nonbinary" ${filterPreference.value === "nonbinary" ? "selected" : ""}>Non-Binary</option>
+          </select>
+        </div>
+      </form>
+    `;
+    mobileFiltersOverlay.classList.add("open");
+  };
+
+  closeFiltersModalBtn.onclick = () => mobileFiltersOverlay.classList.remove("open");
+
+  mobileApplyFiltersBtn.onclick = () => {
+    // Sync mobile values back to desktop inputs
+    filterCampus.value = document.getElementById("mFilterCampus").value;
+    filterCourse.value = document.getElementById("mFilterCourse").value;
+    filterYear.value = document.getElementById("mFilterYear").value;
+    filterPreference.value = document.getElementById("mFilterPreference").value;
+
+    mobileFiltersOverlay.classList.remove("open");
+    applyClientFiltering();
+  };
 }
 
 // ─────────────────────────────────────────
-// PROFILE MODAL
+// PROFILE FULL-SCREEN DETAILS MODAL
 // ─────────────────────────────────────────
-async function showProfileModal(userData, userId) {
+function showProfileModal(userData, userId) {
   const existing = document.querySelector(".profile-modal");
   if (existing) existing.remove();
 
-  let freshData = userData;
-  try {
-    const userDoc = await getDoc(doc(db, "users", userId));
-    if (userDoc.exists()) freshData = { ...userData, ...userDoc.data() };
-  } catch (err) { console.error("Modal fetch error:", err); }
+  const photos = userData.photoPosts && userData.photoPosts.length > 0 
+    ? userData.photoPosts 
+    : [userData.photoURL || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+"];
 
-  const photos  = (freshData.photoPosts && freshData.photoPosts.length > 0)
-                  ? freshData.photoPosts
-                  : [freshData.photoURL || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+"];
+  const photoItems = photos.map((url, i) => `
+    <div class="pm-photo-item ${i === 0 ? "active" : ""}">
+      <img src="${url}" alt="${userData.name}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'">
+    </div>
+  `).join("");
 
-  const photoItems = photos.map((url, i) =>
-    `<div class="pm-photo-item ${i === 0 ? "active" : ""}">
-       <img src="${url}" alt="${freshData.name}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'">
-     </div>`
-  ).join("");
+  const dots = photos.length > 1 ? `
+    <div class="pm-dots">
+      ${photos.map((_, i) => `<span class="pm-dot ${i === 0 ? "active" : ""}"></span>`).join("")}
+    </div>` : "";
 
-  const dots = photos.length > 1
-    ? `<div class="pm-dots">${photos.map((_, i) =>
-        `<span class="pm-dot ${i === 0 ? "active" : ""}"></span>`).join("")}</div>` : "";
-
-  const navBtns = photos.length > 1
-    ? `<button class="pm-nav pm-prev">&#8249;</button><button class="pm-nav pm-next">&#8250;</button>` : "";
+  const navBtns = photos.length > 1 ? `
+    <button class="pm-nav pm-prev"><i class="fa-solid fa-chevron-left"></i></button>
+    <button class="pm-nav pm-next"><i class="fa-solid fa-chevron-right"></i></button>` : "";
 
   const modal = document.createElement("div");
   modal.className = "profile-modal";
+
+  const getYearLabel = (val) => {
+    const mapping = { "1": "1st Year", "2": "2nd Year", "3": "3rd Year", "4": "4th Year", "5": "Graduate" };
+    return mapping[val] || "Undergrad";
+  };
+
   modal.innerHTML = `
     <div class="modal-overlay"></div>
     <div class="pm-card">
-
-      <!-- Photos fill the card -->
       <div class="pm-gallery">
         ${navBtns}
         <div class="pm-photos">${photoItems}</div>
         ${dots}
       </div>
 
-      <!-- Gradient + name/meta always visible at bottom -->
       <div class="pm-card-overlay">
-        <div class="pm-card-name">${freshData.name || ""}${freshData.age ? `, ${freshData.age}` : ""}</div>
+        <div class="pm-card-name">${userData.name || "UniMatch User"}, ${userData.age || ""}</div>
         <div class="pm-card-meta">
-          ${freshData.campus ? `<span>📍 ${freshData.campus}</span>` : ""}
-          ${freshData.course ? `<span>📚 ${freshData.course}</span>` : ""}
+          <span><i class="fa-solid fa-graduation-cap"></i> ${userData.course || "Course"} (${getYearLabel(userData.yearOfStudy)})</span>
+          <span><i class="fa-solid fa-building-columns"></i> ${userData.campus || "Campus"}</span>
         </div>
       </div>
 
-      <!-- Close btn top left -->
-      <button class="pm-close">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-        </svg>
-      </button>
+      <button class="pm-close"><i class="fa-solid fa-xmark"></i></button>
+      <button class="pm-about-btn" id="pm-about-btn"><i class="fa-solid fa-arrow-up"></i></button>
 
-      <!-- ℹ️ btn top right — slides up about panel -->
-      <button class="pm-about-btn" id="pm-about-btn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-          <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </button>
-
-      <!-- About panel slides up from bottom -->
+      <!-- Slides up about panel details -->
       <div class="pm-about-panel" id="pm-about-panel">
         <div class="pm-about-handle"></div>
-        <div class="pm-about-name">${freshData.name || ""}${freshData.age ? `, ${freshData.age}` : ""}</div>
-        ${freshData.gender ? `<div class="pm-about-row"><span>👤</span><span>${freshData.gender}</span></div>` : ""}
-        ${freshData.campus ? `<div class="pm-about-row"><span>📍</span><span>${freshData.campus}</span></div>` : ""}
-        ${freshData.course ? `<div class="pm-about-row"><span>📚</span><span>${freshData.course}</span></div>` : ""}
-        ${freshData.bio    ? `<div class="pm-about-bio"><h3>About</h3><p>${freshData.bio}</p></div>` : ""}
-        ${freshData.interests && freshData.interests.length > 0 ? `
-          <div class="pm-about-interests" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
-            <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6b6882; margin-bottom: 8px;">Interests</h3>
-            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-              ${freshData.interests.map(i => {
-                const emojiMap = {
-                  "Music": "🎵", "Sports": "⚽", "Gaming": "🎮", "Coding": "💻", 
-                  "Traveling": "✈️", "Movies": "🍿", "Books": "📚", "Cooking": "🍳", 
-                  "Hiking": "🥾", "Art": "🎨", "Photography": "📷", "Dancing": "💃", 
-                  "Gym": "🏋️", "Coffee": "☕", "Writing": "✍️", "Music Instruments": "🎹"
-                };
-                const emoji = emojiMap[i] || "✨";
-                const isShared = (currentUserData?.interests || []).includes(i);
-                return `
-                  <span style="
-                    padding: 4px 10px;
-                    border-radius: 50px;
-                    font-size: 11px;
-                    font-weight: 600;
-                    background: ${isShared ? 'rgba(108,71,255,0.18)' : 'rgba(255,255,255,0.06)'};
-                    color: ${isShared ? '#a78bfa' : '#9e9bb8'};
-                    border: 1px solid ${isShared ? 'rgba(108,71,255,0.3)' : 'rgba(255,255,255,0.1)'};
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 3px;
-                  ">
-                    <span>${emoji}</span>
-                    <span>${i}</span>
-                  </span>
-                `;
-              }).join("")}
-            </div>
-          </div>
-        ` : ""}
-      </div>
+        <div class="pm-about-name">${userData.name || "User"}</div>
+        <div class="pm-about-row"><span>👤</span><span>Gender: ${userData.gender}</span></div>
+        <div class="pm-about-row"><span>📍</span><span>Campus: ${userData.campus}</span></div>
+        <div class="pm-about-row"><span>📚</span><span>Major: ${userData.course}</span></div>
+        
+        <div class="pm-about-bio">
+          <h3>About Me</h3>
+          <p>${userData.bio || "No bio updated yet."}</p>
+        </div>
 
-    </div>`;
+        <div style="margin-top: 20px;">
+          <h3 style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--primary); margin-bottom:8px;">Campus Interests</h3>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            ${(userData.interests || []).map(i => {
+              const isShared = (currentUserData.interests || []).includes(i);
+              const mItem = CURATED_INTERESTS.find(cur => cur.name === i);
+              return `
+                <span style="
+                  background:${isShared ? 'rgba(108,71,255,0.14)' : 'rgba(255,255,255,0.04)'};
+                  color:${isShared ? '#c084fc' : 'var(--text-secondary)'};
+                  border:1px solid ${isShared ? 'rgba(108,71,255,0.3)' : 'rgba(255,255,255,0.08)'};
+                  padding:5px 12px; border-radius:50px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;
+                ">
+                  <span>${mItem ? mItem.emoji : "✨"}</span>
+                  <span>${i}</span>
+                </span>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 
   document.body.appendChild(modal);
   setTimeout(() => modal.classList.add("show"), 10);
 
-  // Gallery navigation
+  // Gallery Navigation logic
   if (photos.length > 1) {
     let idx = 0;
-    const photoEls = modal.querySelectorAll(".pm-photo-item");
-    const dotEls   = modal.querySelectorAll(".pm-dot");
+    const items = modal.querySelectorAll(".pm-photo-item");
+    const dotsList = modal.querySelectorAll(".pm-dot");
     const goTo = (i) => {
-      photoEls.forEach((el, j) => el.classList.toggle("active", j === i));
-      dotEls.forEach((el, j)   => el.classList.toggle("active", j === i));
+      items.forEach((item, j) => item.classList.toggle("active", j === i));
+      dotsList.forEach((dot, j) => dot.classList.toggle("active", j === i));
       idx = i;
     };
-    modal.querySelector(".pm-prev").onclick = () => goTo(idx > 0 ? idx - 1 : photoEls.length - 1);
-    modal.querySelector(".pm-next").onclick = () => goTo(idx < photoEls.length - 1 ? idx + 1 : 0);
-    dotEls.forEach((el, i) => { el.onclick = () => goTo(i); });
+    modal.querySelector(".pm-prev").onclick = () => goTo(idx > 0 ? idx - 1 : items.length - 1);
+    modal.querySelector(".pm-next").onclick = () => goTo(idx < items.length - 1 ? idx + 1 : 0);
+    dotsList.forEach((dot, i) => dot.onclick = () => goTo(i));
   }
 
-  // ℹ️ toggle about panel
-  const aboutBtn   = modal.querySelector("#pm-about-btn");
+  // Bio Drawer slide toggle
+  const aboutBtn = modal.querySelector("#pm-about-btn");
   const aboutPanel = modal.querySelector("#pm-about-panel");
-  aboutBtn.addEventListener("click", () => {
+  aboutBtn.onclick = () => {
     const open = aboutPanel.classList.toggle("open");
     aboutBtn.classList.toggle("active", open);
-  });
-
-  // Close
-  const close = () => {
-    modal.classList.remove("show");
-    setTimeout(() => modal.remove(), 300);
+    aboutBtn.innerHTML = open ? `<i class="fa-solid fa-arrow-down"></i>` : `<i class="fa-solid fa-arrow-up"></i>`;
   };
-  modal.querySelector(".pm-close").onclick         = close;
-  modal.querySelector(".modal-overlay").onclick    = close;
+
+  // Close handlers
+  const closeModal = () => {
+    modal.classList.remove("show");
+    setTimeout(() => modal.remove(), 350);
+  };
+  modal.querySelector(".pm-close").onclick = closeModal;
+  modal.querySelector(".modal-overlay").onclick = closeModal;
 }
+
 // ─────────────────────────────────────────
-// HISTORY DRAWER
+// DYNAMIC MATCH CELEBRATION (FULL SCREEN)
 // ─────────────────────────────────────────
-const historyBtn   = document.getElementById("historyBtn");
-const histDrawer   = document.getElementById("histDrawer");
+function showCelebrationOverlay(matchUser) {
+  if (!matchCelebrationOverlay) return;
+
+  celebrationMatchName.textContent = matchUser.name;
+  
+  // Photos load
+  if (currentUserData.photoURL) celebrationViewerPhoto.src = currentUserData.photoURL;
+  if (matchUser.photoURL) celebrationTargetPhoto.src = matchUser.photoURL;
+
+  // Generate suggested icebreakers
+  const common = (matchUser.interests || []).filter(i => (currentUserData.interests || []).includes(i));
+  
+  const starters = [
+    `Hey ${matchUser.name}! I noticed we both love ${common[0] || 'Coding'}. What project are you working on?`,
+    `Happy Match! 🎉 Same campus too, are you usually at the library or student center?`,
+    `Hey! Your bio was awesome. Up for grabbing a coffee at the campus café sometime this week?`
+  ];
+
+  celebrationIcebreakers.innerHTML = starters.map(txt => `
+    <div class="icebreaker-pill" data-starter="${encodeURIComponent(txt)}">
+      "${txt}"
+    </div>
+  `).join("");
+
+  // Sparkles/Confetti canvas-like animation inside overlay
+  const sparklesWrap = matchCelebrationOverlay.querySelector(".sparkles-container");
+  sparklesWrap.innerHTML = "";
+  for (let i = 0; i < 30; i++) {
+    const s = document.createElement("div");
+    s.style.position = "absolute";
+    s.style.width = Math.random() * 8 + 4 + "px";
+    s.style.height = s.style.width;
+    s.style.borderRadius = "50%";
+    s.style.background = ["#ff4b72", "#2ce687", "#3b82f6", "#f59e0b", "#a855f7"][Math.floor(Math.random() * 5)];
+    s.style.left = Math.random() * 100 + "%";
+    s.style.top = Math.random() * 100 + "%";
+    s.style.opacity = Math.random();
+    s.style.transform = `scale(${Math.random()})`;
+    sparklesWrap.appendChild(s);
+  }
+
+  matchCelebrationOverlay.classList.add("show");
+
+  // Interaction handlers
+  const closeCel = () => {
+    matchCelebrationOverlay.classList.remove("show");
+  };
+
+  celebrationCloseBtn.onclick = closeCel;
+
+  celebrationChatBtn.onclick = () => {
+    // Navigate straight to matches messaging panel with open trigger parameter
+    const matchId = [currentUser.uid, matchUser.uid].sort().join("_");
+    location.href = `matches.html?open=${matchId}`;
+  };
+
+  celebrationIcebreakers.querySelectorAll(".icebreaker-pill").forEach(pill => {
+    pill.onclick = async () => {
+      const text = decodeURIComponent(pill.dataset.starter);
+      const matchId = [currentUser.uid, matchUser.uid].sort().join("_");
+      
+      // Save opener directly in Firestore subcollection messages
+      try {
+        const msgRef = doc(collection(db, "chats", matchId, "messages"));
+        await setDoc(msgRef, {
+          senderId: currentUser.uid,
+          text,
+          createdAt: serverTimestamp(),
+          read: false
+        });
+        
+        // Also update match preview doc
+        await updateDoc(doc(db, "matches", matchId), {
+          lastMessage: text,
+          lastMessageAt: serverTimestamp()
+        });
+
+      } catch (err) {
+        console.error("Opener send failed:", err);
+      }
+
+      location.href = `matches.html?open=${matchId}`;
+    };
+  });
+}
+
+// ─────────────────────────────────────────
+// HISTORY DRAWER (FROM WORKSPACE BASE)
+// ─────────────────────────────────────────
+const historyBtn = document.getElementById("historyBtn");
+const histDrawer = document.getElementById("histDrawer");
 const histBackdrop = document.getElementById("histBackdrop");
-const histClose    = document.getElementById("histClose");
-const histBody     = document.getElementById("histBody");
+const histClose = document.getElementById("histClose");
+const histBody = document.getElementById("histBody");
 
 let histActiveTab = "liked";
 
@@ -824,220 +1136,175 @@ function closeHistory() {
   histBackdrop.classList.remove("open");
 }
 
-function refreshHistoryIfOpen() {
-  if (histDrawer && histDrawer.classList.contains("open")) {
-    loadHistoryTab(histActiveTab);
-  }
-}
-
-if (historyBtn)   historyBtn.addEventListener("click", openHistory);
-if (histClose)    histClose.addEventListener("click", closeHistory);
-if (histBackdrop) histBackdrop.addEventListener("click", closeHistory);
+if (historyBtn) historyBtn.onclick = openHistory;
+if (histClose) histClose.onclick = closeHistory;
+if (histBackdrop) histBackdrop.onclick = closeHistory;
 
 document.querySelectorAll(".hist-tab").forEach(tab => {
-  tab.addEventListener("click", () => {
+  tab.onclick = () => {
     document.querySelectorAll(".hist-tab").forEach(t => t.classList.remove("active"));
     tab.classList.add("active");
     histActiveTab = tab.dataset.tab;
     loadHistoryTab(histActiveTab);
-  });
+  };
 });
 
 async function loadHistoryTab(tab) {
   if (!currentUser) return;
-
-  // ── Step 1: render instantly from in-memory lanes (no spinner, no wait) ──
-  if (tab === "liked") {
-    const profiles = likedLane.map(e => ({ uid: e.uid, likeDocId: `${currentUser.uid}_${e.uid}`, ...e.data }));
-    renderHistoryRows(profiles, "liked");
-  } else {
-    const profiles = passedLane.map(e => ({ uid: e.uid, ...e.data }));
-    renderHistoryRows(profiles, "passed");
-  }
-
-  // ── Step 2: silently merge any Firestore-only records (persisted from prev sessions) ──
-  try {
-    if (tab === "liked") {
-      const liveUids = new Set(likedLane.map(e => e.uid));
-      const snap = await getDocs(query(collection(db, "likes"), where("from", "==", currentUser.uid)));
-      const extras = [];
-      for (const d of snap.docs) {
-        const toUid = d.data().to;
-        if (!toUid || liveUids.has(toUid)) continue;
-        const uSnap = await getDoc(doc(db, "users", toUid));
-        if (uSnap.exists()) {
-          extras.push({ uid: toUid, likeDocId: d.id, ...uSnap.data() });
-          liveUids.add(toUid); // prevent duplicates
-        }
-      }
-      if (extras.length) {
-        const profiles = [
-          ...likedLane.map(e => ({ uid: e.uid, likeDocId: `${currentUser.uid}_${e.uid}`, ...e.data })),
-          ...extras
-        ];
-        renderHistoryRows(profiles, "liked");
-      }
-    } else {
-      const liveUids = new Set(passedLane.map(e => e.uid));
-      const snap = await getDocs(query(collection(db, "passes"), where("from", "==", currentUser.uid)));
-      const extras = [];
-      for (const d of snap.docs) {
-        const toUid = d.data().to;
-        if (!toUid || liveUids.has(toUid)) continue;
-        const uSnap = await getDoc(doc(db, "users", toUid));
-        if (uSnap.exists()) {
-          extras.push({ uid: toUid, ...uSnap.data() });
-          liveUids.add(toUid);
-        }
-      }
-      if (extras.length) {
-        const profiles = [
-          ...passedLane.map(e => ({ uid: e.uid, ...e.data })),
-          ...extras
-        ];
-        renderHistoryRows(profiles, "passed");
-      }
-    }
-  } catch (_) {}
+  
+  // Render memory state immediately for fast feedback
+  const list = tab === "liked" ? likedLane : passedLane;
+  renderHistoryRows(list, tab);
 }
 
-function renderHistoryRows(profiles, tab) {
-  if (!profiles.length) {
-    const msg = tab === "liked" ? "You haven't liked anyone yet" : "No passed profiles yet";
-    const ico = tab === "liked" ? "💛" : "👋";
-    histBody.innerHTML = `<div class="hist-empty"><span class="hist-empty-icon">${ico}</span><span>${msg}</span></div>`;
+function renderHistoryRows(list, tab) {
+  if (!list.length) {
+    const msg = tab === "liked" ? "No liked profiles yet." : "No passed profiles yet.";
+    const icon = tab === "liked" ? "❤️" : "✕";
+    histBody.innerHTML = `<div class="hist-empty"><span class="hist-empty-icon">${icon}</span><span>${msg}</span></div>`;
     return;
   }
 
-  histBody.innerHTML = profiles.map((u, i) => `
-    <div class="hist-user-row" data-uid="${u.uid}">
-      <img class="hist-avatar"
-        src="${u.photoURL || "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+"}"
-        alt="${u.name || "User"}"
-        onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'">
+  histBody.innerHTML = list.map((item, i) => `
+    <div class="hist-user-row" data-uid="${item.uid}">
+      <img class="hist-avatar" src="${item.data.photoURL || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+'}">
       <div class="hist-info">
-        <div class="hist-name">${u.name || "Unknown"}${u.age ? `, ${u.age}` : ""}</div>
-        <div class="hist-meta">${[u.course, u.campus].filter(Boolean).join(" • ") || "UniMatch user"}</div>
+        <div class="hist-name">${item.data.name}, ${item.data.age}</div>
+        <div class="hist-meta">${item.data.course} • ${item.data.campus}</div>
       </div>
       <div class="hist-actions">
-        <button class="hist-action-btn like-btn ${tab === "liked" ? "active-like" : ""}" data-uid="${u.uid}" data-likedocid="${u.likeDocId || ""}" title="Like">❤️</button>
-        <button class="hist-action-btn pass-btn ${tab === "passed" ? "active-pass" : ""}" data-uid="${u.uid}" title="Pass">✕</button>
+        <button class="hist-action-btn ${tab === 'liked' ? 'like-btn active-like' : 'like-btn'}" data-uid="${item.uid}" title="Like">❤️</button>
+        <button class="hist-action-btn ${tab === 'passed' ? 'pass-btn active-pass' : 'pass-btn'}" data-uid="${item.uid}" title="Pass">✕</button>
       </div>
     </div>
-    ${i < profiles.length - 1 ? '<div class="hist-divider"></div>' : ""}
+    ${i < list.length - 1 ? `<div class="hist-divider"></div>` : ""}
   `).join("");
 
-  // Row click → view profile
+  // Click row -> detailed profile
   histBody.querySelectorAll(".hist-user-row").forEach(row => {
-    row.addEventListener("click", e => {
+    row.onclick = (e) => {
       if (e.target.closest(".hist-action-btn")) return;
-      showProfileModal({}, row.dataset.uid);
-    });
+      const uid = row.dataset.uid;
+      const item = list.find(e => e.uid === uid);
+      if (item) showProfileModal(item.data, uid);
+    };
   });
 
-  // Helper: get profile data object for a uid (from either lane)
-  function getProfileData(uid) {
-    const fromLiked  = likedLane.find(e => e.uid === uid);
-    const fromPassed = passedLane.find(e => e.uid === uid);
-    return (fromLiked || fromPassed)?.data || null;
-  }
-
-  // Like button
+  // Action toggles (changing mind in history)
   histBody.querySelectorAll(".like-btn").forEach(btn => {
-    btn.addEventListener("click", async e => {
+    btn.onclick = async (e) => {
       e.stopPropagation();
-      const toUid     = btn.dataset.uid;
-      const likeDocId = btn.dataset.likedocid;
-      const isLiked   = btn.classList.contains("active-like");
-
-      if (isLiked) {
-        // Unlike → remove from likedLane, put back in centerQueue
-        const idx = likedLane.findIndex(e => e.uid === toUid);
-        if (idx !== -1) likedLane.splice(idx, 1);
-        likedUids.delete(toUid);
-        // Restore card to center so user can re-decide
-        const data = getProfileData(toUid) || {};
-        const card = buildCard(data, toUid);
-        container.appendChild(card);
-        centerQueue.unshift({ card, uid: toUid, data });
-        try {
-          await deleteDoc(doc(db, "likes", likeDocId || `${currentUser.uid}_${toUid}`));
-          const matchId = [currentUser.uid, toUid].sort().join("_");
-          try { await deleteDoc(doc(db, "matches", matchId)); } catch (_) {}
-        } catch (err) { console.error("Unlike error:", err); }
-        renderCarousel();
-        loadHistoryTab(histActiveTab);
-
+      const uid = btn.dataset.uid;
+      closeHistory();
+      if (tab === "liked") {
+        // Unlike -> pull back
+        await pullFromLiked(uid);
       } else {
-        // Pass → Like: move from passedLane to likedLane immediately
-        const idx = passedLane.findIndex(e => e.uid === toUid);
-        const entry = idx !== -1 ? passedLane.splice(idx, 1)[0] : null;
-        passedUids.delete(toUid);
-        const data = entry?.data || getProfileData(toUid) || {};
-        const card = entry?.card || buildCard(data, toUid);
-        likedLane.unshift({ card, uid: toUid, data });
-        likedUids.add(toUid);
-        try {
-          try { await deleteDoc(doc(db, "passes", `${currentUser.uid}_${toUid}`)); } catch (_) {}
-          const likeId = `${currentUser.uid}_${toUid}`;
-          await setDoc(doc(db, "likes", likeId), { from: currentUser.uid, to: toUid, createdAt: serverTimestamp() });
-          const rev = await getDoc(doc(db, "likes", `${toUid}_${currentUser.uid}`));
-          if (rev.exists()) {
-            const matchId = [currentUser.uid, toUid].sort().join("_");
-            await setDoc(doc(db, "matches", matchId), { users: [currentUser.uid, toUid], createdAt: serverTimestamp() });
-            showMatchNotification((await getDoc(doc(db, "users", toUid))).data()?.name || "Someone");
-          }
-        } catch (err) { console.error("Like error:", err); }
-        renderCarousel();
-        loadHistoryTab(histActiveTab);
+        // Move passed -> liked
+        const idx = passedLane.findIndex(item => item.uid === uid);
+        if (idx !== -1) {
+          const entry = passedLane.splice(idx, 1)[0];
+          passedUids.delete(uid);
+          await registerLike(uid, entry.data, false);
+          try {
+            await deleteDoc(doc(db, "passes", `${currentUser.uid}_${uid}`));
+          } catch (_) {}
+          renderSwiperDeck();
+        }
       }
-    });
+    };
   });
 
-  // Pass button
   histBody.querySelectorAll(".pass-btn").forEach(btn => {
-    btn.addEventListener("click", async e => {
+    btn.onclick = async (e) => {
       e.stopPropagation();
-      const toUid    = btn.dataset.uid;
-      const isPassed = btn.classList.contains("active-pass");
-
-      if (isPassed) {
-        // Unpass → restore to centerQueue
-        const idx = passedLane.findIndex(e => e.uid === toUid);
-        const entry = idx !== -1 ? passedLane.splice(idx, 1)[0] : null;
-        passedUids.delete(toUid);
-        const data = entry?.data || getProfileData(toUid) || {};
-        const card = entry?.card || buildCard(data, toUid);
-        container.appendChild(card);
-        centerQueue.unshift({ card, uid: toUid, data });
-        try {
-          await deleteDoc(doc(db, "passes", `${currentUser.uid}_${toUid}`));
-        } catch (err) { console.error("Unpass error:", err); }
-        renderCarousel();
-        loadHistoryTab(histActiveTab);
-
+      const uid = btn.dataset.uid;
+      closeHistory();
+      if (tab === "passed") {
+        // Unpass -> pull back
+        await pullFromPassed(uid);
       } else {
-        // Like → Pass: move from likedLane to passedLane immediately
-        const idx = likedLane.findIndex(e => e.uid === toUid);
-        const entry = idx !== -1 ? likedLane.splice(idx, 1)[0] : null;
-        likedUids.delete(toUid);
-        const data = entry?.data || getProfileData(toUid) || {};
-        const card = entry?.card || buildCard(data, toUid);
-        passedLane.unshift({ card, uid: toUid, data });
-        passedUids.add(toUid);
-        try {
-          await deleteDoc(doc(db, "likes", `${currentUser.uid}_${toUid}`));
-          const matchId = [currentUser.uid, toUid].sort().join("_");
-          try { await deleteDoc(doc(db, "matches", matchId)); } catch (_) {}
-          await setDoc(doc(db, "passes", `${currentUser.uid}_${toUid}`), { from: currentUser.uid, to: toUid, createdAt: serverTimestamp() });
-        } catch (err) { console.error("Pass error:", err); }
-        renderCarousel();
-        loadHistoryTab(histActiveTab);
+        // Move liked -> passed
+        const idx = likedLane.findIndex(item => item.uid === uid);
+        if (idx !== -1) {
+          const entry = likedLane.splice(idx, 1)[0];
+          likedUids.delete(uid);
+          await registerPass(uid, entry.data);
+          try {
+            await deleteDoc(doc(db, "likes", `${currentUser.uid}_${uid}`));
+            const matchId = [currentUser.uid, uid].sort().join("_");
+            await deleteDoc(doc(db, "matches", matchId)).catch(() => {});
+          } catch (_) {}
+          renderSwiperDeck();
+        }
       }
-    });
+    };
   });
 }
 
-function addToPassed(uid, userData) {}
-function removeFromPassed(uid) {}
-function recordPassedProfile(uid, data) {}
+function updateCarouselCountBadges() {
+  // Arrow buttons updating on mobile if drawer is present
+  const passedBadge = document.getElementById("passedBadge");
+  const likedBadge = document.getElementById("likedBadge");
+  if (passedBadge) passedBadge.textContent = passedLane.length;
+  if (likedBadge) likedBadge.textContent = likedLane.length;
+}
+
+// ─────────────────────────────────────────
+// UI GENERAL HELPERS
+// ─────────────────────────────────────────
+function showEmpty(title, msg, btnText, btnAction) {
+  container.innerHTML = `
+    <div class="empty-state">
+      <h3>${title}</h3>
+      <p>${msg}</p>
+      <button id="emptyBtn">${btnText}</button>
+    </div>`;
+  const btn = document.getElementById("emptyBtn");
+  if (btn) btn.onclick = btnAction;
+  disableControls();
+}
+
+function showSideToast(msg, color) {
+  const existing = document.querySelector(".side-toast");
+  if (existing) existing.remove();
+  
+  const t = document.createElement("div");
+  t.className = "side-toast";
+  t.style.setProperty("--toast-color", color === "green" ? "var(--like-color)" : color === "blue" ? "var(--primary)" : "var(--nope-color)");
+  t.textContent = msg;
+  
+  document.body.appendChild(t);
+  setTimeout(() => t.classList.add("show"), 10);
+  setTimeout(() => {
+    t.classList.remove("show");
+    setTimeout(() => t.remove(), 350);
+  }, 2500);
+}
+
+function showUndoNotification(undoCallback) {
+  const existing = document.querySelector(".undo-notification");
+  if (existing) existing.remove();
+  
+  const n = document.createElement("div");
+  n.className = "undo-notification";
+  n.innerHTML = `<span>Profile passed.</span><button class="undo-btn">Undo</button>`;
+  
+  document.body.appendChild(n);
+  setTimeout(() => n.classList.add("show"), 10);
+  
+  let clicked = false;
+  n.querySelector(".undo-btn").onclick = () => {
+    clicked = true;
+    undoCallback();
+    n.classList.remove("show");
+    setTimeout(() => n.remove(), 300);
+  };
+
+  setTimeout(() => {
+    if (!clicked && n.parentNode) {
+      n.classList.remove("show");
+      setTimeout(() => n.remove(), 300);
+    }
+  }, 3500);
+}

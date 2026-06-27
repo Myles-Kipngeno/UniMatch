@@ -224,3 +224,44 @@ button[type="submit"]:active {
   color: #c084fc;
   text-decoration: underline;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Mobile Responsive Adjustments
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  body {
+    padding: 16px;
+    align-items: center;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  body::before, body::after {
+    display: none; /* Hide large mesh background elements to boost mobile performance */
+  }
+
+  .container {
+    max-width: 100%;
+    margin: auto 0;
+  }
+
+  .card {
+    padding: 32px 20px;
+    border-radius: 20px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+  }
+
+  h2 {
+    font-size: 24px;
+  }
+
+  input {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  button[type="submit"] {
+    padding: 12px;
+    font-size: 15px;
+  }
+}

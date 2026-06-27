@@ -64,6 +64,7 @@ const genderSelect = document.getElementById("gender");
 const ageInput = document.getElementById("age");
 const campusInput = document.getElementById("campus");
 const courseInput = document.getElementById("course");
+const yearOfStudySelect = document.getElementById("yearOfStudy");
 const bioInput = document.getElementById("bio");
 const preferenceSelect = document.getElementById("preference");
 
@@ -159,7 +160,7 @@ function showStep(step) {
 
 function validateStep(step) {
   if (step === 1) {
-    if (!nameInput.value.trim() || !genderSelect.value || !ageInput.value || !campusInput.value.trim() || !courseInput.value.trim()) {
+    if (!nameInput.value.trim() || !genderSelect.value || !ageInput.value || !campusInput.value.trim() || !courseInput.value.trim() || !yearOfStudySelect.value) {
       error.textContent = "Please fill in all details before continuing.";
       return false;
     }
@@ -221,12 +222,24 @@ function showTab(tab) {
 tabViewBtn.addEventListener("click", () => showTab("view"));
 tabEditBtn.addEventListener("click", () => showTab("edit"));
 
+function getYearLabel(val) {
+  const mapping = {
+    "1": "1st Year",
+    "2": "2nd Year",
+    "3": "3rd Year",
+    "4": "4th Year",
+    "5": "Graduate"
+  };
+  return mapping[val] || val || "";
+}
+
 // Populate Tinder Profile Card Preview
 function populateProfileCardPreview(data) {
   viewPhoto.src = data.photoURL || "default-avatar.png";
   viewNameAge.textContent = `${data.name || "UniMatch User"}${data.age ? `, ${data.age}` : ""}`;
   viewLocation.textContent = `📍 ${data.campus || "Campus"}`;
-  viewCourseDetail.textContent = `📚 ${data.course || "Course"}`;
+  const yearText = data.yearOfStudy ? ` (${getYearLabel(data.yearOfStudy)})` : "";
+  viewCourseDetail.textContent = `📚 ${data.course || "Course"}${yearText}`;
   viewBio.textContent = data.bio || "No bio written yet.";
 
   viewInterests.innerHTML = "";
@@ -275,6 +288,7 @@ onAuthStateChanged(auth, async (user) => {
       ageInput.value = data.age || "";
       campusInput.value = data.campus || "";
       courseInput.value = data.course || "";
+      yearOfStudySelect.value = data.yearOfStudy || "";
       bioInput.value = data.bio || "";
       preferenceSelect.value = data.preference || "";
 
@@ -341,10 +355,11 @@ form.addEventListener("submit", async (e) => {
   const age = Number(ageInput.value);
   const campus = campusInput.value.trim();
   const course = courseInput.value.trim();
+  const yearOfStudy = yearOfStudySelect.value;
   const bio = bioInput.value.trim();
   const preference = preferenceSelect.value;
 
-  if (!name || !gender || !age || !campus || !course || !preference) {
+  if (!name || !gender || !age || !campus || !course || !yearOfStudy || !preference) {
     error.textContent = "Please complete all required fields.";
     return;
   }
@@ -380,6 +395,7 @@ form.addEventListener("submit", async (e) => {
       age,
       campus,
       course,
+      yearOfStudy,
       bio,
       preference,
       interests: Array.from(selectedInterests),
