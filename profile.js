@@ -1,18 +1,6 @@
-/* ═══════════════════════════════════════════════════════════
-   profile.js - Onboarding Wizard & Profile Card System
-   ═══════════════════════════════════════════════════════════ */
+import { supabase } from "./js/supabase.js";
+import { requireAuth } from "./auth-guard.js";
 
-import { auth, db, storage } from "./firebase.js";
-import { onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, setDoc, getDoc, serverTimestamp }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-
-// ===============================
-// Curated Hobbies & Interests List
-// ===============================
 const CURATED_INTERESTS = [
   { name: "Music", emoji: "🎵" },
   { name: "Sports", emoji: "⚽" },
@@ -44,18 +32,12 @@ const CURATED_INTERESTS = [
   { name: "Volunteering", emoji: "🤝" }
 ];
 
-// ===============================
-// Detect EDIT mode
-// ===============================
 const urlParams = new URLSearchParams(window.location.search);
 const isEditMode = urlParams.get("edit") === "true";
 
-// ===============================
 // DOM elements
-// ===============================
 const form = document.getElementById("profileForm");
 const error = document.getElementById("error");
-
 const photoInput = document.getElementById("photoInput");
 const profilePreview = document.getElementById("profilePreview");
 
@@ -82,11 +64,9 @@ const btnSubmit = document.getElementById("btnSubmit");
 const interestsGrid = document.getElementById("interestsGrid");
 const progressBarFill = document.getElementById("progressBarFill");
 
-// Tab links
 const tabViewBtn = document.getElementById("tabViewBtn");
 const tabEditBtn = document.getElementById("tabEditBtn");
 
-// Preview Elements
 const viewPhoto = document.getElementById("viewPhoto");
 const viewNameAge = document.getElementById("viewNameAge");
 const viewLocation = document.getElementById("viewLocation");
@@ -97,11 +77,10 @@ const viewInterests = document.getElementById("viewInterests");
 let currentUser = null;
 let selectedInterests = new Set();
 let currentStep = 1;
+let currentPhotoUrl = "";
 
-// ===============================
-// Populate Interests Grid
-// ===============================
 function renderInterestsGrid() {
+  if (!interestsGrid) return;
   interestsGrid.innerHTML = "";
   CURATED_INTERESTS.forEach(interest => {
     const pill = document.createElement("div");
@@ -116,308 +95,246 @@ function renderInterestsGrid() {
         selectedInterests.add(interest.name);
         pill.classList.add("active");
       }
-      error.textContent = "";
+      if (error) error.textContent = "";
     });
     interestsGrid.appendChild(pill);
   });
 }
 
-// ===============================
-// Wizard Step Management
-// ===============================
-function showStep(step) {
+function updateWizardStep(step) {
   currentStep = step;
-
-  // Hide all steps
-  document.querySelectorAll(".wizard-step").forEach(el => el.style.display = "none");
-
-  // Show active step
-  const activeStepEl = document.querySelector(`.wizard-step[data-step="${step}"]`);
-  if (activeStepEl) activeStepEl.style.display = "block";
-
-  // Update step dots
-  document.querySelectorAll(".step-dot").forEach((dot, idx) => {
-    dot.classList.toggle("active", idx + 1 === step);
-    dot.classList.toggle("completed", idx + 1 < step);
+  document.querySelectorAll(".form-step").forEach((el, index) => {
+    el.classList.toggle("active", index + 1 === step);
   });
 
-  // Update progress bar fill width
-  const percent = (step / 4) * 100;
-  progressBarFill.style.width = `${percent}%`;
+  if (progressBarFill) {
+    progressBarFill.style.width = `${(step / 3) * 100}%`;
+  }
 
-  // Update navigation buttons
-  btnPrev.style.display = step > 1 ? "block" : "none";
-  if (step === 4) {
-    btnNext.style.display = "none";
-    btnSubmit.style.display = "block";
+  if (btnPrev) btnPrev.style.display = step === 1 ? "none" : "inline-flex";
+  if (btnNext) btnNext.style.display = step === 3 ? "none" : "inline-flex";
+  if (btnSubmit) btnSubmit.style.display = step === 3 ? "inline-flex" : "none";
+}
+
+function switchTab(mode) {
+  if (mode === "view") {
+    if (tabViewBtn) tabViewBtn.classList.add("active");
+    if (tabEditBtn) tabEditBtn.classList.remove("active");
+    if (viewProfileTab) viewProfileTab.style.display = "block";
+    if (form) form.style.display = "none";
+    if (wizardButtons) wizardButtons.style.display = "none";
   } else {
-    btnNext.style.display = "block";
-    btnSubmit.style.display = "none";
-  }
-
-  error.textContent = "";
-}
-
-function validateStep(step) {
-  if (step === 1) {
-    if (!nameInput.value.trim() || !genderSelect.value || !ageInput.value || !campusInput.value.trim() || !courseInput.value.trim() || !yearOfStudySelect.value) {
-      error.textContent = "Please fill in all details before continuing.";
-      return false;
-    }
-    const age = Number(ageInput.value);
-    if (age < 18 || age > 99) {
-      error.textContent = "Age must be between 18 and 99.";
-      return false;
-    }
-  } else if (step === 2) {
-    if (selectedInterests.size < 3) {
-      error.textContent = "Please select at least 3 interests.";
-      return false;
-    }
-  } else if (step === 3) {
-    if (!preferenceSelect.value) {
-      error.textContent = "Please select matching preference.";
-      return false;
+    if (tabEditBtn) tabEditBtn.classList.add("active");
+    if (tabViewBtn) tabViewBtn.classList.remove("active");
+    if (viewProfileTab) viewProfileTab.style.display = "none";
+    if (form) form.style.display = "block";
+    if (isEditMode) {
+      if (wizardButtons) wizardButtons.style.display = "none";
+      if (btnSaveEdit) btnSaveEdit.style.display = "block";
+      document.querySelectorAll(".form-step").forEach(el => el.classList.add("active"));
+    } else {
+      if (wizardButtons) wizardButtons.style.display = "flex";
+      if (btnSaveEdit) btnSaveEdit.style.display = "none";
+      updateWizardStep(currentStep);
     }
   }
-  return true;
 }
 
-// Wizard Next / Prev click handlers
-btnNext.addEventListener("click", () => {
-  if (validateStep(currentStep)) {
-    showStep(currentStep + 1);
-  }
-});
-
-btnPrev.addEventListener("click", () => {
-  if (currentStep > 1) {
-    showStep(currentStep - 1);
-  }
-});
-
-// ===============================
-// Edit Mode Tab Management
-// ===============================
-function showTab(tab) {
-  if (tab === "view") {
-    tabViewBtn.classList.add("active");
-    tabEditBtn.classList.remove("active");
-    viewProfileTab.style.display = "block";
-    form.style.display = "none";
-  } else {
-    tabViewBtn.classList.remove("active");
-    tabEditBtn.classList.add("active");
-    viewProfileTab.style.display = "none";
-    form.style.display = "block";
-
-    // In edit mode, show all form steps together inline
-    document.querySelectorAll(".wizard-step").forEach(el => el.style.display = "block");
-    wizardButtons.style.display = "none";
-    btnSaveEdit.style.display = "block";
-  }
-  error.textContent = "";
+// Photo Preview Listener
+if (photoInput) {
+  photoInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file && profilePreview) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        profilePreview.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
 }
 
-tabViewBtn.addEventListener("click", () => showTab("view"));
-tabEditBtn.addEventListener("click", () => showTab("edit"));
-
-function getYearLabel(val) {
-  const mapping = {
-    "1": "1st Year",
-    "2": "2nd Year",
-    "3": "3rd Year",
-    "4": "4th Year",
-    "5": "Graduate"
-  };
-  return mapping[val] || val || "";
-}
-
-// Populate Tinder Profile Card Preview
-function populateProfileCardPreview(data) {
-  viewPhoto.src = data.photoURL || "default-avatar.png";
-  viewNameAge.textContent = `${data.name || "UniMatch User"}${data.age ? `, ${data.age}` : ""}`;
-  viewLocation.textContent = `📍 ${data.campus || "Campus"}`;
-  const yearText = data.yearOfStudy ? ` (${getYearLabel(data.yearOfStudy)})` : "";
-  viewCourseDetail.textContent = `📚 ${data.course || "Course"}${yearText}`;
-  viewBio.textContent = data.bio || "No bio written yet.";
-
-  viewInterests.innerHTML = "";
-  if (data.interests && data.interests.length > 0) {
-    data.interests.forEach(interestName => {
-      const matchItem = CURATED_INTERESTS.find(i => i.name === interestName);
-      const emoji = matchItem ? matchItem.emoji : "✨";
-      const tag = document.createElement("span");
-      tag.className = "preview-interest-tag";
-      tag.innerHTML = `<span>${emoji}</span> <span>${interestName}</span>`;
-      viewInterests.appendChild(tag);
-    });
-  } else {
-    viewInterests.innerHTML = `<span style="font-size: 13px; color: #6b6882; font-style: italic;">No interests selected.</span>`;
-  }
-}
-
-// ===============================
-// Auth guard + load profile
-// ===============================
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "login.html";
-    return;
-  }
-
+// Boot
+requireAuth().then(async (user) => {
   currentUser = user;
 
-  const snap = await getDoc(doc(db, "users", user.uid));
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
 
-  // Render grid
-  renderInterestsGrid();
+    if (profile) {
+      if (nameInput) nameInput.value = profile.name || "";
+      if (genderSelect && profile.gender) genderSelect.value = profile.gender;
+      if (ageInput && profile.age) ageInput.value = profile.age;
+      if (campusInput) campusInput.value = profile.campus || "";
+      if (courseInput) courseInput.value = profile.course || "";
+      if (yearOfStudySelect && profile.year_of_study) yearOfStudySelect.value = profile.year_of_study;
+      if (bioInput) bioInput.value = profile.bio || "";
+      if (preferenceSelect && profile.preference) preferenceSelect.value = profile.preference;
 
-  if (isEditMode) {
-    // Enable Edit Mode View
-    pageSubtitle.textContent = "Manage Profile";
-    profileTabs.style.display = "flex";
-    onboardingProgress.style.display = "none";
-
-    if (snap.exists()) {
-      const data = snap.data();
-
-      // Load pre-filled inputs
-      nameInput.value = data.name || "";
-      genderSelect.value = data.gender || "";
-      ageInput.value = data.age || "";
-      campusInput.value = data.campus || "";
-      courseInput.value = data.course || "";
-      yearOfStudySelect.value = data.yearOfStudy || "";
-      bioInput.value = data.bio || "";
-      preferenceSelect.value = data.preference || "";
-
-      if (data.photoURL) {
-        profilePreview.src = data.photoURL;
+      if (profile.interests && Array.isArray(profile.interests)) {
+        selectedInterests = new Set(profile.interests);
       }
 
-      // Pre-fill interests Set
-      if (data.interests) {
-        data.interests.forEach(i => selectedInterests.add(i));
-        renderInterestsGrid(); // re-render to activate selected pills
+      if (profile.photo_url) {
+        currentPhotoUrl = profile.photo_url;
+        if (profilePreview) profilePreview.src = profile.photo_url;
+        if (viewPhoto) viewPhoto.src = profile.photo_url;
       }
 
-      // Populate card view
-      populateProfileCardPreview(data);
-      showTab("view");
+      // Populate View Tab
+      if (viewNameAge) viewNameAge.textContent = `${profile.name || "Student"}${profile.age ? `, ${profile.age}` : ""}`;
+      if (viewLocation) viewLocation.textContent = `📍 ${profile.campus || "Campus"}`;
+      if (viewCourseDetail) viewCourseDetail.textContent = `📚 ${profile.course || "Major"} (${profile.year_of_study ? profile.year_of_study + " Year" : "Student"})`;
+      if (viewBio) viewBio.textContent = profile.bio || "No bio updated yet.";
+      
+      if (viewInterests) {
+        viewInterests.innerHTML = (profile.interests || []).map(i => {
+          const item = CURATED_INTERESTS.find(ci => ci.name === i);
+          return `<span class="preview-interest-tag"><span>${item ? item.emoji : "✨"}</span><span>${i}</span></span>`;
+        }).join("");
+      }
+
+      // If user came from edit link or has profile complete
+      if (isEditMode || profile.profile_complete) {
+        if (profileTabs) profileTabs.style.display = "flex";
+        if (pageSubtitle) pageSubtitle.textContent = "Manage your dating profile & photos";
+        if (onboardingProgress) onboardingProgress.style.display = "none";
+        switchTab("view");
+      } else {
+        switchTab("edit");
+      }
     } else {
-      showTab("edit");
-    }
-  } else {
-    // Onboarding Mode
-    // 🚫 Redirect to dashboard if profile already complete
-    if (snap.exists() && snap.data().profileComplete) {
-      window.location.href = "dashboard.html";
-      return;
+      switchTab("edit");
     }
 
-    // Render first step of onboarding wizard
-    pageSubtitle.textContent = "Complete your profile";
-    profileTabs.style.display = "none";
-    onboardingProgress.style.display = "block";
-    showStep(1);
+    renderInterestsGrid();
+  } catch (err) {
+    console.error("Profile load error:", err);
   }
 });
 
-// ===============================
-// Photo preview on upload
-// ===============================
-photoInput.addEventListener("change", () => {
-  const file = photoInput.files[0];
-  if (!file) return;
-  profilePreview.src = URL.createObjectURL(file);
-});
+// Wizard Navigation
+if (btnNext) {
+  btnNext.addEventListener("click", () => {
+    if (currentStep === 1) {
+      if (!nameInput.value.trim() || !genderSelect.value || !ageInput.value) {
+        if (error) error.textContent = "Please fill in all basic info fields.";
+        return;
+      }
+    }
+    if (currentStep === 2) {
+      if (!campusInput.value.trim() || !courseInput.value.trim()) {
+        if (error) error.textContent = "Please fill in your campus and course info.";
+        return;
+      }
+    }
+    if (error) error.textContent = "";
+    updateWizardStep(currentStep + 1);
+  });
+}
 
-// ===============================
-// Save Profile
-// ===============================
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  error.textContent = "";
+if (btnPrev) {
+  btnPrev.addEventListener("click", () => {
+    if (error) error.textContent = "";
+    updateWizardStep(currentStep - 1);
+  });
+}
 
-  if (!currentUser) return;
+// Tab Listeners
+if (tabViewBtn) tabViewBtn.addEventListener("click", () => switchTab("view"));
+if (tabEditBtn) tabEditBtn.addEventListener("click", () => switchTab("edit"));
 
-  // Make sure at least 3 interests are selected in either mode
-  if (selectedInterests.size < 3) {
-    error.textContent = "Please select at least 3 interests.";
-    // If onboarding, force-redirect back to step 2
-    if (!isEditMode) showStep(2);
-    return;
-  }
+// Form Submit Handler (Save Profile)
+async function saveProfile(e) {
+  if (e) e.preventDefault();
+  if (error) error.textContent = "";
 
   const name = nameInput.value.trim();
   const gender = genderSelect.value;
-  const age = Number(ageInput.value);
+  const age = parseInt(ageInput.value);
   const campus = campusInput.value.trim();
   const course = courseInput.value.trim();
-  const yearOfStudy = yearOfStudySelect.value;
-  const bio = bioInput.value.trim();
-  const preference = preferenceSelect.value;
+  const yearOfStudy = yearOfStudySelect ? yearOfStudySelect.value : "";
+  const bio = bioInput ? bioInput.value.trim() : "";
+  const preference = preferenceSelect ? preferenceSelect.value : "all";
 
-  if (!name || !gender || !age || !campus || !course || !yearOfStudy || !preference) {
-    error.textContent = "Please complete all required fields.";
+  if (!name || !gender || !age || !campus || !course) {
+    if (error) error.textContent = "Please complete all required fields.";
     return;
   }
 
-  // Show loading
-  const activeSubmitBtn = isEditMode ? btnSaveEdit : btnSubmit;
-  const originalBtnHTML = activeSubmitBtn.innerHTML;
-  activeSubmitBtn.innerHTML = "<span>Saving...</span>";
-  activeSubmitBtn.disabled = true;
+  const submitBtn = e ? e.target.querySelector('button[type="submit"]') || btnSaveEdit : btnSaveEdit;
+  if (submitBtn) submitBtn.disabled = true;
 
   try {
-    let photoURL = null;
+    let photoUrl = currentPhotoUrl;
 
-    // Upload photo to storage if user changed/selected a file
-    if (photoInput.files.length > 0) {
-      const file = photoInput.files[0];
-      const photoRef = ref(
-        storage,
-        `profilePhotos/${currentUser.uid}/profile.jpg`
-      );
+    // Handle profile photo upload to Supabase Storage if file selected
+    const file = photoInput ? photoInput.files[0] : null;
+    if (file) {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${currentUser.id}/profile_${Date.now()}.${fileExt}`;
 
-      await uploadBytes(photoRef, file);
-      photoURL = await getDownloadURL(photoRef);
-    } else if (!isEditMode) {
-      // In Onboarding mode, photo is REQUIRED
-      throw new Error("Please upload a profile picture to complete your setup.");
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from("profile-images")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("profile-images")
+        .getPublicUrl(filePath);
+
+      photoUrl = publicUrlData.publicUrl;
     }
 
-    // Build user profile payload
-    const profileData = {
-      name,
-      gender,
-      age,
-      campus,
-      course,
-      yearOfStudy,
-      bio,
-      preference,
+    // Save to PostgreSQL profiles table
+    const profilePayload = {
+      id: currentUser.id,
+      email: currentUser.email,
+      name: name,
+      gender: gender,
+      age: age,
+      campus: campus,
+      course: course,
+      year_of_study: yearOfStudy,
+      bio: bio,
+      preference: preference,
       interests: Array.from(selectedInterests),
-      profileComplete: true,
-      updatedAt: serverTimestamp()
+      photo_url: photoUrl,
+      profile_complete: true,
+      updated_at: new Date().toISOString()
     };
 
-    if (photoURL) profileData.photoURL = photoURL;
+    // 1️⃣ Try UPDATE first (updates existing profile created by auth trigger)
+    const { error: updateErr, count } = await supabase
+      .from("profiles")
+      .update(profilePayload)
+      .eq("id", currentUser.id);
 
-    await setDoc(
-      doc(db, "users", currentUser.uid),
-      profileData,
-      { merge: true }
-    );
+    if (updateErr) {
+      console.warn("Update error, trying upsert fallback:", updateErr);
+      // 2️⃣ Fallback to UPSERT with explicit onConflict
+      const { error: upsertErr } = await supabase
+        .from("profiles")
+        .upsert(profilePayload, { onConflict: "id" });
 
-    // Navigate to dashboard
+      if (upsertErr) throw upsertErr;
+    }
+
+    alert("Profile saved successfully!");
     window.location.href = "dashboard.html";
 
   } catch (err) {
-    console.error("🔥 Save profile failed:", err);
-    error.textContent = err.message;
-    activeSubmitBtn.innerHTML = originalBtnHTML;
-    activeSubmitBtn.disabled = false;
+    console.error("Save profile error:", err);
+    if (error) error.textContent = err.message || "Failed to save profile. Try again.";
+    if (submitBtn) submitBtn.disabled = false;
   }
-});
+}
+
+if (form) form.addEventListener("submit", saveProfile);
+if (btnSaveEdit) btnSaveEdit.addEventListener("click", saveProfile);

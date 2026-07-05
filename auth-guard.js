@@ -1,40 +1,34 @@
 /**
  * auth-guard.js
  * ==============
- * Waits for Firebase Auth to fully initialize, then resolves ONCE.
- * Enforces profileComplete verification before resolving.
- *
- * requireAuth()       → protected pages  (redirects to login if not logged in, or profile if incomplete)
- * redirectIfLoggedIn() → login/signup pages (redirects to dashboard/profile depending on status)
+ * Supabase Auth Guard
+ * Ensures user is authenticated and manages profile redirection.
  */
 
-import { auth, db } from "./firebase.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { supabase } from "./js/supabase.js";
 
-// Check if we are already authenticated in this session to bypass transition overlay
+// Check if authenticated in session to bypass transition overlay
 const isAuthenticatedCached = sessionStorage.getItem("authenticated") === "true";
 
 if (!isAuthenticatedCached) {
-  // Show a branded loading overlay instead of a blank white page
   const _authOverlay = document.createElement("div");
   _authOverlay.id = "auth-guard-overlay";
   _authOverlay.innerHTML = `
     <div style="
       position:fixed;inset:0;z-index:99999;
       display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;
-      background:#f7f6fb;
+      background:#09080f;
       transition:opacity 0.2s ease,visibility 0.2s ease;
     ">
       <div style="
         width:48px;height:48px;border-radius:14px;
-        background:linear-gradient(135deg,#6c47ff,#a855f7);
+        background:linear-gradient(135deg,#7c3aed,#9333ea);
         color:#fff;font-size:24px;font-weight:800;
         display:flex;align-items:center;justify-content:center;
-        box-shadow:0 4px 20px rgba(108,71,255,0.35);
+        box-shadow:0 4px 20px rgba(124,58,237,0.35);
         animation:authPulse 1.2s ease-in-out infinite;
       ">U</div>
-      <div style="font-family:'Outfit',sans-serif;font-size:13px;color:#8b8a9a;font-weight:500;letter-spacing:0.3px;">Loading...</div>
+      <div style="font-family:'Outfit',sans-serif;font-size:13px;color:#8b7fa8;font-weight:500;letter-spacing:0.3px;">Loading UniMatch...</div>
     </div>
   `;
   const _authStyle = document.createElement("style");
@@ -57,61 +51,67 @@ function showBody() {
 }
 
 /**
- * Waits for Firebase Auth to resolve, then:
- * - If logged in and profile complete → returns user object
- * - If not logged in → redirects to login.html
- * - If logged in but profile NOT complete → redirects to profile.html
+ * requireAuth() → protected pages
+ * Redirects to login.html if not logged in.
+ * Resolves with the user object if logged in.
  */
-export function requireAuth(redirectTo = "login.html") {
-  return new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      unsubscribe(); // fire ONCE only
+export async function requireAuth(redirectTo = "login.html") {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
 
-      if (!user) {
-        sessionStorage.removeItem("authenticated");
-        window.location.replace(redirectTo);
-        return;
-      }
+    if (error || !session || !session.user) {
+      sessionStorage.removeItem("authenticated");
+      window.location.replace(redirectTo);
+      return Promise.reject("Not authenticated");
+    }
 
-      try {
-        sessionStorage.setItem("authenticated", "true");
-        // Show page contents now that verification has passed
-        showBody();
-        resolve(user); // ✅ confirmed logged in
-      } catch (err) {
-        sessionStorage.removeItem("authenticated");
-        console.error("Auth guard check failed:", err);
-        window.location.replace(redirectTo);
-      }
-    });
-  });
+    const user = session.user;
+    sessionStorage.setItem("authenticated", "true");
+
+    // Fetch profile status
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    showBody();
+    return { ...user, uid: user.id, ...profile };
+  } catch (err) {
+    sessionStorage.removeItem("authenticated");
+    console.error("Auth guard error:", err);
+    window.location.replace(redirectTo);
+    return Promise.reject(err);
+  }
 }
 
 /**
- * For login/signup pages — redirects away if already logged in.
- * Resolves with null if not logged in (stays on login page).
+ * redirectIfLoggedIn() → login/signup pages
+ * Redirects away if user is already logged in.
  */
-export function redirectIfLoggedIn(redirectTo = "dashboard.html") {
-  return new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      unsubscribe();
+export async function redirectIfLoggedIn(redirectTo = "dashboard.html") {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
 
-      if (user) {
-        try {
-          const snap = await getDoc(doc(db, "users", user.uid));
-          if (snap.exists() && snap.data().profileComplete) {
-            window.location.replace(redirectTo);
-          } else {
-            window.location.replace("profile.html");
-          }
-        } catch (_) {
-          window.location.replace(redirectTo);
-        }
-        return;
+    if (session && session.user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("profile_complete")
+        .eq("id", session.user.id)
+        .single();
+
+      if (profile && profile.profile_complete) {
+        window.location.replace(redirectTo);
+      } else {
+        window.location.replace("profile.html");
       }
+      return session.user;
+    }
 
-      showBody(); // Show page if not logged in
-      resolve(null); // not logged in — stay on page
-    });
-  });
+    showBody();
+    return null;
+  } catch (_) {
+    showBody();
+    return null;
+  }
 }

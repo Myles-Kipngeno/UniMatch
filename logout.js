@@ -1,18 +1,18 @@
-// logout.js
-import { auth } from "./firebase.js";
-import { signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { supabase } from "./js/supabase.js";
 
 const logoutBtn = document.getElementById("logoutBtn");
 
-logoutBtn.addEventListener("click", async () => {
-  try {
-    sessionStorage.clear();
-    await signOut(auth);  // Sign the user out
-    alert("You have been logged out.");
-    window.location.href = "login.html";  // Redirect to login page
-  } catch (err) {
-    console.error("Logout failed:", err);
-    alert("Logout failed. Try again.");
-  }
-});
-
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      sessionStorage.clear();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      alert("You have been logged out.");
+      window.location.href = "login.html";
+    } catch (err) {
+      console.error("Logout failed:", err);
+      alert("Logout failed. Try again.");
+    }
+  });
+}

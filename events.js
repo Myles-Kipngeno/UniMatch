@@ -1,13 +1,7 @@
-import { auth, db } from "./firebase.js";
-import {
-  collection, addDoc, deleteDoc,
-  doc, getDoc, getDocs,
-  query, where, orderBy,
-  onSnapshot, serverTimestamp, updateDoc, arrayUnion, arrayRemove
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { supabase } from "./js/supabase.js";
 import { requireAuth } from "./auth-guard.js";
 
-// ─── DOM ───
+// DOM refs
 const eventsGrid     = document.getElementById("eventsGrid");
 const loadingState   = document.getElementById("loadingState");
 const emptyState     = document.getElementById("emptyState");
@@ -37,389 +31,284 @@ let currentFilter = "all";
 let allEvents     = [];
 let activeEventId = null;
 
-// ─── BOOT ───
+// BOOT
 (async () => {
   try {
     currentUser = await requireAuth();
     setupUI();
-    listenEvents();
+    loadEvents();
+    setupRealtimeEvents();
   } catch (err) {
     console.error("Events boot error:", err);
     window.location.replace("login.html");
   }
 })();
 
-// ─── REAL-TIME EVENTS LISTENER ───
-function listenEvents() {
-  const q = query(
-    collection(db, "events"),
-    orderBy("date", "asc")
-  );
+async function loadEvents() {
+  try {
+    const { data: events, error } = await supabase
+      .from("events")
+      .select("*, creator:profiles!events_creator_id_fkey(name, photo_url)")
+      .order("date", { ascending: true });
 
-  onSnapshot(q, async snap => {
     if (loadingState) loadingState.style.display = "none";
-
-    allEvents = [];
-    for (const docSnap of snap.docs) {
-      allEvents.push({ id: docSnap.id, ...docSnap.data() });
+    if (error) {
+      console.warn("Events load warning (Table may be newly initialized):", error);
+      renderEvents([]);
+      return;
     }
 
-    renderEvents();
-  }, err => {
-    console.error("Events listener error:", err);
+    allEvents = events || [];
+    renderEvents(allEvents);
+  } catch (err) {
+    console.error("Load events error:", err);
     if (loadingState) loadingState.style.display = "none";
-  });
+  }
 }
 
-// ─── RENDER EVENTS ───
-function renderEvents() {
-  eventsGrid.querySelectorAll(".event-card").forEach(c => c.remove());
+function setupRealtimeEvents() {
+  supabase
+    .channel("events_realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => loadEvents())
+    .subscribe();
+}
 
-  const now = new Date();
+function setupUI() {
+  if (openCreateBtn) openCreateBtn.onclick = () => openCreateModal();
+  if (emptyCreateBtn) emptyCreateBtn.onclick = () => openCreateModal();
+  if (closeCreateBtn) closeCreateBtn.onclick = () => closeCreateModal();
+  if (cancelCreateBtn) cancelCreateBtn.onclick = () => closeCreateModal();
+  if (closeDetailBtn) closeDetailBtn.onclick = () => closeDetailModal();
 
-  const filtered = allEvents.filter(ev => {
-    if (currentFilter !== "all" && ev.category !== currentFilter) return false;
-    // Keep event visible until midnight at the END of the event day
-    const evMidnight = new Date(ev.date + "T23:59:59");
-    return evMidnight > now;
-  });
-
-  if (filtered.length === 0) {
-    if (emptyState) emptyState.style.display = "block";
-    return;
+  if (createModal) {
+    createModal.onclick = (e) => { if (e.target === createModal) closeCreateModal(); };
+  }
+  if (detailModal) {
+    detailModal.onclick = (e) => { if (e.target === detailModal) closeDetailModal(); };
   }
 
+  document.querySelectorAll(".chip[data-filter]").forEach(chip => {
+    chip.onclick = () => {
+      document.querySelectorAll(".chip[data-filter]").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      currentFilter = chip.dataset.filter;
+      filterAndRender();
+    };
+  });
+
+  if (descTextarea && descCount) {
+    descTextarea.oninput = () => {
+      descCount.textContent = descTextarea.value.length;
+    };
+  }
+
+  if (createForm) createForm.onsubmit = handleCreateEvent;
+  if (rsvpBtn) rsvpBtn.onclick = handleRSVP;
+  if (deleteEventBtn) deleteEventBtn.onclick = handleDeleteEvent;
+}
+
+function openCreateModal() {
+  if (createForm) createForm.reset();
+  if (descCount) descCount.textContent = "0";
+  if (createModal) createModal.classList.add("active");
+}
+
+function closeCreateModal() {
+  if (createModal) createModal.classList.remove("active");
+}
+
+function closeDetailModal() {
+  if (detailModal) detailModal.classList.remove("active");
+  activeEventId = null;
+}
+
+function filterAndRender() {
+  let list = allEvents;
+  if (currentFilter !== "all") {
+    list = list.filter(ev => ev.category === currentFilter);
+  }
+  renderEvents(list);
+}
+
+function renderEvents(events) {
+  if (!eventsGrid) return;
+  eventsGrid.innerHTML = "";
+
+  if (!events.length) {
+    if (emptyState) emptyState.style.display = "flex";
+    return;
+  }
   if (emptyState) emptyState.style.display = "none";
 
-  filtered.forEach((ev, i) => {
-    const card = buildEventCard(ev, i);
-    eventsGrid.appendChild(card);
+  events.forEach(ev => {
+    eventsGrid.appendChild(buildEventCard(ev));
   });
 }
 
-// ─── BUILD EVENT CARD ───
-function buildEventCard(ev, index) {
+function buildEventCard(ev) {
   const card = document.createElement("div");
-  card.className = `event-card cat-${ev.category || "other"}`;
-  card.style.animationDelay = `${index * 0.07}s`;
+  card.className = "event-card";
 
-  const evDate  = new Date(ev.date);
-  const day     = evDate.getDate();
-  const month   = MONTHS[evDate.getMonth()];
-  const timeStr = formatTime(ev.time);
-  const count   = (ev.attendees || []).length;
-  const isGoing = currentUser && (ev.attendees || []).includes(currentUser.uid);
+  const evDate = ev.date ? new Date(ev.date) : new Date();
+  const day    = evDate.getDate();
+  const month  = MONTHS[evDate.getMonth()];
+  const timeStr= evDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const pips = Math.min(count, 3);
-  const pipHTML = Array.from({length: pips}, () => `<div class="pip"></div>`).join("");
-
-  const DEFAULT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+";
+  const rsvps = ev.rsvps || [];
+  const isGoing = rsvps.includes(currentUser.id);
+  const catLabel = CATEGORY_LABELS[ev.category] || "✨ Event";
 
   card.innerHTML = `
-    <div class="card-top"></div>
-    <div class="card-content">
-      <div class="card-head">
-        <span class="card-category">${CATEGORY_LABELS[ev.category] || ev.category}</span>
-        <div class="card-date-badge">
-          <div class="date-day">${day}</div>
-          <div class="date-month">${month}</div>
-        </div>
+    <div class="event-card-header">
+      <div class="event-date-badge">
+        <span class="event-date-day">${day}</span>
+        <span class="event-date-month">${month}</span>
       </div>
-      <div class="card-title">${escHtml(ev.title)}</div>
-      <div class="card-meta">
-        <div class="meta-row">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          ${timeStr}
-        </div>
-        <div class="meta-row">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2C8.134 2 5 5.134 5 9c0 6.25 7 13 7 13s7-6.75 7-13c0-3.866-3.134-7-7-7z" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="12" cy="9" r="2.5" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          ${escHtml(ev.location)}
-        </div>
-      </div>
+      <span class="event-category-pill category-${ev.category || 'other'}">${catLabel}</span>
     </div>
-    <div class="card-footer">
-      <div class="host-row">
-        <img class="host-thumb" src="${ev.hostPhoto || DEFAULT_AVATAR}"
-             alt="${escHtml(ev.hostName || '')}"
-             onerror="this.src='${DEFAULT_AVATAR}'">
-        <span class="host-name-sm">${escHtml(ev.hostName || "Unknown")}</span>
+    <div class="event-card-body">
+      <h3 class="event-title">${esc(ev.title)}</h3>
+      <div class="event-meta">
+        <div class="event-meta-item">📍 ${esc(ev.location || "Campus")}</div>
+        <div class="event-meta-item">⏰ ${timeStr}</div>
       </div>
-      <div class="attendee-count">
-        ${pipHTML}
-        <span>${count} going</span>
-        ${isGoing ? '<span class="rsvp-tag">You\'re in</span>' : ""}
+      <p class="event-desc-preview">${esc(ev.description || "")}</p>
+    </div>
+    <div class="event-card-footer">
+      <div class="event-creator">
+        <img class="event-creator-avatar" src="${ev.creator?.photo_url || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjwvc3ZnPg=='}" alt="Creator">
+        <span class="event-creator-name">${esc(ev.creator?.name || "Student")}</span>
       </div>
-    </div>`;
+      <button class="rsvp-mini-btn ${isGoing ? 'going' : ''}">
+        ${isGoing ? '✓ Going' : 'RSVP'} (${rsvps.length})
+      </button>
+    </div>
+  `;
 
-  card.onclick = () => openDetailModal(ev.id);
+  card.onclick = () => openEventDetail(ev);
   return card;
 }
 
-// ─── OPEN DETAIL MODAL ───
-async function openDetailModal(eventId) {
-  activeEventId = eventId;
-  const ev = allEvents.find(e => e.id === eventId);
-  if (!ev) return;
+function openEventDetail(ev) {
+  activeEventId = ev.id;
+  const evDate = ev.date ? new Date(ev.date) : new Date();
+  const day    = evDate.getDate();
+  const month  = MONTHS[evDate.getMonth()];
+  const timeStr= evDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const DEFAULT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+";
+  const detailDay = document.getElementById("detailDay");
+  const detailMonth = document.getElementById("detailMonth");
+  const detailTitle = document.getElementById("detailTitle");
+  const detailCategory = document.getElementById("detailCategory");
+  const detailLocation = document.getElementById("detailLocation");
+  const detailTime = document.getElementById("detailTime");
+  const detailCreatorName = document.getElementById("detailCreatorName");
+  const detailDesc = document.getElementById("detailDesc");
+  const rsvpCount = document.getElementById("rsvpCount");
 
-  const bar = document.getElementById("detailCategoryBar");
-  bar.className = `detail-category-bar cat-${ev.category || "other"}`;
+  if (detailDay) detailDay.textContent = day;
+  if (detailMonth) detailMonth.textContent = month;
+  if (detailTitle) detailTitle.textContent = ev.title;
+  if (detailCategory) detailCategory.textContent = CATEGORY_LABELS[ev.category] || "✨ Event";
+  if (detailLocation) detailLocation.textContent = ev.location || "Campus";
+  if (detailTime) detailTime.textContent = timeStr;
+  if (detailCreatorName) detailCreatorName.textContent = ev.creator?.name || "Student";
+  if (detailDesc) detailDesc.textContent = ev.description || "No description provided.";
 
-  document.getElementById("detailCategory").textContent = CATEGORY_LABELS[ev.category] || ev.category;
-  document.getElementById("detailTitle").textContent    = ev.title;
+  const rsvps = ev.rsvps || [];
+  const isGoing = rsvps.includes(currentUser.id);
 
-  const evDate = new Date(ev.date);
-  document.getElementById("detailDateTag").textContent =
-    `${evDate.toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric" })}`;
-  document.getElementById("detailDateTime").textContent =
-    `${evDate.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" })} at ${formatTime(ev.time)}`;
-  document.getElementById("detailLocation").textContent  = ev.location;
-
-  const count    = (ev.attendees || []).length;
-  const maxStr   = ev.maxAttendees ? ` / ${ev.maxAttendees} max` : "";
-  document.getElementById("detailAttendees").textContent = `${count} attending${maxStr}`;
-
-  const descEl = document.getElementById("detailDesc");
-  if (ev.description) {
-    descEl.textContent = ev.description;
-    descEl.style.display = "block";
-  } else {
-    descEl.style.display = "none";
+  if (rsvpCount) rsvpCount.textContent = `${rsvps.length} attending`;
+  if (rsvpBtn) {
+    rsvpBtn.className = `btn btn-primary ${isGoing ? 'going' : ''}`;
+    if (rsvpBtnText) rsvpBtnText.textContent = isGoing ? "✓ You're Going" : "I'm Going!";
   }
 
-  document.getElementById("detailHostName").textContent = ev.hostName || "Unknown";
-  const hostAvatar = document.getElementById("detailHostAvatar");
-  hostAvatar.src = ev.hostPhoto || DEFAULT_AVATAR;
-  hostAvatar.onerror = () => { hostAvatar.src = DEFAULT_AVATAR; };
+  if (deleteEventBtn) {
+    deleteEventBtn.style.display = ev.creator_id === currentUser.id ? "inline-flex" : "none";
+  }
 
-  await renderAttendeeChips(ev.attendees || []);
-
-  const isGoing = currentUser && (ev.attendees || []).includes(currentUser.uid);
-  updateRsvpBtn(isGoing, count, ev.maxAttendees);
-
-  const isHost = currentUser && ev.hostId === currentUser.uid;
-  deleteEventBtn.style.display = isHost ? "block" : "none";
-
-  detailModal.style.display = "flex";
+  if (detailModal) detailModal.classList.add("active");
 }
 
-async function renderAttendeeChips(attendeeUids) {
-  const row = document.getElementById("attendeesRow");
-  const section = document.getElementById("attendeesSection");
-  row.innerHTML = "";
-
-  const DEFAULT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzFhMWEyZSIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjNDQ0NDY2Ii8+PGVsbGlwc2UgY3g9IjUwIiBjeT0iODUiIHJ4PSIyOCIgcnk9IjIwIiBmaWxsPSIjNDQ0NDY2Ii8+PC9zdmc+";
-
-  if (attendeeUids.length === 0) {
-    section.style.display = "none";
-    return;
-  }
-
-  section.style.display = "block";
-  const toShow = attendeeUids.slice(0, 8);
-
-  for (const uid of toShow) {
-    try {
-      const snap = await getDoc(doc(db, "users", uid));
-      const data = snap.exists() ? snap.data() : {};
-      const chip = document.createElement("div");
-      chip.className = "attendee-chip";
-      chip.innerHTML = `
-        <img src="${data.photoURL || DEFAULT_AVATAR}"
-             alt="${escHtml(data.name || 'User')}"
-             onerror="this.src='${DEFAULT_AVATAR}'">
-        ${escHtml(data.name || "Student")}`;
-      row.appendChild(chip);
-    } catch (_) {}
-  }
-
-  if (attendeeUids.length > 8) {
-    const more = document.createElement("div");
-    more.className = "attendee-chip";
-    more.textContent = `+${attendeeUids.length - 8} more`;
-    row.appendChild(more);
-  }
-}
-
-function updateRsvpBtn(isGoing, count, maxAttendees) {
-  const full = maxAttendees && count >= maxAttendees && !isGoing;
-  rsvpBtn.className = `btn-rsvp${isGoing ? " going" : ""}`;
-  rsvpBtn.disabled  = full;
-  rsvpBtnText.textContent = isGoing
-    ? "✓ You're going — Cancel RSVP"
-    : full
-      ? "Event is full"
-      : "RSVP — I'm going";
-}
-
-// ─── RSVP ───
-rsvpBtn.addEventListener("click", async () => {
-  if (!currentUser || !activeEventId) return;
-  rsvpBtn.disabled = true;
-
-  const ev = allEvents.find(e => e.id === activeEventId);
-  if (!ev) { rsvpBtn.disabled = false; return; }
-
-  const isGoing = (ev.attendees || []).includes(currentUser.uid);
-  const evRef   = doc(db, "events", activeEventId);
-
-  try {
-    if (isGoing) {
-      await updateDoc(evRef, { attendees: arrayRemove(currentUser.uid) });
-      ev.attendees = (ev.attendees || []).filter(u => u !== currentUser.uid);
-    } else {
-      await updateDoc(evRef, { attendees: arrayUnion(currentUser.uid) });
-      ev.attendees = [...(ev.attendees || []), currentUser.uid];
-    }
-
-    const newCount = (ev.attendees || []).length;
-    const nowGoing = !isGoing;
-    updateRsvpBtn(nowGoing, newCount, ev.maxAttendees);
-    document.getElementById("detailAttendees").textContent =
-      `${newCount} attending${ev.maxAttendees ? ` / ${ev.maxAttendees} max` : ""}`;
-    await renderAttendeeChips(ev.attendees || []);
-    renderEvents();
-  } catch (err) {
-    console.error("RSVP error:", err);
-    alert("Failed to RSVP. Please try again.");
-  }
-
-  rsvpBtn.disabled = false;
-});
-
-// ─── DELETE EVENT ───
-deleteEventBtn.addEventListener("click", async () => {
-  if (!activeEventId) return;
-  if (!confirm("Delete this event? This cannot be undone.")) return;
-
-  try {
-    await deleteDoc(doc(db, "events", activeEventId));
-    closeDetail();
-  } catch (err) {
-    console.error("Delete error:", err);
-    alert("Failed to delete event.");
-  }
-});
-
-// ─── CREATE EVENT ───
-function setupUI() {
-  const dateInput = document.getElementById("eventDate");
-  if (dateInput) {
-    const today = new Date().toISOString().split("T")[0];
-    dateInput.min = today;
-  }
-
-  if (descTextarea) {
-    descTextarea.addEventListener("input", () => {
-      descCount.textContent = descTextarea.value.length;
-    });
-  }
-
-  document.querySelectorAll(".filter-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      document.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("active"));
-      chip.classList.add("active");
-      currentFilter = chip.dataset.filter;
-      renderEvents();
-    });
-  });
-
-  openCreateBtn?.addEventListener("click",  openCreate);
-  emptyCreateBtn?.addEventListener("click", openCreate);
-  closeCreateBtn?.addEventListener("click", closeCreate);
-  cancelCreateBtn?.addEventListener("click", closeCreate);
-  closeDetailBtn?.addEventListener("click",  closeDetail);
-
-  createModal?.addEventListener("click", e => { if (e.target === createModal) closeCreate(); });
-  detailModal?.addEventListener("click", e => { if (e.target === detailModal) closeDetail(); });
-
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape") {
-      if (createModal?.style.display !== "none") closeCreate();
-      if (detailModal?.style.display !== "none") closeDetail();
-    }
-  });
-}
-
-function openCreate() {
-  createForm.reset();
-  if (descCount) descCount.textContent = "0";
-  createModal.style.display = "flex";
-}
-
-function closeCreate() { createModal.style.display = "none"; }
-function closeDetail()  { detailModal.style.display = "none"; activeEventId = null; }
-
-// ─── FORM SUBMIT ───
-createForm.addEventListener("submit", async e => {
+async function handleCreateEvent(e) {
   e.preventDefault();
-  const btn = document.getElementById("submitEventBtn");
-  btn.disabled = true;
-  btn.textContent = "Publishing...";
+  const title = document.getElementById("eventTitle").value.trim();
+  const category = document.getElementById("eventCategory").value;
+  const dateVal = document.getElementById("eventDate").value;
+  const timeVal = document.getElementById("eventTime").value;
+  const location = document.getElementById("eventLocation").value.trim();
+  const description = document.getElementById("eventDesc").value.trim();
 
-  const title        = document.getElementById("eventTitle").value.trim();
-  const category     = document.getElementById("eventCategory").value;
-  const date         = document.getElementById("eventDate").value;
-  const time         = document.getElementById("eventTime").value;
-  const location     = document.getElementById("eventLocation").value.trim();
-  const description  = document.getElementById("eventDesc").value.trim();
-  const maxRaw       = document.getElementById("eventMax").value;
-  const maxAttendees = maxRaw ? parseInt(maxRaw) : null;
-
-  if (!title || !category || !date || !time || !location) {
+  if (!title || !dateVal || !timeVal || !location) {
     alert("Please fill in all required fields.");
-    btn.disabled = false;
-    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Publish Event`;
     return;
   }
 
-  try {
-    const userSnap = await getDoc(doc(db, "users", currentUser.uid));
-    const userData = userSnap.exists() ? userSnap.data() : {};
+  const dateObj = new Date(`${dateVal}T${timeVal}`);
 
-    await addDoc(collection(db, "events"), {
+  try {
+    const { error } = await supabase.from("events").insert({
+      creator_id: currentUser.id,
       title,
       category,
-      date,
-      time,
+      date: dateObj.toISOString(),
       location,
       description,
-      maxAttendees,
-      hostId:    currentUser.uid,
-      hostName:  userData.name    || "Unknown",
-      hostPhoto: userData.photoURL || null,
-      campus:    userData.campus  || null,
-      attendees: [currentUser.uid],
-      createdAt: serverTimestamp()
+      rsvps: [currentUser.id]
     });
 
-    closeCreate();
+    if (error) throw error;
+
+    closeCreateModal();
+    loadEvents();
   } catch (err) {
     console.error("Create event error:", err);
-    alert(`Failed to create event: ${err.message}`);
+    alert(err.message || "Failed to create event.");
   }
-
-  btn.disabled = false;
-  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Publish Event`;
-});
-
-// ─── HELPERS ───
-function formatTime(timeStr) {
-  if (!timeStr) return "";
-  const [h, m] = timeStr.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const hour  = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2,"0")} ${ampm}`;
 }
 
-function escHtml(str) {
+async function handleRSVP() {
+  if (!activeEventId) return;
+  const ev = allEvents.find(e => e.id === activeEventId);
+  if (!ev) return;
+
+  const rsvps = new Set(ev.rsvps || []);
+  if (rsvps.has(currentUser.id)) {
+    rsvps.delete(currentUser.id);
+  } else {
+    rsvps.add(currentUser.id);
+  }
+
+  try {
+    const { error } = await supabase
+      .from("events")
+      .update({ rsvps: Array.from(rsvps) })
+      .eq("id", activeEventId);
+
+    if (error) throw error;
+
+    ev.rsvps = Array.from(rsvps);
+    openEventDetail(ev);
+    loadEvents();
+  } catch (err) {
+    console.error("RSVP error:", err);
+  }
+}
+
+async function handleDeleteEvent() {
+  if (!activeEventId || !confirm("Delete this event?")) return;
+  try {
+    const { error } = await supabase.from("events").delete().eq("id", activeEventId);
+    if (error) throw error;
+    closeDetailModal();
+    loadEvents();
+  } catch (err) {
+    console.error("Delete event error:", err);
+  }
+}
+
+function esc(str) {
   const d = document.createElement("div");
   d.textContent = str || "";
   return d.innerHTML;
