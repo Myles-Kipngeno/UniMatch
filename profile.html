@@ -314,8 +314,17 @@
       dropdown.classList.toggle("open");
     });
 
-    document.addEventListener("click", () => dropdown.classList.remove("open"));
-    dropdown.addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", (e) => {
+      if (dropdown.classList.contains("open")) {
+        const isClickInsideBtn = menuBtn.contains(e.target);
+        const isClickInsideDropdown = dropdown.contains(e.target);
+        if (!isClickInsideBtn) {
+          if (!isClickInsideDropdown || e.target.tagName === 'A' || e.target.closest('a') || e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+            dropdown.classList.remove("open");
+          }
+        }
+      }
+    });
   </script>
 
   <!-- 5-TAB BOTTOM NAVIGATION -->

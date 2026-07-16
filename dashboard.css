@@ -60,18 +60,39 @@
   --bottomnav-h: 72px;
 }
 
+/* Light Theme Override */
+.light-theme {
+  --bg:            #f5f3ff;
+  --surface:       #ffffff;
+  --surface-alpha: rgba(255, 255, 255, 0.85);
+  --border:        rgba(0, 0, 0, 0.08);
+  --border-soft:   rgba(0, 0, 0, 0.04);
+  --shadow-xs:  0 1px 4px rgba(0,0,0,0.05);
+  --shadow-sm:  0 2px 12px rgba(0,0,0,0.08);
+  --shadow-md:  0 6px 24px rgba(0,0,0,0.12);
+  --shadow-lg:  0 16px 48px rgba(0,0,0,0.15);
+  --shadow-xl:  0 24px 64px rgba(0,0,0,0.2);
+
+  /* Text */
+  --ink:           #09080f;
+  --ink-2:         #4c3a8e;
+  --ink-3:         #7b6c9f;
+  --ink-4:         #b5a9cf;
+}
+
 /* ── Global Reset ── */
 body {
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--ink);
   min-height: 100vh;
   overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
-
+h1, h2, h3, h4, h5, h6 { color: var(--ink); font-weight: 700; line-height: 1.25; }
 a { text-decoration: none; color: inherit; }
-button { font-family: inherit; cursor: pointer; border: none; background: none; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 img { display: block; max-width: 100%; object-fit: cover; }
 
 /* ── Animated Background Gradient ── */
@@ -81,7 +102,7 @@ body::before {
   background:
     radial-gradient(ellipse 70% 60% at 50% 0%, rgba(124, 58, 237, 0.14) 0%, transparent 70%),
     radial-gradient(ellipse 60% 50% at 100% 100%, rgba(236, 72, 153, 0.1) 0%, transparent 65%),
-    #09080f;
+    var(--bg);
   animation: bgDrift 12s ease-in-out infinite alternate;
 }
 @keyframes bgDrift {
@@ -208,32 +229,35 @@ body::before {
 
 @media (max-width: 480px) {
   .app-topnav {
-    padding: 0 12px;
-    gap: 8px;
-    /* Allow topnav to grow to 2 rows on very small screens */
-    height: auto;
+    padding: 0 10px;
+    gap: 6px;
+    flex-wrap: nowrap;
+    height: var(--topnav-h);
     min-height: var(--topnav-h);
-    flex-wrap: wrap;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding-top: 0;
+    padding-bottom: 0;
   }
   .topnav-logo {
-    order: 1;
+    order: 0;
+    flex-shrink: 0;
+  }
+  .logo-text {
+    display: none;
   }
   .topnav-actions {
     order: 2;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
   }
   .topnav-greeting {
-    /* Full-width row below logo + actions */
-    order: 3;
-    flex-basis: 100%;
+    order: 1;
+    flex: 1;
     text-align: center;
     font-size: 13px;
-    padding-bottom: 6px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding: 0 4px;
   }
 }
 
@@ -241,8 +265,8 @@ body::before {
   display: flex; align-items: center; gap: 10px; flex-shrink: 0;
 }
 
-/* Notification bell */
-.notif-btn {
+/* Topnav action buttons (bell, three-dots) */
+.notif-btn, .more-btn {
   position: relative;
   width: 38px; height: 38px; border-radius: 50%;
   background: var(--surface);
@@ -251,9 +275,10 @@ body::before {
   color: var(--ink-2);
   box-shadow: var(--shadow-xs);
   transition: transform 0.2s var(--spring), box-shadow 0.2s;
+  cursor: pointer;
 }
-.notif-btn:hover { transform: scale(1.08); box-shadow: var(--shadow-sm); color: var(--purple); }
-.notif-btn:active { transform: scale(0.95); }
+.notif-btn:hover, .more-btn:hover { transform: scale(1.08); box-shadow: var(--shadow-sm); color: var(--purple); }
+.notif-btn:active, .more-btn:active { transform: scale(0.95); }
 .notif-badge {
   position: absolute; top: -2px; right: -2px;
   min-width: 17px; height: 17px; border-radius: 50%;
@@ -278,6 +303,92 @@ body::before {
   position: absolute; bottom: 0; right: 0;
   width: 10px; height: 10px; border-radius: 50%;
   background: var(--green); border: 2px solid var(--bg);
+}
+
+/* Avatar Dropdown Menu */
+.avatar-dropdown {
+  position: absolute;
+  top: calc(var(--topnav-h) - 8px);
+  right: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 180px;
+  overflow: hidden;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  animation: dropdownSlide 0.2s var(--spring);
+}
+@keyframes dropdownSlide {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.avatar-dropdown-item {
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+.avatar-dropdown-item:hover {
+  background: var(--purple-alpha);
+  color: var(--purple-soft);
+}
+.avatar-dropdown-item svg {
+  color: var(--ink-3);
+  transition: color 0.15s;
+}
+.avatar-dropdown-item:hover svg {
+  color: var(--purple-soft);
+}
+.avatar-dropdown-item.danger {
+  color: var(--rose);
+}
+.avatar-dropdown-item.danger svg {
+  color: var(--rose);
+}
+.avatar-dropdown-item.danger:hover {
+  background: rgba(236, 72, 153, 0.08);
+}
+.dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+@media (max-width: 768px) {
+  .avatar-dropdown {
+    position: absolute;
+    top: 50px;
+    right: 8px;
+    bottom: auto;
+    left: auto;
+    box-shadow: var(--shadow-lg);
+  }
+  .avatar-dropdown.dropup-mode {
+    position: fixed !important;
+    top: auto !important;
+    bottom: calc(var(--bottomnav-h) + 12px) !important;
+    right: 16px !important;
+    left: auto !important;
+    animation: dropupSlide 0.2s var(--spring) !important;
+  }
+}
+@keyframes dropupSlide {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ═══════════════════════════════════════
@@ -427,6 +538,9 @@ body::before {
   cursor: pointer;
   transition: background 0.15s, transform 0.15s var(--spring);
   position: relative;
+  background: transparent;
+  border: none;
+  outline: none;
 }
 .stat-card:hover { background: var(--purple-alpha); }
 .stat-card:active { transform: scale(0.96); }

@@ -32,8 +32,22 @@ const mobileMenuBtn = document.getElementById('mobileMenuBtn');
 const mobileNav = document.getElementById('mobileNav');
 
 if (mobileMenuBtn && mobileNav) {
-  mobileMenuBtn.addEventListener('click', () => {
+  mobileMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
     mobileNav.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (mobileNav.classList.contains('open')) {
+      const isClickInsideBtn = mobileMenuBtn.contains(e.target);
+      const isClickInsideNav = mobileNav.contains(e.target);
+      
+      if (!isClickInsideBtn) {
+        if (!isClickInsideNav || e.target.tagName === 'A' || e.target.closest('a')) {
+          mobileNav.classList.remove('open');
+        }
+      }
+    }
   });
 }
 

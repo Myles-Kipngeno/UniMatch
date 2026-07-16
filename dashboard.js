@@ -1103,3 +1103,125 @@ window.openModal = async function(type) {
     smBody.innerHTML = `<div class="sm-empty"><p class="sm-empty-msg">Failed to load data. Please try again.</p></div>`;
   }
 };
+
+// ── Avatar Dropdown & Theme Toggle ──
+(() => {
+  const dropdown = document.getElementById("avatarDropdown");
+
+  // Toggling and Click-Outside Handler
+  document.addEventListener("click", (e) => {
+    const menuBtn = document.getElementById("dashboardMenuBtn");
+    const bnProfile = document.getElementById("bn-profile");
+    const avatarWrap = document.getElementById("navAvatarWrap");
+
+    // 1. Toggling dropdown on three-dots menu click (both desktop and mobile)
+    if (menuBtn && menuBtn.contains(e.target)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dropdown) {
+        dropdown.classList.remove("dropup-mode");
+        const isClosed = dropdown.style.display === "none" || dropdown.style.display === "";
+        dropdown.style.display = isClosed ? "flex" : "none";
+      }
+      return;
+    }
+
+    // 2. Toggling dropdown on bottom-nav Profile tab click (mobile only)
+    if (bnProfile && bnProfile.contains(e.target) && window.innerWidth < 769) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dropdown) {
+        dropdown.classList.add("dropup-mode");
+        const isClosed = dropdown.style.display === "none" || dropdown.style.display === "";
+        dropdown.style.display = isClosed ? "flex" : "none";
+      }
+      return;
+    }
+
+    // 3. Avatar click navigates directly to profile edit page
+    if (avatarWrap && avatarWrap.contains(e.target)) {
+      window.location.href = "profile.html?edit=true";
+      return;
+    }
+
+    // 4. Close dropdown on click outside
+    if (dropdown && dropdown.style.display === "flex") {
+      const clickInsideDropdown = dropdown.contains(e.target);
+      if (!clickInsideDropdown) {
+        dropdown.style.display = "none";
+      }
+    }
+  });
+
+  // Handle clicks inside the dropdown menu (View Profile, Theme Toggle, Sign Out)
+  if (dropdown) {
+    dropdown.addEventListener("click", async (e) => {
+      // A. Theme Toggle click
+      const themeBtn = e.target.closest("#themeToggleBtn");
+      if (themeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const isLight = document.documentElement.classList.toggle("light-theme");
+        localStorage.setItem("theme", isLight ? "light" : "dark");
+        
+        // Update Theme UI
+        const themeText = document.getElementById("themeToggleText");
+        const sun = themeBtn.querySelector(".sun-icon");
+        const moon = themeBtn.querySelector(".moon-icon");
+        if (sun && moon) {
+          sun.style.display = isLight ? "none" : "block";
+          moon.style.display = isLight ? "block" : "none";
+        }
+        if (themeText) {
+          themeText.textContent = isLight ? "Dark Theme" : "Light Theme";
+        }
+        
+        dropdown.style.display = "none";
+        return;
+      }
+
+      // B. Sign Out click
+      const signOutBtn = e.target.closest("#signOutBtn");
+      if (signOutBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropdown.style.display = "none";
+        try {
+          sessionStorage.clear();
+          const { error } = await supabase.auth.signOut();
+          if (error) throw error;
+          alert("You have been logged out.");
+          window.location.href = "login.html";
+        } catch (err) {
+          console.error("Sign out failed:", err);
+          alert("Sign out failed. Try again.");
+        }
+        return;
+      }
+
+      // C. Navigation links (e.g. View Profile) -> close with small timeout to allow browser to trigger link navigation
+      const link = e.target.closest("a");
+      if (link) {
+        setTimeout(() => {
+          dropdown.style.display = "none";
+        }, 100);
+      }
+    });
+  }
+
+  // Initial Theme UI Sync (Sync button state with loaded theme on boot)
+  const themeBtn = document.getElementById("themeToggleBtn");
+  const themeText = document.getElementById("themeToggleText");
+  if (themeBtn) {
+    const isLight = document.documentElement.classList.contains("light-theme");
+    const sun = themeBtn.querySelector(".sun-icon");
+    const moon = themeBtn.querySelector(".moon-icon");
+    if (sun && moon) {
+      sun.style.display = isLight ? "none" : "block";
+      moon.style.display = isLight ? "block" : "none";
+    }
+    if (themeText) {
+      themeText.textContent = isLight ? "Dark Theme" : "Light Theme";
+    }
+  }
+})();

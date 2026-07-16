@@ -284,6 +284,34 @@ if (backBtn) {
   };
 }
 
+// Header More Options Menu (Three-dot)
+const moreBtn = document.getElementById("moreBtn");
+const chatMenu = document.getElementById("chatMenu");
+
+if (moreBtn && chatMenu) {
+  moreBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = chatMenu.style.display === "block";
+    chatMenu.style.display = isOpen ? "none" : "block";
+  });
+
+  document.addEventListener("click", (e) => {
+    if (chatMenu.style.display === "block") {
+      const isClickInsideBtn = moreBtn.contains(e.target);
+      const isClickInsideMenu = chatMenu.contains(e.target);
+      if (!isClickInsideBtn && !isClickInsideMenu) {
+        chatMenu.style.display = "none";
+      }
+    }
+  });
+
+  // Close the menu when any menu item inside is clicked
+  chatMenu.addEventListener("click", () => {
+    chatMenu.style.display = "none";
+  });
+}
+
+
 function esc(str) {
   const d = document.createElement("div");
   d.textContent = str || "";
