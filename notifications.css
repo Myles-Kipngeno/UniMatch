@@ -192,3 +192,73 @@ body::before {
 .bn-icon { width: 24px; height: 24px; flex-shrink: 0; transition: transform 0.2s var(--spring); }
 .bn-item.active .bn-icon { transform: scale(1.12); }
 .bn-label { font-size: 10px; font-weight: 600; line-height: 1; }
+
+@media (min-width: 769px) {
+  /* Diagonal Left Sidebar styling */
+  .bottom-nav {
+    position: fixed;
+    top: 30px;
+    bottom: 30px;
+    left: 24px;
+    width: 88px;
+    height: calc(100vh - 60px);
+    max-width: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 40px 0;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(19, 17, 28, 0.75);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+    transform: skewY(-6deg);
+    transform-origin: left top;
+    z-index: 500;
+  }
+
+  /* Un-skew items to keep icons/text upright */
+  .bn-item {
+    width: 72px;
+    height: 72px;
+    flex: none;
+    border-radius: 16px;
+    transform: skewY(6deg);
+    transition: color 0.2s var(--ease), background-color 0.2s var(--ease), transform 0.2s var(--spring);
+  }
+
+  /* Slanted active pill background instead of top line indicator */
+  .bn-item.active {
+    background: linear-gradient(135deg, var(--purple-alpha), rgba(236, 72, 153, 0.08));
+    color: var(--purple-soft);
+  }
+
+  .bn-indicator {
+    display: none !important; /* Hide top bar indicator */
+  }
+
+  /* Add side gradient glow on active */
+  .bn-item.active::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 20%;
+    height: 60%;
+    width: 3px;
+    border-radius: 99px;
+    background: linear-gradient(to bottom, var(--purple), var(--rose));
+    box-shadow: 0 0 8px var(--purple-glow);
+  }
+
+  /* Layout offsets to clear sidebar */
+  .notif-topnav {
+    left: 136px;
+  }
+  .notif-container {
+    margin-left: calc(112px + (100% - 112px - 520px) / 2);
+    margin-right: auto;
+    padding-bottom: 40px;
+  }
+}

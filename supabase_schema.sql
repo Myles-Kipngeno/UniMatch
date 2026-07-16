@@ -198,6 +198,8 @@ CREATE TABLE IF NOT EXISTS public.presence (
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE UNIQUE,
   online BOOLEAN DEFAULT TRUE,
   location_name TEXT,
+  lat DOUBLE PRECISION,   -- fuzzy latitude  (~1 km precision)
+  lng DOUBLE PRECISION,   -- fuzzy longitude (~1 km precision)
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -515,3 +517,16 @@ CREATE POLICY "Public access to profile images" ON storage.objects FOR SELECT US
 
 DROP POLICY IF EXISTS "Authenticated upload profile images" ON storage.objects;
 CREATE POLICY "Authenticated upload profile images" ON storage.objects FOR INSERT WITH CHECK (bucket_id IN ('profile-images', 'chat-images', 'verification-images') AND auth.role() = 'authenticated');
+
+-- ============================================================
+-- CAMPUS RADAR MIGRATION
+-- Run this in Supabase SQL Editor if your database already
+-- exists and the presence table was created without lat/lng.
+-- ============================================================
+ALTER TABLE public.presence ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+ALTER TABLE public.presence ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+
+-- Allow all authenticated users to read presence (for radar dots)
+DROP POLICY IF EXISTS "Presence viewable by all" ON public.presence;
+CREATE POLICY "Presence viewable by all" ON public.presence
+  FOR SELECT USING (auth.role() = 'authenticated');

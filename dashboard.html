@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Home | UniMatch</title>
   <meta name="description" content="Your UniMatch dashboard — discover connections, track matches, and stay connected on campus.">
-  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="dashboard.css?v=3">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
@@ -21,7 +21,7 @@
     </div>
 
     <div class="topnav-greeting">
-      <span id="greetingLine">Good morning</span>,&nbsp;<span id="welcomeName" class="greeting-name">Student</span>&nbsp;👋
+      <span class="greeting-prefix"><span id="greetingLine">Good morning</span>,&nbsp;</span><span id="welcomeName" class="greeting-name">Student</span>&nbsp;👋
     </div>
 
     <div class="topnav-actions">
@@ -140,38 +140,52 @@
     <section class="section-block anim-slide-up" style="--delay:0.30s">
       <div class="section-header">
         <span class="section-title">Campus Pulse 🌐</span>
-        <span class="pulse-live-dot"></span>
+        <span class="pulse-live-badge"><span class="pulse-live-dot"></span>LIVE</span>
       </div>
-      <div class="campus-pulse-card glass-card">
-        <div class="pulse-grid">
-          <div class="pulse-item">
-            <span class="pulse-emoji">📚</span>
-            <div class="pulse-text">
-              <span class="pulse-num" id="pulseLibrary">18</span>
-              <span class="pulse-lbl">in the library</span>
-            </div>
-          </div>
-          <div class="pulse-item">
-            <span class="pulse-emoji">☕</span>
-            <div class="pulse-text">
-              <span class="pulse-num" id="pulseCafe">9</span>
-              <span class="pulse-lbl">at the café</span>
-            </div>
-          </div>
-          <div class="pulse-item">
-            <span class="pulse-emoji">🎉</span>
-            <div class="pulse-text">
-              <span class="pulse-num" id="pulseEvent">14</span>
-              <span class="pulse-lbl">at tonight's event</span>
-            </div>
-          </div>
-          <div class="pulse-item pulse-item--online">
-            <span class="pulse-emoji">🟢</span>
-            <div class="pulse-text">
-              <span class="pulse-num" id="pulseOnline">56</span>
-              <span class="pulse-lbl">students online</span>
-            </div>
-          </div>
+
+      <div class="pulse-tabs-container">
+        <button class="pulse-tab-btn active" id="tabBtnSpots" aria-label="Campus Spots">
+          📍 Campus Spots
+        </button>
+        <button class="pulse-tab-btn" id="tabBtnRadar" aria-label="Radar Scan">
+          📡 Radar Scan
+        </button>
+      </div>
+
+      <!-- Tab Content: Spots -->
+      <div class="campus-pulse-card glass-card" id="pulseContentSpots">
+        <p class="spots-intro">Check-in to your current campus spot to see who else is hanging out there right now!</p>
+        <div class="spots-list" id="spotsList">
+          <!-- Dynamically populated spots -->
+          <div class="spot-card-loading">Loading spots…</div>
+        </div>
+
+        <!-- Detail list of checked-in users at active spot -->
+        <div class="spot-checked-users" id="spotCheckedUsers" style="display: none;">
+          <h4 class="sc-title" id="spotDetailTitle">Students here</h4>
+          <div class="sc-grid" id="spotDetailGrid"></div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Radar -->
+      <div class="campus-pulse-card glass-card" id="pulseContentRadar" style="display: none;">
+        <!-- Radar range selector -->
+        <div class="radar-ranges" id="radarRanges">
+          <button class="range-btn" data-range="100">100m</button>
+          <button class="range-btn" data-range="500">500m</button>
+          <button class="range-btn" data-range="1000">1km</button>
+          <button class="range-btn active" data-range="2000">2km</button>
+        </div>
+
+        <div class="radar-wrap">
+          <canvas id="radarCanvas" width="280" height="280"></canvas>
+        </div>
+        <div class="radar-status">
+          <span class="radar-count-wrap">
+            <span class="radar-count-num" id="radarOnlineCount">—</span>
+            <span class="radar-count-lbl">students nearby</span>
+          </span>
+          <span class="radar-hint" id="radarHint">Initialising radar…</span>
         </div>
       </div>
     </section>

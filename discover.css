@@ -346,6 +346,80 @@ body::before {
 .action-btn:active, .indicator:active { transform: scale(0.92); }
 
 /* ═══════════════════════════════════════
+   HISTORY DRAWER (hidden by default)
+═══════════════════════════════════════ */
+.hist-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 400;
+  background: rgba(9, 8, 15, 0.7); backdrop-filter: blur(6px);
+}
+.hist-backdrop.open { display: block; }
+
+.hist-drawer {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 401;
+  max-width: 480px; margin: 0 auto;
+  background: var(--surface); border-radius: 28px 28px 0 0;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.5);
+  max-height: 70vh; overflow-y: auto;
+  flex-direction: column;
+}
+.hist-drawer.open { display: flex; }
+
+.hist-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.hist-header h2 { font-size: 17px; font-weight: 800; color: #fff; }
+.hist-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08); color: var(--ink-2);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.hist-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+.hist-tab {
+  flex: 1; padding: 12px; font-size: 14px; font-weight: 600;
+  color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+.hist-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+.hist-body { padding: 16px; }
+.hist-loading { display: flex; align-items: center; gap: 10px; color: var(--ink-3); font-size: 14px; }
+.hist-spinner {
+  width: 18px; height: 18px; border: 2px solid var(--border);
+  border-top-color: var(--purple); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ═══════════════════════════════════════
+   INTERESTS MODAL (hidden by default)
+═══════════════════════════════════════ */
+.interests-modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 600;
+  background: rgba(9, 8, 15, 0.85); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.interests-modal-overlay.active { display: flex; }
+.interests-modal {
+  width: 100%; max-width: 440px;
+  background: var(--surface); border-radius: var(--r-xl);
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  display: flex; flex-direction: column; max-height: 80vh; overflow: hidden;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-header h3 { font-size: 17px; font-weight: 800; color: #fff; }
+.close-modal-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08); color: var(--ink-2);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.interests-grid-container { padding: 16px; overflow-y: auto; flex: 1; }
+.modal-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+
+/* ═══════════════════════════════════════
    FILTER SHEET (SLIDE-UP MODAL)
 ═══════════════════════════════════════ */
 .filter-backdrop {
@@ -493,3 +567,95 @@ body::before {
 .discover-layout { display: flex; justify-content: center; width: 100%; }
 .discover-sidebar, .discover-recommendations { display: none !important; }
 .discover-swiper-section { width: 100%; max-width: 480px; }
+
+@media (min-width: 769px) {
+  /* Diagonal Left Sidebar styling */
+  .bottom-nav, .mobile-bottom-nav {
+    position: fixed;
+    top: 30px;
+    bottom: 30px;
+    left: 24px;
+    width: 88px;
+    height: calc(100vh - 60px);
+    max-width: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 40px 0;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(19, 17, 28, 0.75);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+    transform: skewY(-6deg);
+    transform-origin: left top;
+    z-index: 500;
+  }
+
+  /* Un-skew items to keep icons/text upright */
+  .bn-item, .bottom-nav-item {
+    width: 72px;
+    height: 72px;
+    flex: none;
+    border-radius: 16px;
+    transform: skewY(6deg);
+    transition: color 0.2s var(--ease), background-color 0.2s var(--ease), transform 0.2s var(--spring);
+  }
+
+  /* Slanted active pill background instead of top line indicator */
+  .bn-item.active, .bottom-nav-item.active {
+    background: linear-gradient(135deg, var(--purple-alpha), rgba(236, 72, 153, 0.08));
+    color: var(--purple-soft);
+  }
+
+  .bn-indicator {
+    display: none !important; /* Hide top bar indicator */
+  }
+
+  /* Add side gradient glow on active */
+  .bn-item.active::before, .bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 20%;
+    height: 60%;
+    width: 3px;
+    border-radius: 99px;
+    background: linear-gradient(to bottom, var(--purple), var(--rose));
+    box-shadow: 0 0 8px var(--purple-glow);
+  }
+
+  /* Layout offsets to clear sidebar */
+  .disc-topnav {
+    left: 136px;
+  }
+  .swipe-arena {
+    margin-left: calc(112px + (100% - 112px - 480px) / 2);
+    margin-right: auto;
+    padding-top: calc(var(--topnav-h) + 10px);
+    padding-bottom: 10px;
+    height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  /* Force html/body to not scroll on desktop viewports */
+  html, body {
+    overflow: hidden !important;
+    height: 100vh;
+  }
+
+  /* Allow card stack to scale down dynamically to fit laptop height */
+  #discoverContainer, .card-stack {
+    min-height: 0 !important;
+    height: calc(100vh - var(--topnav-h) - 120px) !important;
+    max-height: none !important;
+  }
+
+  /* Keep action row padding compact */
+  .action-row {
+    padding: 6px 0 10px;
+  }
+}

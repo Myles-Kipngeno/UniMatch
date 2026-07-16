@@ -78,7 +78,7 @@ let currentData = {};
     loadActivityFeed(currentUid, currentData);
     loadDiscoverPreview(currentUid, currentData);
     loadTodaysPick(currentUid, currentData);
-    animateCampusPulse();
+    initRadar(currentUid);
     rotateIcebreaker();
 
     // Subscribe to Realtime notifications and likes
@@ -359,16 +359,580 @@ async function loadRecentChats(uid) {
   }
 }
 
-// CAMPUS PULSE
-function animateCampusPulse() {
-  const base = { library: 18, cafe: 9, event: 14, online: 56 };
-  const els  = {
-    library: document.getElementById("pulseLibrary"),
-    cafe:    document.getElementById("pulseCafe"),
-    event:   document.getElementById("pulseEvent"),
-    online:  document.getElementById("pulseOnline"),
-  };
-  Object.keys(els).forEach(k => { if (els[k]) animateCount(els[k], base[k]); });
+// ═══════════════════════════════════════
+//  CAMPUS PULSE ENGINE
+// ═══════════════════════════════════════
+const CAMPUS_SPOTS = [
+  { id: "library", name: "Library", emoji: "📚" },
+  { id: "cafe", name: "Café", emoji: "☕" },
+  { id: "halls", name: "Lecture Halls", emoji: "🏛️" },
+  { id: "gym", name: "Campus Gym", emoji: "🏋️" },
+  { id: "hostels", name: "Student Hostels", emoji: "🏢" }
+];
+
+const SWEEP_SPEED      = 0.022; // radians per frame
+const TRAIL_ANGLE      = Math.PI * 0.42;
+const DOT_LERP         = 0.06;
+
+let myCurrentSpot      = null;
+let radarDots          = [];   // { id, x, y, tx, ty, pingTime }
+let radarSweepAngle    = 0;
+let radarAnimId        = null;
+let myRadarLat         = null;
+let myRadarLng         = null;
+let currentRadarRange  = 2000; // default 2km
+let radarCanvas, radarCtx, radarSz, radarCx, radarCy, radarR;
+
+// ── Main entry point ──────────────────
+function initRadar(uid) {
+  // Initialize tabs toggle
+  const tabBtnSpots = document.getElementById("tabBtnSpots");
+  const tabBtnRadar = document.getElementById("tabBtnRadar");
+  const contentSpots = document.getElementById("pulseContentSpots");
+  const contentRadar = document.getElementById("pulseContentRadar");
+
+  if (tabBtnSpots && tabBtnRadar && contentSpots && contentRadar) {
+    tabBtnSpots.addEventListener("click", () => {
+      tabBtnSpots.classList.add("active");
+      tabBtnRadar.classList.remove("active");
+      contentSpots.style.display = "block";
+      contentRadar.style.display = "none";
+    });
+
+    tabBtnRadar.addEventListener("click", () => {
+      tabBtnRadar.classList.add("active");
+      tabBtnSpots.classList.remove("active");
+      contentSpots.style.display = "none";
+      contentRadar.style.display = "block";
+      
+      // Fit canvas size
+      if (radarCanvas) {
+        const sz = Math.min(radarCanvas.parentElement.clientWidth || 280, 280);
+        radarCanvas.width  = sz;
+        radarCanvas.height = sz;
+        radarSz = sz;
+        radarCx = sz / 2;
+        radarCy = sz / 2;
+        radarR  = sz / 2 - 8;
+      }
+    });
+  }
+
+  // Initialize range selectors
+  const rangeButtons = document.querySelectorAll("#radarRanges .range-btn");
+  rangeButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      rangeButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentRadarRange = parseInt(btn.dataset.range, 10);
+      const countEl = document.getElementById("radarOnlineCount");
+      if (myRadarLat != null) {
+        loadRadarDots(uid, countEl);
+      } else {
+        loadRadarFallback(uid, countEl);
+      }
+    });
+  });
+
+  // Setup Canvas
+  radarCanvas = document.getElementById("radarCanvas");
+  if (radarCanvas) {
+    const wrap = radarCanvas.parentElement;
+    const sz   = Math.min(wrap.clientWidth || 280, 280);
+    radarCanvas.width  = sz;
+    radarCanvas.height = sz;
+    radarSz = sz;
+    radarCx = sz / 2;
+    radarCy = sz / 2;
+    radarR  = sz / 2 - 8;
+    radarCtx = radarCanvas.getContext("2d");
+    startRadarLoop();
+  }
+
+  // Load spots & location
+  loadSpotsData(uid);
+  requestRadarLocation(uid);
+}
+
+// ── Canvas draw loop ──────────────────
+function startRadarLoop() {
+  if (radarAnimId) cancelAnimationFrame(radarAnimId);
+
+  function frame() {
+    if (!radarCtx) return;
+    const ctx = radarCtx;
+    const cx = radarCx, cy = radarCy, r = radarR;
+    const now = performance.now();
+
+    ctx.clearRect(0, 0, radarSz, radarSz);
+
+    // ── Dark radar background ──
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    bgGrad.addColorStop(0, "#0e0b1e");
+    bgGrad.addColorStop(1, "#060412");
+    ctx.fillStyle = bgGrad;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(130, 80, 255, 0.5)";
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // ── Clip everything inside circle ──
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+    ctx.clip();
+
+    // ── Range rings ──
+    [0.33, 0.60, 0.87].forEach((frac, i) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * frac, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(110, 70, 255, ${0.08 + i * 0.06})`;
+      ctx.lineWidth   = 1;
+      ctx.stroke();
+
+      // Ring distance labels
+      ctx.save();
+      ctx.fillStyle = "rgba(160, 130, 255, 0.35)";
+      ctx.font = "8px Outfit, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+      let lbl = "";
+      if (currentRadarRange === 100) {
+        lbl = i === 0 ? "30m" : i === 1 ? "60m" : "100m";
+      } else if (currentRadarRange === 500) {
+        lbl = i === 0 ? "150m" : i === 1 ? "300m" : "500m";
+      } else if (currentRadarRange === 1000) {
+        lbl = i === 0 ? "300m" : i === 1 ? "600m" : "1km";
+      } else {
+        lbl = i === 0 ? "600m" : i === 1 ? "1.3km" : "2km";
+      }
+      ctx.fillText(lbl, cx, cy - (r * frac) + 7);
+      ctx.restore();
+    });
+
+    // ── Crosshair lines ──
+    ctx.setLineDash([2, 5]);
+    ctx.strokeStyle = "rgba(110, 70, 255, 0.13)";
+    ctx.lineWidth   = 1;
+    for (let a = 0; a < 4; a++) {
+      const angle = (a * Math.PI) / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // ── Rotating sweep ──
+    radarSweepAngle = (radarSweepAngle + SWEEP_SPEED) % (Math.PI * 2);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(radarSweepAngle);
+
+    // Trailing glow fan
+    const STEPS = 55;
+    for (let s = 0; s < STEPS; s++) {
+      const frac  = s / STEPS;
+      const start = -TRAIL_ANGLE * (1 - frac);
+      const end   = start + (TRAIL_ANGLE / STEPS) + 0.005;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, start, end);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(120, 70, 255, ${frac * frac * 0.28})`;
+      ctx.fill();
+    }
+
+    // Leading edge line
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(r, 0);
+    ctx.strokeStyle = "rgba(200, 160, 255, 0.9)";
+    ctx.lineWidth   = 2;
+    ctx.shadowColor = "rgba(160, 100, 255, 0.8)";
+    ctx.shadowBlur  = 8;
+    ctx.stroke();
+    ctx.shadowBlur  = 0;
+    ctx.restore();
+
+    // ── User dots ──
+    radarDots.forEach(dot => {
+      // Smooth lerp toward target position
+      dot.x += (dot.tx - dot.x) * DOT_LERP;
+      dot.y += (dot.ty - dot.y) * DOT_LERP;
+
+      // Detect when sweep passes over dot
+      const dotAngle   = ((Math.atan2(dot.y - cy, dot.x - cx) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const sweepNorm  = ((radarSweepAngle - TRAIL_ANGLE * 0.05) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+      const diff       = Math.abs(sweepNorm - dotAngle);
+      if (diff < SWEEP_SPEED * 2.5 || diff > Math.PI * 2 - SWEEP_SPEED * 2.5) {
+        dot.pingTime = now;
+      }
+
+      const pingAge   = now - (dot.pingTime || 0);
+      const pingAlpha = pingAge < 2200 ? Math.max(0, 1 - pingAge / 2200) : 0;
+
+      // Expanding ping ring
+      if (pingAlpha > 0.02) {
+        const ringR = 5 + (1 - pingAlpha) * 18;
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, ringR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(100, 220, 255, ${pingAlpha * 0.7})`;
+        ctx.lineWidth   = 1.2;
+        ctx.stroke();
+      }
+
+      // Glow halo
+      const halo = ctx.createRadialGradient(dot.x, dot.y, 0, dot.x, dot.y, 12);
+      halo.addColorStop(0, `rgba(80, 200, 255, ${0.25 + pingAlpha * 0.5})`);
+      halo.addColorStop(1, "rgba(80, 200, 255, 0)");
+      ctx.beginPath();
+      ctx.arc(dot.x, dot.y, 12, 0, Math.PI * 2);
+      ctx.fillStyle = halo;
+      ctx.fill();
+
+      // Dot core
+      ctx.beginPath();
+      ctx.arc(dot.x, dot.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(130, 220, 255, ${0.75 + pingAlpha * 0.25})`;
+      ctx.shadowColor = "rgba(80, 200, 255, 0.9)";
+      ctx.shadowBlur  = 6;
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+    });
+
+    ctx.restore(); // end clip
+
+    // ── Center dot — YOU ──
+    const pulse = 0.5 + 0.5 * Math.sin(now / 420);
+
+    // Outer pulse ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10 + pulse * 6, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(180, 120, 255, ${0.25 + pulse * 0.2})`;
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+
+    // Inner glow
+    const youGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 10);
+    youGlow.addColorStop(0, "rgba(220, 170, 255, 1)");
+    youGlow.addColorStop(1, "rgba(130, 60,  255, 0)");
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.fillStyle   = youGlow;
+    ctx.shadowColor = "rgba(160, 80, 255, 0.9)";
+    ctx.shadowBlur  = 12;
+    ctx.fill();
+    ctx.shadowBlur  = 0;
+
+    // White core
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+
+    // YOU label
+    ctx.fillStyle   = "rgba(255, 255, 255, 0.65)";
+    ctx.font        = `bold ${Math.max(8, radarSz * 0.034)}px Outfit, sans-serif`;
+    ctx.textAlign   = "center";
+    ctx.fillText("YOU", cx, cy + 20);
+
+    radarAnimId = requestAnimationFrame(frame);
+  }
+
+  radarAnimId = requestAnimationFrame(frame);
+}
+
+// ── Geolocation + presence upsert ─────
+async function requestRadarLocation(uid) {
+  const hintEl  = document.getElementById("radarHint");
+  const countEl = document.getElementById("radarOnlineCount");
+
+  if (!navigator.geolocation) {
+    if (hintEl) hintEl.textContent = "GPS unavailable — showing online students";
+    await loadRadarFallback(uid, countEl);
+    setupRadarRealtime(uid, countEl);
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      myRadarLat = Math.round(pos.coords.latitude  * 100) / 100; // ~1.1 km fuzzy
+      myRadarLng = Math.round(pos.coords.longitude * 100) / 100;
+
+      await upsertPresence(uid, myRadarLat, myRadarLng);
+      if (hintEl) hintEl.textContent = `Showing students within ~${currentRadarRange >= 1000 ? (currentRadarRange/1000)+'km' : currentRadarRange+'m'}`;
+      await loadRadarDots(uid, countEl);
+      setupRadarRealtime(uid, countEl);
+
+      // Refresh position every 60 s
+      setInterval(() => {
+        navigator.geolocation.getCurrentPosition(
+          async p => {
+            myRadarLat = Math.round(p.coords.latitude  * 100) / 100;
+            myRadarLng = Math.round(p.coords.longitude * 100) / 100;
+            await upsertPresence(uid, myRadarLat, myRadarLng);
+            await loadRadarDots(uid, countEl);
+          },
+          () => {},
+          { maximumAge: 30000 }
+        );
+      }, 60000);
+    },
+    async () => {
+      if (hintEl) hintEl.textContent = "Location off — showing online students";
+      await loadRadarFallback(uid, countEl);
+      setupRadarRealtime(uid, countEl);
+    },
+    { timeout: 8000, maximumAge: 60000 }
+  );
+}
+
+async function upsertPresence(uid, lat, lng) {
+  try {
+    await supabase.from("presence").upsert(
+      { user_id: uid, online: true, lat, lng, location_name: myCurrentSpot, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  } catch (e) {
+    console.warn("Presence upsert:", e);
+  }
+}
+
+// ── Load real GPS dots ────────────────
+async function loadRadarDots(uid, countEl) {
+  if (!radarCanvas) return;
+  try {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("presence")
+      .select("user_id, lat, lng")
+      .eq("online", true)
+      .neq("user_id", uid)
+      .gte("updated_at", cutoff);
+
+    // Approximate distance filter (in meters)
+    const filtered = (data || []).filter(d => {
+      if (d.lat == null || d.lng == null || !myRadarLat) return false;
+      const distM = Math.hypot(d.lat - myRadarLat, d.lng - myRadarLng) * 111000;
+      return distM <= currentRadarRange;
+    });
+
+    if (countEl) countEl.textContent = filtered.length;
+    if (!myRadarLat) { await loadRadarFallback(uid, countEl); return; }
+
+    const rangeDeg = currentRadarRange / 111000;
+    const mapped = filtered.map(d => {
+      const dLat = d.lat - myRadarLat;
+      const dLng = d.lng - myRadarLng;
+      // Map ± rangeDeg → ± radarR * 0.88
+      const tx = radarCx + (dLng / rangeDeg) * radarR * 0.88;
+      const ty = radarCy - (dLat / rangeDeg) * radarR * 0.88;
+      // Clamp to inside the circle
+      const dist = Math.hypot(tx - radarCx, ty - radarCy);
+      const maxD = radarR * 0.88;
+      const cx   = dist > maxD ? radarCx + (tx - radarCx) * maxD / dist : tx;
+      const cy   = dist > maxD ? radarCy + (ty - radarCy) * maxD / dist : ty;
+
+      const old = radarDots.find(r => r.id === d.user_id);
+      return { id: d.user_id, x: old?.x ?? cx, y: old?.y ?? cy, tx: cx, ty: cy, pingTime: old?.pingTime ?? 0 };
+    });
+
+    radarDots = mapped;
+    
+    const hintEl = document.getElementById("radarHint");
+    if (hintEl) {
+      hintEl.textContent = `Showing students within ~${currentRadarRange >= 1000 ? (currentRadarRange/1000)+'km' : currentRadarRange+'m'}`;
+    }
+  } catch (e) {
+    console.warn("Radar dots error:", e);
+  }
+}
+
+// ── Fallback: anonymous random dots ──
+async function loadRadarFallback(uid, countEl) {
+  try {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("presence")
+      .select("user_id")
+      .eq("online", true)
+      .neq("user_id", uid)
+      .gte("updated_at", cutoff);
+
+    if (countEl) countEl.textContent = (data || []).length;
+
+    radarDots = (data || []).map(d => {
+      // Deterministic scatter from user_id characters
+      const hash  = [...d.user_id].reduce((a, c) => a + c.charCodeAt(0), 0);
+      const angle = (hash * 137.508) % 360 * (Math.PI / 180);
+      const dist  = (((hash * 7919) % 72) + 16) / 100 * radarR * 0.85;
+      const tx    = radarCx + Math.cos(angle) * dist;
+      const ty    = radarCy + Math.sin(angle) * dist;
+      const old   = radarDots.find(r => r.id === d.user_id);
+      return { id: d.user_id, x: old?.x ?? tx, y: old?.y ?? ty, tx, ty, pingTime: old?.pingTime ?? 0 };
+    });
+  } catch (e) {
+    console.warn("Radar fallback error:", e);
+  }
+}
+
+// ── Realtime ──────────────────────────
+function setupRadarRealtime(uid, countEl) {
+  supabase
+    .channel("campus_radar")
+    .on("postgres_changes", { event: "*", schema: "public", table: "presence" }, () => {
+      if (myRadarLat != null) loadRadarDots(uid, countEl);
+      else                    loadRadarFallback(uid, countEl);
+      loadSpotsData(uid);
+    })
+    .subscribe();
+}
+
+// ── Spots Logic ───────────────────────
+async function loadSpotsData(uid) {
+  const listEl = document.getElementById("spotsList");
+  if (!listEl) return;
+
+  try {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    
+    // Fetch active presences
+    const { data: presenceData } = await supabase
+      .from("presence")
+      .select("location_name, user_id")
+      .eq("online", true)
+      .gte("updated_at", cutoff);
+      
+    // Find my checked-in spot
+    const myPresence = (presenceData || []).find(p => p.user_id === uid);
+    myCurrentSpot = myPresence ? myPresence.location_name : null;
+
+    // Calculate spot counts
+    const counts = {};
+    (presenceData || []).forEach(p => {
+      if (p.location_name) {
+        counts[p.location_name] = (counts[p.location_name] || 0) + 1;
+      }
+    });
+
+    // Render spots
+    listEl.innerHTML = CAMPUS_SPOTS.map(spot => {
+      const isHere = (myCurrentSpot === spot.name);
+      const activeClass = isHere ? "active" : "";
+      const spotCount = counts[spot.name] || 0;
+      const countLabel = spotCount === 1 ? "1 student here" : `${spotCount} students here`;
+      
+      return `
+        <div class="spot-card ${activeClass}" data-spot-name="${spot.name}">
+          <span class="spot-emoji">${spot.emoji}</span>
+          <div class="spot-info">
+            <div class="spot-name">${spot.name}</div>
+            <div class="spot-count">${countLabel}</div>
+          </div>
+          <button class="spot-btn">
+            ${isHere ? "Check-out ✕" : "Check-in 📍"}
+          </button>
+        </div>
+      `;
+    }).join("");
+
+    // Add click listeners to toggle check-in
+    listEl.querySelectorAll(".spot-card").forEach(card => {
+      const spotName = card.dataset.spotName;
+      card.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleCheckin(uid, spotName);
+      });
+    });
+
+    // Show checked-in users list if I am currently checked in
+    if (myCurrentSpot) {
+      loadCheckedInUsers(uid, myCurrentSpot);
+    } else {
+      document.getElementById("spotCheckedUsers").style.display = "none";
+    }
+
+  } catch(e) {
+    console.warn("Load spots error:", e);
+    listEl.innerHTML = `<div class="spot-card-error">Failed to load spots. Please refresh.</div>`;
+  }
+}
+
+async function toggleCheckin(uid, spotName) {
+  const isCheckingOut = (myCurrentSpot === spotName);
+  myCurrentSpot = isCheckingOut ? null : spotName;
+  
+  try {
+    await supabase.from("presence").upsert(
+      { 
+        user_id: uid, 
+        online: true, 
+        location_name: myCurrentSpot,
+        lat: myRadarLat, 
+        lng: myRadarLng, 
+        updated_at: new Date().toISOString() 
+      },
+      { onConflict: "user_id" }
+    );
+    
+    // Refresh spots count & rendering
+    await loadSpotsData(uid);
+    
+  } catch(e) {
+    console.warn("Toggle check-in error:", e);
+  }
+}
+
+async function loadCheckedInUsers(uid, spotName) {
+  const listEl = document.getElementById("spotDetailGrid");
+  const wrapEl = document.getElementById("spotCheckedUsers");
+  const titleEl = document.getElementById("spotDetailTitle");
+  if (!listEl || !wrapEl || !titleEl) return;
+  
+  titleEl.textContent = `Students at the ${spotName} right now`;
+  listEl.innerHTML = `<div class="spot-loading">Checking who's here...</div>`;
+  wrapEl.style.display = "block";
+  
+  try {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("presence")
+      .select("user_id, profiles!presence_user_id_fkey(name, photo_url, course, campus)")
+      .eq("location_name", spotName)
+      .eq("online", true)
+      .neq("user_id", uid)
+      .gte("updated_at", cutoff);
+      
+    if (!data || data.length === 0) {
+      listEl.innerHTML = `<p class="sc-empty-msg">You're the only one checked-in here. Spread the word! 📣</p>`;
+      return;
+    }
+    
+    listEl.innerHTML = data.map(p => {
+      const prof = p.profiles || {};
+      const avatar = prof.photo_url || DEFAULT_AVATAR;
+      const subText = [prof.course, prof.campus].filter(Boolean).join(" · ") || "UniMatch student";
+      return `
+        <div class="sc-user-card" onclick="location.href='discover.html'">
+          <img class="sc-user-avatar" src="${avatar}" onerror="this.src='${DEFAULT_AVATAR}'" alt="${prof.name || 'Student'}">
+          <div class="sc-user-info">
+            <div class="sc-user-name">${prof.name || 'Unknown'}</div>
+            <div class="sc-user-sub">${subText}</div>
+          </div>
+          <div class="sc-user-chat-btn">Say Hi 👋</div>
+        </div>
+      `;
+    }).join("");
+  } catch(e) {
+    console.warn("Checked-in users error:", e);
+    listEl.innerHTML = `<p class="sc-error-msg">Failed to load students. Please try again.</p>`;
+  }
 }
 
 // DAILY ICEBREAKER
@@ -394,7 +958,148 @@ function relativeTime(date) {
   return Math.floor(diff / 86400) + "d ago";
 }
 
-// MODAL SHEET PRESERVED
+// ═══════════════════════════════════════
+//  STATS MODAL SHEET
+// ═══════════════════════════════════════
+const smBackdrop = document.getElementById("smBackdrop");
+const smSheet    = document.getElementById("smSheet");
+const smClose    = document.getElementById("smClose");
+const smIcon     = document.getElementById("smIcon");
+const smTitle    = document.getElementById("smTitle");
+const smSubtitle = document.getElementById("smSubtitle");
+const smBody     = document.getElementById("smBody");
+
+function openSheet() {
+  smBackdrop.classList.add("sm-open");
+  smSheet.classList.add("sm-open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeSheet() {
+  smBackdrop.classList.remove("sm-open");
+  smSheet.classList.remove("sm-open");
+  document.body.style.overflow = "";
+}
+
+if (smClose)    smClose.addEventListener("click", closeSheet);
+if (smBackdrop) smBackdrop.addEventListener("click", closeSheet);
+
+// Swipe-down to close
+let touchStartY = 0;
+if (smSheet) {
+  smSheet.addEventListener("touchstart", e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+  smSheet.addEventListener("touchend",   e => {
+    if (e.changedTouches[0].clientY - touchStartY > 60) closeSheet();
+  }, { passive: true });
+}
+
 window.openModal = async function(type) {
-  alert(`Viewing ${type} list on Supabase!`);
+  if (!currentUid) return;
+
+  // Configure header
+  const configs = {
+    views:   { icon: "👀", title: "Profile Views",    subtitle: "People who visited your profile" },
+    likes:   { icon: "❤️", title: "Likes Received",   subtitle: "People who liked your profile"  },
+    matches: { icon: "🔥", title: "Your Matches",     subtitle: "Mutual connections on UniMatch"  },
+  };
+  const cfg = configs[type];
+  if (!cfg) return;
+
+  smIcon.textContent     = cfg.icon;
+  smTitle.textContent    = cfg.title;
+  smSubtitle.textContent = cfg.subtitle;
+  smBody.innerHTML       = `<div class="sm-loading"><div class="sm-spinner"></div></div>`;
+  openSheet();
+
+  try {
+    let rows = [];
+
+    if (type === "views") {
+      const { data } = await supabase
+        .from("views")
+        .select("id, created_at, profiles!views_viewer_id_fkey(id, name, photo_url, course, campus)")
+        .eq("target_id", currentUid)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      rows = (data || []).map(r => ({
+        id:       r.profiles?.id,
+        name:     r.profiles?.name     || "Unknown",
+        photo:    r.profiles?.photo_url || null,
+        sub:      [r.profiles?.course, r.profiles?.campus].filter(Boolean).join(" · ") || "UniMatch student",
+        time:     r.created_at,
+        badge:    null,
+      }));
+    }
+
+    if (type === "likes") {
+      const { data } = await supabase
+        .from("likes")
+        .select("id, created_at, profiles!likes_from_user_id_fkey(id, name, photo_url, course, campus)")
+        .eq("to_user_id", currentUid)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      rows = (data || []).map(r => ({
+        id:    r.profiles?.id,
+        name:  r.profiles?.name     || "Unknown",
+        photo: r.profiles?.photo_url || null,
+        sub:   [r.profiles?.course, r.profiles?.campus].filter(Boolean).join(" · ") || "UniMatch student",
+        time:  r.created_at,
+        badge: "❤️ Liked you",
+      }));
+    }
+
+    if (type === "matches") {
+      const { data } = await supabase
+        .from("matches")
+        .select("id, created_at, p1:profiles!matches_user1_id_fkey(id, name, photo_url, course, campus), p2:profiles!matches_user2_id_fkey(id, name, photo_url, course, campus)")
+        .or(`user1_id.eq.${currentUid},user2_id.eq.${currentUid}`)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      rows = (data || []).map(m => {
+        const other = m.p1?.id === currentUid ? m.p2 : m.p1;
+        return {
+          id:      m.id,
+          otherId: other?.id,
+          name:    other?.name     || "Unknown",
+          photo:   other?.photo_url || null,
+          sub:     [other?.course, other?.campus].filter(Boolean).join(" · ") || "UniMatch student",
+          time:    m.created_at,
+          badge:   "🔥 Match",
+          matchId: m.id,
+        };
+      });
+    }
+
+    if (rows.length === 0) {
+      smBody.innerHTML = `
+        <div class="sm-empty">
+          <div class="sm-empty-icon">${cfg.icon}</div>
+          <p class="sm-empty-msg">No ${type} yet — keep exploring!</p>
+        </div>`;
+      return;
+    }
+
+    smBody.innerHTML = rows.map(r => {
+      const avatarSrc = r.photo || DEFAULT_AVATAR;
+      const timeStr   = r.time ? relativeTime(new Date(r.time)) : "";
+      const chatHref  = r.matchId ? `matches.html?matchId=${r.matchId}` : "discover.html";
+      return `
+        <div class="sm-row" onclick="location.href='${chatHref}'" role="button" tabindex="0">
+          <img class="sm-avatar" src="${avatarSrc}" alt="${r.name}"
+               onerror="this.src='${DEFAULT_AVATAR}'">
+          <div class="sm-row-info">
+            <div class="sm-row-name">${r.name}</div>
+            <div class="sm-row-sub">${r.sub}</div>
+          </div>
+          <div class="sm-row-right">
+            ${r.badge ? `<span class="sm-badge">${r.badge}</span>` : ""}
+            <span class="sm-time">${timeStr}</span>
+          </div>
+        </div>`;
+    }).join("");
+
+  } catch (err) {
+    console.error("Modal load error:", err);
+    smBody.innerHTML = `<div class="sm-empty"><p class="sm-empty-msg">Failed to load data. Please try again.</p></div>`;
+  }
 };
