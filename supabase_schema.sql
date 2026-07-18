@@ -212,19 +212,6 @@ CREATE TABLE IF NOT EXISTS public.swipe_history (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ── 19. EVENTS TABLE ──
-CREATE TABLE IF NOT EXISTS public.events (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  creator_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  category TEXT DEFAULT 'social',
-  location TEXT NOT NULL,
-  date TIMESTAMPTZ NOT NULL,
-  description TEXT,
-  rsvps TEXT[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- ── INDEXES FOR HIGH PERFORMANCE ──
 CREATE INDEX IF NOT EXISTS idx_profiles_campus ON public.profiles(campus);
 CREATE INDEX IF NOT EXISTS idx_profiles_course ON public.profiles(course);
@@ -491,20 +478,6 @@ CREATE POLICY "Users insert own blocked" ON public.blocked_users FOR INSERT WITH
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users insert reports" ON public.reports;
 CREATE POLICY "Users insert reports" ON public.reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
-
--- Events Policies
-ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Events viewable" ON public.events;
-CREATE POLICY "Events viewable" ON public.events FOR SELECT USING (auth.role() = 'authenticated');
-
-DROP POLICY IF EXISTS "Insert own events" ON public.events;
-CREATE POLICY "Insert own events" ON public.events FOR INSERT WITH CHECK (auth.uid() = creator_id);
-
-DROP POLICY IF EXISTS "Update own events or rsvp" ON public.events;
-CREATE POLICY "Update own events or rsvp" ON public.events FOR UPDATE USING (auth.role() = 'authenticated');
-
-DROP POLICY IF EXISTS "Delete own events" ON public.events;
-CREATE POLICY "Delete own events" ON public.events FOR DELETE USING (auth.uid() = creator_id);
 
 -- STORAGE BUCKETS SETUP --
 INSERT INTO storage.buckets (id, name, public) VALUES ('profile-images', 'profile-images', true) ON CONFLICT DO NOTHING;
