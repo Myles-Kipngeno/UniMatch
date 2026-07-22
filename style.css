@@ -41,19 +41,27 @@
 
 html { scroll-behavior: smooth; }
 
-body {
+.landing-page {
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--ink);
   background: var(--surface);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  /* Hide scrollbar on landing page — removes the right-edge pink bar */
+  scrollbar-width: none;
 }
+.landing-page::-webkit-scrollbar { display: none; }
 
 /* ═══════════════════════════════════════════
    NAVBAR
    ═══════════════════════════════════════════ */
 .navbar {
-  position: fixed; top: 0; width: 100%; z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 1000;
   background: rgba(255,255,255,0.85);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
@@ -731,10 +739,11 @@ body {
   .stat-item h3 { font-size: 26px; }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 8px; }
+/* Global scrollbar — hidden on landing page via .landing-page rules above */
+::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(108,71,255,0.25); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(108,71,255,0.45); }
 
 /* ═══════════════════════════════════════════
    DARK MODE
