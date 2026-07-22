@@ -78,6 +78,13 @@ function ProfileFormContent() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Close profile dropdown menu when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = () => setMenuOpen(false)
+    document.addEventListener('click', handleOutsideClick)
+    return () => document.removeEventListener('click', handleOutsideClick)
+  }, [])
+
   useEffect(() => {
     async function getProfile() {
       const { data: { user } } = await supabase.auth.getUser()

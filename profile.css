@@ -9,16 +9,17 @@
   font-family: 'Outfit', sans-serif;
 }
 
-body {
+.profile-page {
   background: #0f0e17;
   color: #f0eeff;
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   position: relative;
   overflow-x: hidden;
-  padding: 24px;
+  padding: 24px 16px;
+  width: 100%;
 }
 
 /* Animated Background */
@@ -280,27 +281,88 @@ select option {
   cursor: not-allowed;
 }
 
-/* Three-dot dropdown menu theme fixes */
+/* Card Container Positioning */
+.card {
+  position: relative;
+}
+
+/* Three-dot dropdown menu card styles */
+.profile-card-menu {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 50;
+}
+
+.profile-menu-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f0eeff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-menu-btn:hover {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: rgba(124, 58, 237, 0.4);
+  color: #a78bfa;
+  transform: scale(1.05);
+}
+
 .profile-menu-dropdown {
-  background: #1a1927 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 190px;
+  background: #13111c !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(124, 58, 237, 0.15) !important;
+  padding: 6px !important;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  animation: menuFadeIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.profile-menu-dropdown.open {
+  display: flex !important;
+}
+
+@keyframes menuFadeIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .profile-menu-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 10px 14px !important;
   color: #f0eeff !important;
+  border-radius: 10px !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  transition: background 0.15s ease, color 0.15s ease !important;
+  border: none !important;
 }
 
 .profile-menu-item:hover {
-  background: rgba(108, 71, 255, 0.12) !important;
+  background: rgba(124, 58, 237, 0.18) !important;
   color: #a78bfa !important;
 }
 
 .profile-menu-item svg {
   color: #a78bfa !important;
-}
-
-.profile-menu-item + .profile-menu-item {
-  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  flex-shrink: 0;
 }
 
 /* Onboarding Wizard Progress */

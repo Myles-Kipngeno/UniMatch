@@ -13,12 +13,12 @@
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-body {
+.upload-photos-page {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: #0f0f23;
   min-height: 100vh;
   color: white;
-  overflow-x: hidden;
+  width: 100%;
 }
 
 .bg-gradient {

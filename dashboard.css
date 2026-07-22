@@ -81,14 +81,13 @@
 }
 
 /* ── Global Reset ── */
-body {
+.dashboard-page {
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   background-color: var(--bg);
   color: var(--ink);
   min-height: 100vh;
-  overflow-x: hidden;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  position: relative;
+  width: 100%;
 }
 h1, h2, h3, h4, h5, h6 { color: var(--ink); font-weight: 700; line-height: 1.25; }
 a { text-decoration: none; color: inherit; }

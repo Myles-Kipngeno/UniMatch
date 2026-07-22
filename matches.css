@@ -19,12 +19,11 @@
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-body {
+.matches-page {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 50%, #fa709a 100%);
-  background-attachment: fixed;
+  background: #09080f;
   min-height: 100vh;
-  overflow-x: clip;  /* clip horizontal scroll but don't clip positioned children like badges */
+  width: 100%;
 }
 
 /* ===============================
@@ -433,15 +432,6 @@ body {
   .empty-state       { padding: 40px 24px; }
 }
 
-/* ===============================
-   Scrollbar
-=============================== */
-::-webkit-scrollbar       { width: 10px; }
-::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #f093fb, #f5576c);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #e084eb, #e5466c);
-}
+/* Scrollbar rules removed — were unscoped bare ::-webkit-scrollbar selectors
+   that leaked globally via layout.tsx and created a pink bar on every page.
+   The global scrollbar theme is defined in style.css instead. */

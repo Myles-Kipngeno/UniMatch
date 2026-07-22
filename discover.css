@@ -54,14 +54,13 @@
   padding: 0;
 }
 
-body {
+.discover-page {
   font-family: 'Outfit', sans-serif;
   background-color: var(--bg-color);
   color: var(--ink);
   min-height: 100vh;
-  overflow-x: hidden;
   position: relative;
-  -webkit-font-smoothing: antialiased;
+  width: 100%;
 }
 
 a { text-decoration: none; color: inherit; }
