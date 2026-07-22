@@ -34,16 +34,25 @@ export default function LandingPage() {
     }
   }
 
-  // Close mobile menu when clicking outside the navbar
+  const mobileMenuRef = useRef<HTMLDivElement>(null)
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // Close mobile menu when clicking outside
   useEffect(() => {
+    if (!mobileMenuOpen) return
+
     const handleOutsideClick = (e: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        mobileMenuRef.current && !mobileMenuRef.current.contains(target) &&
+        mobileTriggerRef.current && !mobileTriggerRef.current.contains(target)
+      ) {
         setMobileMenuOpen(false)
       }
     }
-    document.addEventListener('click', handleOutsideClick)
-    return () => document.removeEventListener('click', handleOutsideClick)
-  }, [])
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [mobileMenuOpen])
 
   // Sun icon (show when dark, clicking switches to light)
   const SunIcon = () => (
@@ -98,13 +107,11 @@ export default function LandingPage() {
 
           {/* Mobile Menu Button */}
           <button
+            ref={mobileTriggerRef}
             className="mobile-menu-btn"
             id="mobileMenuBtn"
             aria-label="Toggle menu"
-            onClick={(e) => {
-              e.stopPropagation()
-              setMobileMenuOpen(prev => !prev)
-            }}
+            onClick={() => setMobileMenuOpen(prev => !prev)}
           >
             {mobileMenuOpen ? (
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -119,7 +126,7 @@ export default function LandingPage() {
         </div>
 
         {/* Mobile Nav Dropdown */}
-        <div className={`mobile-nav ${mobileMenuOpen ? 'open' : ''}`} id="mobileNav">
+        <div ref={mobileMenuRef} className={`mobile-nav ${mobileMenuOpen ? 'open' : ''}`} id="mobileNav">
           <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
           <a href="#testimonials" onClick={() => setMobileMenuOpen(false)}>Stories</a>

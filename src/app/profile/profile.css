@@ -319,21 +319,17 @@ select option {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 190px;
-  background: #13111c !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  min-width: 180px;
+  background: #161325 !important;
+  border: 1px solid rgba(168, 85, 247, 0.3) !important;
   border-radius: 16px !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(124, 58, 237, 0.15) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 20px rgba(124, 58, 237, 0.2) !important;
   padding: 6px !important;
   z-index: 1000;
-  display: none;
+  display: flex !important;
   flex-direction: column;
   gap: 2px;
   animation: menuFadeIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.profile-menu-dropdown.open {
-  display: flex !important;
 }
 
 @keyframes menuFadeIn {
@@ -349,20 +345,50 @@ select option {
   color: #f0eeff !important;
   border-radius: 10px !important;
   font-size: 13.5px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   text-decoration: none !important;
   transition: background 0.15s ease, color 0.15s ease !important;
   border: none !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  width: 100% !important;
 }
 
 .profile-menu-item:hover {
-  background: rgba(124, 58, 237, 0.18) !important;
-  color: #a78bfa !important;
+  background: rgba(124, 58, 237, 0.2) !important;
+  color: #c084fc !important;
 }
 
 .profile-menu-item svg {
   color: #a78bfa !important;
   flex-shrink: 0;
+}
+
+.profile-menu-item:hover svg {
+  color: #c084fc !important;
+}
+
+.profile-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 6px;
+}
+
+.profile-menu-item.danger {
+  color: #f87171 !important;
+}
+
+.profile-menu-item.danger:hover {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fca5a5 !important;
+}
+
+.profile-menu-item.danger svg {
+  color: #f87171 !important;
+}
+
+.profile-menu-item.danger:hover svg {
+  color: #fca5a5 !important;
 }
 
 /* Onboarding Wizard Progress */

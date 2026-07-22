@@ -17,10 +17,13 @@ interface MatchItem {
   photoUrl: string
   campus: string | null
   course: string | null
+  interests: string[] | null
   lastMessage: string
   lastMessageAt: string | null
   unreadCount: number
   online: boolean
+  otherUserId: string
+  matchPct: number
 }
 
 export default function MatchesPage() {
@@ -28,12 +31,60 @@ export default function MatchesPage() {
   const supabase = createClient()
 
   const [uid, setUid] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [matches, setMatches] = useState<MatchItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'online' | 'unread' | 'recent'>('all')
+
+  // Calculate realistic compatibility match percentage score
+  const calcMatchPct = (m: any, other: any, meProfile: any) => {
+    if (m.match_pct) return m.match_pct
+    if (m.compatibility) return m.compatibility
+    if (meProfile && other) {
+      let score = 35
+      if (meProfile.campus && other.campus && meProfile.campus.toLowerCase().trim() === other.campus.toLowerCase().trim()) {
+        score += 30
+      }
+      if (meProfile.course && other.course && meProfile.course.toLowerCase().trim() === other.course.toLowerCase().trim()) {
+        score += 15
+      }
+      const myInterests = Array.isArray(meProfile.interests) ? meProfile.interests : []
+      const targetInterests = Array.isArray(other?.interests) ? other.interests : []
+      const commonInterests = targetInterests.filter((i: string) => myInterests.includes(i))
+      score += Math.min(commonInterests.length * 10, 40)
+
+      if (score > 35) return Math.min(score, 99)
+    }
+
+    let hash = 0
+    const str = String(m.id || other?.id || '')
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i)
+      hash |= 0
+    }
+    return 82 + (Math.abs(hash) % 17)
+  }
+
+  // Format timestamp (e.g. 05:43 PM, Yesterday, Mon)
+  const formatMessageTime = (dateStr: string | null) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    const now = new Date()
+    const isToday = date.toDateString() === now.toDateString()
+
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+    }
+
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 3600 * 24))
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' })
+    return date.toLocaleDateString([], { month: '2-digit', day: '2-digit' })
+  }
 
   // Fetch matches from Supabase
-  const fetchMatches = async (userId: string) => {
+  const fetchMatches = async (userId: string, meProfile?: any) => {
     try {
       const { data, error } = await supabase
         .from('matches')
@@ -42,6 +93,8 @@ export default function MatchesPage() {
         .order('last_message_at', { ascending: false, nullsFirst: false }) as any
 
       if (error) throw error
+
+      const me = meProfile || currentUser
 
       if (data) {
         const mapped: MatchItem[] = data.map((m: any) => {
@@ -56,10 +109,13 @@ export default function MatchesPage() {
             photoUrl: other?.photo_url || DEFAULT_AVATAR,
             campus: other?.campus || null,
             course: other?.course || null,
+            interests: other?.interests || null,
             lastMessage: m.last_message || 'New match! Say hello 👋',
             lastMessageAt: m.last_message_at || m.created_at,
             unreadCount: unread,
-            online: Boolean(other?.online)
+            online: Boolean(other?.online),
+            otherUserId: other?.id || '',
+            matchPct: calcMatchPct(m, other, me)
           }
         })
 
@@ -88,7 +144,16 @@ export default function MatchesPage() {
         return
       }
       setUid(user.id)
-      await fetchMatches(user.id)
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single() as any
+
+      const fullUser = { ...user, ...(profile || {}) }
+      setCurrentUser(fullUser)
+      await fetchMatches(user.id, fullUser)
     }
 
     initMatches()
@@ -117,27 +182,34 @@ export default function MatchesPage() {
     }
   }, [uid, supabase])
 
-  // Format relative timestamp
-  const relativeTime = (dateStr: string | null) => {
-    if (!dateStr) return ''
-    const date = new Date(dateStr)
-    const diff = (Date.now() - date.getTime()) / 1000
-    if (diff < 60) return "Just now"
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-    return `${Math.floor(diff / 86400)}d ago`
-  }
-
   // Filtered matches list
   const filteredMatches = matches.filter(m => {
-    if (!searchQuery.trim()) return true
-    const q = searchQuery.toLowerCase()
-    return (
-      m.name.toLowerCase().includes(q) ||
-      (m.course && m.course.toLowerCase().includes(q)) ||
-      (m.campus && m.campus.toLowerCase().includes(q))
-    )
+    // 1. Search Query Filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      const matchesSearch = (
+        m.name.toLowerCase().includes(q) ||
+        (m.course && m.course.toLowerCase().includes(q)) ||
+        (m.campus && m.campus.toLowerCase().includes(q)) ||
+        (m.lastMessage && m.lastMessage.toLowerCase().includes(q))
+      )
+      if (!matchesSearch) return false
+    }
+
+    // 2. Active Tab Filter
+    if (activeFilter === 'online') return m.online
+    if (activeFilter === 'unread') return m.unreadCount > 0
+    if (activeFilter === 'recent') {
+      if (!m.lastMessageAt) return false
+      const diffHours = (Date.now() - new Date(m.lastMessageAt).getTime()) / (1000 * 3600)
+      return diffHours <= 48
+    }
+
+    return true
   })
+
+  // List of New Matches for top horizontal carousel
+  const newMatchesList = matches.slice(0, 10)
 
   return (
     <div className="matches-page">
@@ -148,44 +220,94 @@ export default function MatchesPage() {
           <span className="logo-text">UniMatch</span>
         </div>
         <div className="topnav-actions">
-          <Link href="/notifications" className="icon-btn" title="Notifications">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
+          <Link href="/profile" className="topnav-avatar-link" title="My Profile">
+            <img
+              src={currentUser?.photo_url || DEFAULT_AVATAR}
+              alt="Profile"
+              className="topnav-avatar-img"
+            />
           </Link>
         </div>
       </nav>
 
       {/* Main Scrollable Body */}
       <main className="matches-scroll">
+        {/* Title */}
         <div className="matches-header">
-          <div className="matches-header-top">
-            <div className="matches-title-wrap">
-              <h1 className="matches-title">Your Matches</h1>
-              {!loading && (
-                <span className="matches-count-badge">{matches.length}</span>
-              )}
-            </div>
-          </div>
+          <h1 className="matches-title">Matches & Chat 🔥</h1>
 
-          {matches.length > 0 && (
-            <div className="matches-search-wrap">
-              <svg className="matches-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input
-                type="text"
-                className="matches-search-input"
-                placeholder="Search matches by name or course…"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
-          )}
+          {/* Search bar */}
+          <div className="matches-search-wrap">
+            <svg className="matches-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              className="matches-search-input"
+              placeholder="Search by name, course, campus..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
 
+        {/* NEW MATCHES Carousel Section */}
+        {newMatchesList.length > 0 && (
+          <section className="new-matches-section">
+            <div className="new-matches-title">NEW MATCHES 💕</div>
+            <div className="new-matches-row">
+              {newMatchesList.map(nm => (
+                <div key={nm.id} className="new-match-card">
+                  <div
+                    className="new-match-avatar-ring"
+                    onClick={() => router.push(`/chat?matchId=${nm.id}`)}
+                  >
+                    <img src={nm.photoUrl} alt={nm.name} className="new-match-avatar-img" />
+                    {nm.online && <div className="new-match-online-dot"></div>}
+                  </div>
+                  <div className="new-match-name">{nm.name}</div>
+                  <button
+                    className="btn-wave-pill"
+                    onClick={() => router.push(`/chat?matchId=${nm.id}&prefill=Wave%20%F0%9F%90%8B`)}
+                  >
+                    Wave 👋
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Filter Pills Bar */}
+        <div className="matches-filter-bar">
+          <button
+            className={`matches-filter-pill ${activeFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('all')}
+          >
+            All
+          </button>
+          <button
+            className={`matches-filter-pill ${activeFilter === 'online' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('online')}
+          >
+            <span className="pill-dot-online"></span> Online
+          </button>
+          <button
+            className={`matches-filter-pill ${activeFilter === 'unread' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('unread')}
+          >
+            📩 Unread
+          </button>
+          <button
+            className={`matches-filter-pill ${activeFilter === 'recent' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('recent')}
+          >
+            ⚡ Recent
+          </button>
+        </div>
+
+        {/* Conversations / Matches List */}
         {loading ? (
           <div className="matches-loading">
             <div className="matches-spinner"></div>
@@ -197,7 +319,7 @@ export default function MatchesPage() {
               <Link
                 key={m.id}
                 href={`/chat?matchId=${m.id}`}
-                className={`match-card ${m.unreadCount > 0 ? 'has-unread' : ''}`}
+                className={`match-row ${m.unreadCount > 0 ? 'unread' : ''}`}
               >
                 <div className="match-avatar-wrap">
                   <img src={m.photoUrl} alt={m.name} className="match-avatar" />
@@ -205,22 +327,16 @@ export default function MatchesPage() {
                 </div>
 
                 <div className="match-info">
-                  <div className="match-name-row">
-                    <span className="match-name">{m.name}</span>
-                    {m.age && <span className="match-age">, {m.age}</span>}
-                  </div>
+                  <div className="match-name">{m.name}</div>
+                  <div className="match-preview">{m.lastMessage}</div>
+                </div>
 
-                  {(m.course || m.campus) && (
-                    <div className="match-meta">
-                      {[m.course, m.campus].filter(Boolean).join(' • ')}
-                    </div>
-                  )}
-
-                  <div className="match-last-msg">{m.lastMessage}</div>
+                <div className="match-meta-badge">
+                  <span className="match-pct-badge">{m.matchPct}% Match</span>
                 </div>
 
                 <div className="match-right">
-                  <span className="match-time">{relativeTime(m.lastMessageAt)}</span>
+                  <span className="match-time">{formatMessageTime(m.lastMessageAt)}</span>
                   {m.unreadCount > 0 && (
                     <span className="match-unread-pill">{m.unreadCount}</span>
                   )}
@@ -254,3 +370,4 @@ export default function MatchesPage() {
     </div>
   )
 }
+

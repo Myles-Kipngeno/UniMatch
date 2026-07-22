@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -78,12 +78,29 @@ function ProfileFormContent() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Close profile dropdown menu when clicking outside
+  // Menu DOM Refs
+  const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  // Single outside-click dismiss listener pattern
   useEffect(() => {
-    const handleOutsideClick = () => setMenuOpen(false)
-    document.addEventListener('click', handleOutsideClick)
-    return () => document.removeEventListener('click', handleOutsideClick)
-  }, [])
+    if (!menuOpen) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (
+        menuRef.current && !menuRef.current.contains(target) &&
+        triggerRef.current && !triggerRef.current.contains(target)
+      ) {
+        setMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     async function getProfile() {
@@ -133,12 +150,16 @@ function ProfileFormContent() {
     getProfile()
   }, [supabase, router])
 
-  // Handle outside click to close three-dot menu
-  useEffect(() => {
-    const handleOutsideClick = () => setMenuOpen(false)
-    document.addEventListener('click', handleOutsideClick)
-    return () => document.removeEventListener('click', handleOutsideClick)
-  }, [])
+  // Sign out action
+  const handleSignOut = async () => {
+    setMenuOpen(false)
+    try {
+      await supabase.auth.signOut()
+    } catch (e) {
+      console.warn("Sign out error:", e)
+    }
+    router.push('/login')
+  }
 
   // File preview change
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -290,40 +311,41 @@ function ProfileFormContent() {
       <div className="container" style={{ paddingBottom: '96px' }}>
         <div className="card">
 
-          {/* Three-dot menu (only shown in edit mode) */}
+          {/* Three-dot menu */}
           {showTabs && (
-            <div className="profile-card-menu" onClick={(e) => e.stopPropagation()}>
-              <button className="profile-menu-btn" onClick={() => setMenuOpen(!menuOpen)} title="More options">
+            <div className="profile-card-menu">
+              <button
+                ref={triggerRef}
+                className="profile-menu-btn"
+                onClick={() => setMenuOpen(prev => !prev)}
+                title="More options"
+              >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="12" cy="5" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <circle cx="12" cy="19" r="2" />
+                  <circle cx="12" cy="5" r="2.2" />
+                  <circle cx="12" cy="12" r="2.2" />
+                  <circle cx="12" cy="19" r="2.2" />
                 </svg>
               </button>
-              <div className={`profile-menu-dropdown ${menuOpen ? 'open' : ''}`}>
-                <Link href="/upload-photos" className="profile-menu-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5" />
-                    <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-                    <path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-                  </svg>
-                  <span>Upload Photos</span>
-                </Link>
-                <Link href="/settings" className="profile-menu-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                  </svg>
-                  <span>Settings</span>
-                </Link>
-                <Link href="/dashboard" className="profile-menu-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-                    <path d="M9 22V12h6v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-                  </svg>
-                  <span>Back to Home</span>
-                </Link>
-              </div>
+              {menuOpen && (
+                <div ref={menuRef} className="profile-menu-dropdown open">
+                  <Link href="/settings" className="profile-menu-item" onClick={() => setMenuOpen(false)}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    <span>Settings</span>
+                  </Link>
+                  <div className="profile-menu-divider"></div>
+                  <button className="profile-menu-item danger" onClick={handleSignOut}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                      <polyline points="16 17 21 12 16 7"/>
+                      <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

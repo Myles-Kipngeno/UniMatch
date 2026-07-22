@@ -93,6 +93,30 @@ export default function DashboardPage() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  // Dropdown DOM Refs
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const dropdownTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // Single outside-click dismiss listener pattern
+  useEffect(() => {
+    if (!isDropdownOpen) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(target) &&
+        dropdownTriggerRef.current && !dropdownTriggerRef.current.contains(target)
+      ) {
+        setIsDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [isDropdownOpen])
+
   // Spots / Check-in States
   const [activeTab, setActiveTab] = useState<'spots' | 'radar'>('spots')
   const [myCurrentSpot, setMyCurrentSpot] = useState<string | null>(null)
@@ -933,7 +957,7 @@ export default function DashboardPage() {
   return (
     <div className="dashboard-page">
       {/* Top Navbar */}
-      <nav className="app-topnav" id="appTopnav" onClick={() => setIsDropdownOpen(false)}>
+      <nav className="app-topnav" id="appTopnav">
         <div className="topnav-logo">
           <div className="logo-mark">U</div>
           <span className="logo-text">UniMatch</span>
@@ -944,7 +968,7 @@ export default function DashboardPage() {
           <span className="greeting-name">{profileName}</span>&nbsp;👋
         </div>
 
-        <div className="topnav-actions" onClick={(e) => e.stopPropagation()}>
+        <div className="topnav-actions">
           <Link href="/notifications" className="notif-btn" title="Notifications">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -957,7 +981,12 @@ export default function DashboardPage() {
             <div className="nav-avatar-online"></div>
           </Link>
 
-          <button className="more-btn" onClick={() => setIsDropdownOpen(!isDropdownOpen)} title="More options">
+          <button
+            ref={dropdownTriggerRef}
+            className="more-btn"
+            onClick={() => setIsDropdownOpen(prev => !prev)}
+            title="More options"
+          >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="5" r="2"/>
               <circle cx="12" cy="12" r="2"/>
@@ -966,7 +995,7 @@ export default function DashboardPage() {
           </button>
           
           {isDropdownOpen && (
-            <div className="avatar-dropdown" style={{ display: 'flex' }}>
+            <div ref={dropdownRef} className="avatar-dropdown" style={{ display: 'flex' }}>
               <Link href="/profile?edit=true" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>

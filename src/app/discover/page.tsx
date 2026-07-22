@@ -79,6 +79,30 @@ export default function DiscoverPage() {
   const [filterPreference, setFilterPreference] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
 
+  // Filters DOM Refs
+  const filterPanelRef = useRef<HTMLDivElement>(null)
+  const filterTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // Single outside-click dismiss listener pattern
+  useEffect(() => {
+    if (!showFilters) return
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (
+        filterPanelRef.current && !filterPanelRef.current.contains(target) &&
+        filterTriggerRef.current && !filterTriggerRef.current.contains(target)
+      ) {
+        setShowFilters(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [showFilters])
+
   // Celebrations / Match Overlay State
   const [matchCelebration, setMatchCelebration] = useState<{
     matchId: string;
@@ -468,11 +492,12 @@ export default function DiscoverPage() {
         <h2 className="disc-topnav-title">Discover</h2>
         <div className="disc-topnav-actions">
           <button 
+            ref={filterTriggerRef}
             className="disc-icon-btn" 
             id="filterBtn" 
             title="Filters" 
             aria-label="Open filters"
-            onClick={() => setShowFilters(true)}
+            onClick={() => setShowFilters(prev => !prev)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
               <line x1="4" y1="6" x2="20" y2="6"/>
@@ -599,7 +624,7 @@ export default function DiscoverPage() {
         className={`filter-backdrop ${showFilters ? 'open' : ''}`} 
         onClick={() => setShowFilters(false)}
       ></div>
-      <div className={`filter-sheet ${showFilters ? 'open' : ''}`}>
+      <div ref={filterPanelRef} className={`filter-sheet ${showFilters ? 'open' : ''}`}>
         <div className="filter-handle"></div>
         <div className="filter-header">
           <h3>Discovery Filters</h3>
