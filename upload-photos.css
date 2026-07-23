@@ -30,7 +30,7 @@
 }
 
 /* Page Navbar */
-.navbar {
+.upload-photos-page .navbar {
   position: sticky;
   top: 54px; /* sit below the top-navbar */
   z-index: 100;

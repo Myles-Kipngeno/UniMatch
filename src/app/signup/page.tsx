@@ -6,9 +6,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import './signup.css'
 
+import { useModal } from '@/components/ModalContext'
+
 export default function SignupPage() {
   const router = useRouter()
   const supabase = createClient()
+  const modal = useModal()
 
   const KABARAK_DOMAIN = '@kabarak.ac.ke'
   const UNIVERSITY_NAME = 'Kabarak University'
@@ -101,8 +104,12 @@ export default function SignupPage() {
         if (upsertErr) throw upsertErr
       }
 
-      alert(`Account created! Please check your ${UNIVERSITY_NAME} email to verify your account before logging in.`)
-      router.push('/login')
+      modal.alert({
+        title: 'Account Created 🎉',
+        message: `Please check your ${UNIVERSITY_NAME} email to verify your account before logging in.`,
+        type: 'success',
+        onClose: () => router.push('/login')
+      })
     } catch (err: any) {
       console.error('Signup error:', err)
       setError(err.message || 'An error occurred during signup. Please try again.')

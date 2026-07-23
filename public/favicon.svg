@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="capGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    <linearGradient id="heartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b9d"/>
+      <stop offset="100%" style="stop-color:#ff4458"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Dark navy rounded-square background -->
+  <rect width="64" height="64" rx="14" fill="url(#bgGrad)"/>
+  <!-- Subtle border glow -->
+  <rect width="64" height="64" rx="14" fill="none" stroke="rgba(102,126,234,0.25)" stroke-width="1.5"/>
+
+  <!-- Mortarboard flat diamond top -->
+  <polygon points="32,8 58,20 32,32 6,20" fill="url(#capGrad)"/>
+  <!-- Diamond highlight -->
+  <polygon points="32,8 58,20 32,32 6,20" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+
+  <!-- Cap cylindrical body -->
+  <rect x="21" y="19" width="22" height="13" rx="3" fill="#5569d4"/>
+  <!-- Body top highlight -->
+  <rect x="21" y="19" width="22" height="5" rx="3" fill="rgba(255,255,255,0.1)"/>
+
+  <!-- Tassel line -->
+  <line x1="58" y1="20" x2="58" y2="31" stroke="#9b6fd4" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Tassel knot -->
+  <circle cx="58" cy="32.5" r="3" fill="#9b6fd4"/>
+  <!-- Tassel threads -->
+  <line x1="56" y1="35" x2="54" y2="42" stroke="#9b6fd4" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="58" y1="35.5" x2="58" y2="43" stroke="#9b6fd4" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="60" y1="35" x2="62" y2="42" stroke="#9b6fd4" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Heart sitting below the cap -->
+  <path d="M32,56
+           C31.4,55.4 18,46.5 18,39
+           C18,34.6 21.4,31.5 25.5,31.5
+           C28.2,31.5 30.4,33 32,34.8
+           C33.6,33 35.8,31.5 38.5,31.5
+           C42.6,31.5 46,34.6 46,39
+           C46,46.5 32.6,55.4 32,56 Z"
+        fill="url(#heartGrad)"/>
+  <!-- Heart highlight -->
+  <path d="M23.5,36 C22,38 22,41 23.5,43.5"
+        stroke="rgba(255,255,255,0.35)"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        fill="none"/>
+</svg>

@@ -16,9 +16,12 @@ interface MediaItem {
   type: 'image' | 'video'
 }
 
+import { useModal } from '@/components/ModalContext'
+
 export default function UploadPhotosPage() {
   const router = useRouter()
   const supabase = createClient()
+  const modal = useModal()
 
   const [uid, setUid] = useState<string | null>(null)
   const [userName, setUserName] = useState('User')
@@ -127,7 +130,7 @@ export default function UploadPhotosPage() {
           }
         } catch (err: any) {
           console.error("Upload error:", err)
-          alert(`Upload failed for ${file.name}: ${err.message}`)
+          modal.toast(`Upload failed for ${file.name}: ${err.message}`, "error")
         }
       }
     }
@@ -141,42 +144,31 @@ export default function UploadPhotosPage() {
 
   const handleDelete = async (e: React.MouseEvent, item: MediaItem) => {
     e.stopPropagation()
-    if (!confirm('Delete this item?')) return
-
-    try {
-      // 1. Extract storage path from url
-      const parts = item.url.split('/profile-images/')
-      if (parts.length > 1) {
-        const filePath = decodeURIComponent(parts[1])
-        const { error: storageErr } = await supabase.storage
-          .from('profile-images')
-          .remove([filePath])
-        if (storageErr) {
-          console.warn("Storage file deletion warning:", storageErr)
+    modal.confirm({
+      title: 'Delete Media',
+      message: 'Are you sure you want to delete this photo/video? This action cannot be undone.',
+      confirmText: 'Delete',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          // 1. Extract storage path from url
+          const parts = item.url.split('/profile-images/')
+          if (parts.length > 1) {
+            const filePath = decodeURIComponent(parts[1])
+            await supabase.storage.from('profile-images').remove([filePath])
+          }
+          if (profilePhoto === item.url) {
+            await supabase.from('profiles').update({ photo_url: null }).eq('id', uid!)
+            setProfilePhoto('')
+          }
+          await loadMedia(uid!)
+          modal.toast('Media deleted', 'info')
+        } catch (err: any) {
+          console.error('Delete error:', err)
+          modal.toast('Failed to delete item', 'error')
         }
       }
-
-      // 2. Clear user profile picture if this was the primary photo
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('photo_url')
-        .eq('id', uid!)
-        .single()
-
-      if (p && p.photo_url === item.url) {
-        await supabase
-          .from('profiles')
-          .update({ photo_url: null })
-          .eq('id', uid!)
-        setProfilePhoto(DEFAULT_AVATAR)
-      }
-
-      // 3. Delete from database
-      await supabase.from('profile_photos' as any).delete().eq('id', item.id)
-      await loadMedia(uid!)
-    } catch (e) {
-      console.error("Delete media error:", e)
-    }
+    })
   }
 
   const handleMediaClick = (item: MediaItem) => {
@@ -222,7 +214,7 @@ export default function UploadPhotosPage() {
       <nav className="top-navbar">
         <div className="top-nav-content">
           <div className="top-nav-logo" onClick={() => router.push('/dashboard')}>
-            <div className="top-nav-logo-mark">U</div>
+            <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
             <div className="top-nav-logo-words">
               <span className="top-nav-logo-main">UniMatch</span>
               <span className="top-nav-logo-sub">Your campus, connected</span>

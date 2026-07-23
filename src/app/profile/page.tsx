@@ -41,10 +41,13 @@ const CURATED_INTERESTS = [
   { name: "Volunteering", emoji: "🤝" }
 ]
 
+import { useModal } from '@/components/ModalContext'
+
 function ProfileFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
+  const modal = useModal()
 
   const isEditModeParam = searchParams.get('edit') === 'true'
 
@@ -102,6 +105,9 @@ function ProfileFormContent() {
     }
   }, [menuOpen])
 
+  const viewUserIdParam = searchParams.get('id') || searchParams.get('userId')
+  const [isOtherUser, setIsOtherUser] = useState(false)
+
   useEffect(() => {
     async function getProfile() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -112,11 +118,15 @@ function ProfileFormContent() {
       setUserId(user.id)
       setUserEmail(user.email || '')
 
+      const targetId = viewUserIdParam || user.id
+      const viewingOther = Boolean(viewUserIdParam && viewUserIdParam !== user.id)
+      setIsOtherUser(viewingOther)
+
       try {
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
+          .eq('id', targetId)
           .single()
 
         if (profile) {
@@ -135,7 +145,7 @@ function ProfileFormContent() {
             setPreviewUrl(profile.photo_url)
           }
 
-          if (profile.profile_complete) {
+          if (profile.profile_complete || viewingOther) {
             setProfileComplete(true)
             setActiveTab('view')
           }
@@ -148,17 +158,27 @@ function ProfileFormContent() {
     }
 
     getProfile()
-  }, [supabase, router])
+  }, [supabase, router, viewUserIdParam])
 
   // Sign out action
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     setMenuOpen(false)
-    try {
-      await supabase.auth.signOut()
-    } catch (e) {
-      console.warn("Sign out error:", e)
-    }
-    router.push('/login')
+    modal.confirm({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out of your UniMatch account?',
+      confirmText: 'Sign Out',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          sessionStorage.clear()
+          await supabase.auth.signOut()
+          modal.toast("You have been logged out.", "info")
+          router.push('/login')
+        } catch (e) {
+          console.warn("Sign out error:", e)
+        }
+      }
+    })
   }
 
   // File preview change
@@ -281,7 +301,7 @@ function ProfileFormContent() {
         if (upsertErr) throw upsertErr
       }
 
-      alert('Profile saved successfully!')
+      modal.toast('Profile saved successfully! 🎉', 'success')
       setProfileComplete(true)
       router.push('/dashboard')
     } catch (err: any) {
@@ -300,9 +320,9 @@ function ProfileFormContent() {
     )
   }
 
-  const showTabs = isEditModeParam || profileComplete
-  const isViewing = showTabs && activeTab === 'view'
-  const isEditing = !showTabs || activeTab === 'edit'
+  const showTabs = (isEditModeParam || profileComplete) && !isOtherUser
+  const isViewing = (showTabs && activeTab === 'view') || isOtherUser
+  const isEditing = !isOtherUser && (!showTabs || activeTab === 'edit')
 
   return (
     <div className="profile-page">
@@ -310,6 +330,29 @@ function ProfileFormContent() {
 
       <div className="container" style={{ paddingBottom: '96px' }}>
         <div className="card">
+
+          {isOtherUser && (
+            <div style={{ marginBottom: '16px' }}>
+              <button
+                onClick={() => router.back()}
+                style={{
+                  background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: 'white',
+                  borderRadius: '10px',
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                ← Back
+              </button>
+            </div>
+          )}
 
           {/* Three-dot menu */}
           {showTabs && (
@@ -352,7 +395,7 @@ function ProfileFormContent() {
           <div className="header">
             <h2>💖 UniMatch</h2>
             <p className="subtitle" id="pageSubtitle">
-              {showTabs ? 'Manage your dating profile & photos' : 'Create your profile'}
+              {isOtherUser ? `${name || 'User'}'s Profile` : (showTabs ? 'Manage your dating profile & photos' : 'Create your profile')}
             </p>
           </div>
 

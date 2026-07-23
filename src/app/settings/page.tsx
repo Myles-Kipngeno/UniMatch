@@ -18,9 +18,12 @@ interface BlockedUser {
   campus: string
 }
 
+import { useModal } from '@/components/ModalContext'
+
 export default function SettingsPage() {
   const router = useRouter()
   const supabase = createClient()
+  const modal = useModal()
 
   const [userId, setUserId] = useState<string | null>(null)
   
@@ -139,7 +142,7 @@ export default function SettingsPage() {
 
       if (error) {
         console.error("Unblock user error:", error)
-        alert("Failed to unblock user. Try again.")
+        modal.toast("Failed to unblock user. Try again.", "error")
       } else {
         setBlockedUsers(prev => prev.filter(u => u.id !== blockedId))
         showSavedBanner(`Unblocked ${name}`)

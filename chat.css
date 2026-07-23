@@ -595,11 +595,14 @@
 =============================== */
 .chat-input {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   padding: 10px 16px 14px 16px;
   background: linear-gradient(135deg, #1a0b2e 0%, #2d1b4e 25%, #1e0836 50%, #3d1f5c 75%, #1a0b2e 100%);
   gap: 10px;
   border: none;
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
 }
 
 .attach-btn {
@@ -931,10 +934,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  background: rgba(102, 126, 234, 0.15);
-  border-top: 1px solid rgba(102, 126, 234, 0.3);
+  padding: 10px 14px;
+  background: rgba(24, 20, 42, 0.95);
+  border-radius: 14px;
+  border: 1px solid rgba(168, 85, 247, 0.35);
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
 }
 
 .reply-bar-content {
@@ -2394,4 +2401,53 @@
 
 @media (max-width: 480px) {
   .chat-pm-card { max-width: 100%; aspect-ratio: unset; height: 88vh; border-radius: 20px; }
+  .chat-input {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
+  }
+  .chat-input input {
+    font-size: 16px; /* Prevents auto zoom on iOS */
+  }
+  .reply-bar {
+    padding: 8px 12px;
+    border-radius: 12px;
+  }
 }
+
+/* WhatsApp / Telegram Standard Message Bubble Layout Overrides */
+.message-bubble {
+  max-width: 78% !important;
+  width: fit-content !important;
+  min-width: 68px !important;
+  display: block !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+}
+
+.bubble-and-reactions {
+  max-width: 80% !important;
+  width: fit-content !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.message-text {
+  display: inline !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+}
+
+.message-time {
+  display: inline-block !important;
+  font-size: 10px !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  float: right !important;
+  margin-left: 8px !important;
+  margin-top: 3px !important;
+  white-space: nowrap !important;
+  vertical-align: bottom !important;
+}

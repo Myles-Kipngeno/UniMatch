@@ -6,47 +6,64 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import './login.css'
 
+import { useModal } from '@/components/ModalContext'
+
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
+  const modal = useModal()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [verifyNotice, setVerifyNotice] = useState(false)
-  const [resendBtn, setResendBtn] = useState(false)
+  const [remember, setRemember] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
-    setVerifyNotice(false)
-    setResendBtn(false)
     setLoading(true)
+    setError('')
+    setUnverifiedEmail(null)
+
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail || !password) {
+      setError('Please enter both email and password.')
+      setLoading(false)
+      return
+    }
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
       })
 
-      if (authError) throw authError
-
-      const user = data.user
-
-      // Check if email confirmation is required
-      if (user && user.email_confirmed_at === null && !user.email_confirmed) {
-        setError('Please verify your email before logging in.')
-        setVerifyNotice(true)
-        setResendBtn(true)
+      if (loginError) {
+        if (loginError.message.toLowerCase().includes('email not confirmed')) {
+          setUnverifiedEmail(trimmedEmail)
+          setError('Email not confirmed. Please verify your email first.')
+        } else {
+          setError(loginError.message)
+        }
         setLoading(false)
         return
       }
 
-      sessionStorage.setItem('authenticated', 'true')
-      router.refresh()
-      router.push('/dashboard')
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('profile_complete')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profile && profile.profile_complete) {
+          router.push('/dashboard')
+        } else {
+          router.push('/profile')
+        }
+      }
     } catch (err: any) {
       console.error('Login error:', err)
       setError(err.message || 'Invalid email or password.')
@@ -57,7 +74,7 @@ export default function LoginPage() {
   const handleResend = async () => {
     const trimmedEmail = email.trim()
     if (!trimmedEmail) {
-      alert('Please enter your email address.')
+      modal.toast('Please enter your email address.', 'warning')
       return
     }
     try {
@@ -66,9 +83,17 @@ export default function LoginPage() {
         email: trimmedEmail,
       })
       if (resendErr) throw resendErr
-      alert('Verification email resent! Check your SPAM or inbox folder.')
+      modal.alert({
+        title: 'Verification Sent 🎉',
+        message: 'Verification email resent! Please check your SPAM or inbox folder.',
+        type: 'success'
+      })
     } catch (err: any) {
-      alert(err.message || 'Failed to resend verification email.')
+      modal.alert({
+        title: 'Resend Failed',
+        message: err.message || 'Failed to resend verification email.',
+        type: 'error'
+      })
     }
   }
 
@@ -106,16 +131,15 @@ export default function LoginPage() {
 
           {error && <p id="loginError" className="error">{error}</p>}
 
-          {verifyNotice && (
-            <p id="verifyNotice" style={{ color: 'orange' }}>
-              Your email is not verified.
-            </p>
-          )}
-
-          {resendBtn && (
-            <button type="button" id="resendBtn" onClick={handleResend} style={{ marginBottom: '1rem' }}>
-              Resend verification email
-            </button>
+          {unverifiedEmail && (
+            <>
+              <p id="verifyNotice" style={{ color: 'orange', fontSize: '13.5px', marginBottom: '8px' }}>
+                Your email is not verified yet.
+              </p>
+              <button type="button" id="resendBtn" className="btn-secondary" onClick={handleResend} style={{ marginBottom: '1rem', width: '100%' }}>
+                Resend verification email
+              </button>
+            </>
           )}
 
           <button type="submit" disabled={loading}>

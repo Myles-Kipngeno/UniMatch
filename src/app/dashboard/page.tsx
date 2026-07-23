@@ -70,9 +70,12 @@ interface CheckedInUser {
   campus: string
 }
 
+import { useModal } from '@/components/ModalContext'
+
 export default function DashboardPage() {
   const router = useRouter()
   const supabase = createClient()
+  const modal = useModal()
 
   const currentIcebreaker = ICEBREAKERS[Math.floor(Date.now() / 86400000) % ICEBREAKERS.length]
 
@@ -915,17 +918,25 @@ export default function DashboardPage() {
   }
 
   // User Sign out
-  const handleSignOut = async () => {
-    try {
-      sessionStorage.clear()
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-      alert("You have been logged out.")
-      router.push('/login')
-    } catch (e) {
-      console.error("Logout failed:", e)
-      alert("Logout failed. Try again.")
-    }
+  const handleSignOut = () => {
+    modal.confirm({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out of your UniMatch account?',
+      confirmText: 'Sign Out',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          sessionStorage.clear()
+          const { error } = await supabase.auth.signOut()
+          if (error) throw error
+          modal.toast("You have been logged out.", "info")
+          router.push('/login')
+        } catch (e) {
+          console.error("Logout failed:", e)
+          modal.toast("Logout failed. Try again.", "error")
+        }
+      }
+    })
   }
 
   const relativeTime = (date: Date) => {
@@ -959,7 +970,7 @@ export default function DashboardPage() {
       {/* Top Navbar */}
       <nav className="app-topnav" id="appTopnav">
         <div className="topnav-logo">
-          <div className="logo-mark">U</div>
+          <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           <span className="logo-text">UniMatch</span>
         </div>
 

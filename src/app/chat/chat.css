@@ -419,11 +419,17 @@
 
 .chat-page .message-bubble {
   max-width: 78%;
-  padding: 10px 14px;
-  border-radius: 18px;
-  font-size: 14px;
-  line-height: 1.45;
-  word-wrap: break-word;
+  width: fit-content;
+  min-width: 68px;
+  display: block;
+  padding: 7px 11px 6px 11px;
+  border-radius: 16px;
+  font-size: 14.5px;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: none;
+  -webkit-hyphens: none;
   position: relative;
 }
 
@@ -443,18 +449,26 @@
 }
 
 .chat-page .message-text {
-  font-size: 14px;
-  line-height: 1.45;
+  display: inline;
+  font-size: 14.5px;
+  line-height: 1.4;
   word-break: break-word;
+  overflow-wrap: break-word;
   white-space: pre-wrap;
+  hyphens: none;
+  -webkit-hyphens: none;
   color: inherit;
 }
 
 .chat-page .message-time {
-  font-size: 9.5px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 4px;
-  text-align: right;
+  display: inline-block;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  float: right;
+  margin-left: 8px;
+  margin-top: 3px;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .chat-page .chat-empty-thread {
@@ -470,19 +484,18 @@
 
 /* Input Bar */
 .chat-page .chat-input-area {
-  position: fixed;
-  bottom: 72px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  bottom: auto;
+  left: auto;
+  transform: none;
   width: 100%;
-  max-width: 520px;
-  padding: 10px 16px;
-  background: #09090b;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0;
+  background: transparent;
+  border-top: none;
   display: flex;
   align-items: center;
   gap: 10px;
-  z-index: 40;
+  z-index: 10;
 }
 
 .chat-page .chat-input-field {
@@ -768,28 +781,37 @@
 
 /* Unified Chat Input Area & Reply Preview Wrapper */
 .chat-input-wrapper {
+  flex-shrink: 0;
   position: sticky;
   bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 40;
   display: flex;
   flex-direction: column;
   background: #09090b;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 10px 16px 14px 16px;
+  box-sizing: border-box;
 }
 
-/* Reply Preview Bar - Single Collapsed Unit */
+/* Reply Preview Bar - Positioned directly on top of chat input */
 .reply-preview-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 10px 14px;
   background: #181528;
-  border-top-left-radius: 14px;
-  border-top-right-radius: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin: 6px 10px 0 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  margin: 0 0 10px 0;
   position: relative;
   overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .reply-preview-accent {
@@ -1469,6 +1491,7 @@
 /* Chat Page Layout & Input Bar Fixes */
 .chat-page {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1485,19 +1508,94 @@
   scroll-behavior: smooth;
 }
 
-.chat-input-wrapper {
-  flex-shrink: 0;
-  position: relative;
-  padding: 10px 16px;
-  background: rgba(18, 14, 30, 0.95);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  z-index: 20;
+/* Mobile Phone Responsive Optimizations (All Mobile Screen Sizes) */
+@media (max-width: 768px) {
+  .chat-page {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .messages-container {
+    padding: 12px 10px 16px 10px;
+    gap: 10px;
+  }
+
+  .chat-input-wrapper {
+    max-width: 100%;
+    margin: 0;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .chat-page .chat-input-area {
+    gap: 6px;
+  }
+
+  .chat-page .chat-input-field {
+    font-size: 16px !important; /* Prevents auto-zoom on iOS Safari */
+    height: 40px;
+    padding: 0 12px;
+  }
+
+  .btn-input-emoji,
+  .btn-mic,
+  .btn-gallery {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+  }
+
+  .btn-send {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+  }
+
+  .reply-preview-bar {
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    border-radius: 12px;
+  }
+
+  .reply-preview-title {
+    font-size: 11.5px;
+  }
+
+  .reply-preview-snippet {
+    font-size: 12px;
+  }
+
+  .chat-header {
+    padding: 8px 12px;
+  }
+
+  .chat-header-info h3 {
+    font-size: 15px;
+  }
+
+  .chat-header-info .status {
+    font-size: 11px;
+    max-width: 180px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .input-emoji-full-popover {
+    left: 8px;
+    right: 8px;
+    width: calc(100vw - 16px);
+    max-width: 360px;
+    bottom: calc(100% + 6px);
+  }
+
+  .attach-menu-popover {
+    right: 12px;
+    bottom: calc(100% + 6px);
+  }
 }
 
-.reply-preview-bar {
-  margin-bottom: 8px;
-}
+
 
 /* Text Input Emoji Picker Button & Full Category Popover */
 .btn-input-emoji {
@@ -1555,24 +1653,43 @@
   transform: scale(1.2);
 }
 
-/* Message Bubble Width & Word-Wrapping Fix */
+/* Message Bubble Width & WhatsApp Inline Sentence Format Fix */
 .message-bubble {
-  max-width: 82% !important;
+  max-width: 78% !important;
   width: fit-content !important;
-  word-break: normal !important;
-  overflow-wrap: anywhere !important;
+  min-width: 68px !important;
+  display: block !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
 }
 
 .bubble-and-reactions {
-  max-width: 85% !important;
+  max-width: 80% !important;
   width: fit-content !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .message-text {
+  display: inline !important;
   white-space: pre-wrap !important;
-  word-break: normal !important;
-  overflow-wrap: anywhere !important;
-  hyphens: auto;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  -webkit-hyphens: none !important;
+}
+
+.message-time {
+  display: inline-block !important;
+  font-size: 10px !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  float: right !important;
+  margin-left: 8px !important;
+  margin-top: 3px !important;
+  white-space: nowrap !important;
+  vertical-align: bottom !important;
 }
 
 /* Attachment (Image/File) Button & Popover */

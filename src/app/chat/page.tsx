@@ -125,11 +125,14 @@ function InlineAudioPlayer({ audioUrl }: { audioUrl: string }) {
   )
 }
 
-function ChatHubContent() {
+import { useModal } from '@/components/ModalContext'
+
+function ChatPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const matchId = searchParams.get('matchId')
   const supabase = createClient()
+  const modal = useModal()
 
   // State
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -645,21 +648,12 @@ function ChatHubContent() {
     } catch (err: any) {
       console.error("Microphone access error:", err)
 
-      // If browser blocked getUserMedia because of HTTP IP origin, offer 1-click redirect to localhost
+      // If browser blocked getUserMedia because of HTTP IP origin, silently switch to localhost so voice recording works immediately
       if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.isSecureContext) {
         const currentPort = window.location.port || '3000'
-        const localhostUrl = `http://localhost:${currentPort}${window.location.pathname}${window.location.search}`
-        
-        const shouldRedirect = window.confirm(
-          `Browsers block microphone access on HTTP IP addresses (${window.location.hostname}).\n\nClick OK to switch to http://localhost:${currentPort} now so voice recording works immediately!`
-        )
-        if (shouldRedirect) {
-          window.location.href = localhostUrl
-          return
-        }
+        window.location.href = `http://localhost:${currentPort}${window.location.pathname}${window.location.search}`
+        return
       }
-
-      alert("Unable to access microphone. Please check your browser microphone permissions.")
     }
   }
 
@@ -910,126 +904,77 @@ function ChatHubContent() {
       alert("Failed to upload photo. Please try again.")
     } finally {
       setSending(false)
-      if (photoInputRef.current) photoInputRef.current.value = ''
-    }
-  }
-
-  // Handle File Selection & Upload
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !matchId || !currentUser) return
-
-    setShowAttachMenu(false)
-    setSending(true)
-    try {
-      const filePath = `chat_${matchId}/doc_${Date.now()}_${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('chat-images')
-        .upload(filePath, file)
-
-      if (uploadError) throw uploadError
-
-      const { data: publicUrlData } = supabase.storage
-        .from('chat-images')
-        .getPublicUrl(filePath)
-
-      const publicUrl = publicUrlData.publicUrl
-
-      const { data: newMsg, error: insertError } = await supabase
-        .from('messages')
-        .insert({
-          match_id: matchId,
-          sender_id: currentUser.id,
-          file_url: publicUrl,
-          file_name: file.name,
-          content: `📁 ${file.name}`,
-          is_deleted: false,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single() as any
-
-      if (insertError) throw insertError
-
-      if (newMsg) {
-        setMessages(prev => [...prev, newMsg])
-        scrollToBottom()
-      }
-
-      await supabase.from('matches').update({
-        last_message: `📁 ${file.name}`,
-        last_message_at: new Date().toISOString()
-      }).eq('id', matchId)
-    } catch (err) {
-      console.error("File upload error:", err)
-      alert("Failed to upload file. Please try again.")
-    } finally {
-      setSending(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
-
-  // Soft Delete Message Action
+     // Soft Delete Message Action
   const handleSoftDeleteMessage = async (msgToDel: any) => {
     setMsgContextMenu(null)
     if (!msgToDel || !currentUser) return
 
-    const confirmed = window.confirm("Delete message? This message will be marked as deleted for everyone.")
-    if (!confirmed) return
+    modal.confirm({
+      title: 'Delete Message',
+      message: 'Delete message? This message will be marked as deleted for everyone.',
+      confirmText: 'Delete',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('messages')
+            .update({ is_deleted: true })
+            .eq('id', msgToDel.id)
+            .eq('sender_id', currentUser.id)
 
-    try {
-      const { error } = await supabase
-        .from('messages')
-        .update({ is_deleted: true })
-        .eq('id', msgToDel.id)
-        .eq('sender_id', currentUser.id)
-
-      if (error) throw error
-
-      setMessages(prev => prev.map(m => m.id === msgToDel.id ? { ...m, is_deleted: true } : m))
-    } catch (err) {
-      console.error("Soft delete message failed:", err)
-      alert("Failed to delete message. Please try again.")
-    }
+          if (error) throw error
+          setMessages(prev => prev.map(m => m.id === msgToDel.id ? { ...m, is_deleted: true } : m))
+          modal.toast('Message deleted', 'info')
+        } catch (err) {
+          console.error("Soft delete message failed:", err)
+          modal.toast("Failed to delete message. Please try again.", "error")
+        }
+      }
+    })
   }
 
   // Batch Delete Action for Multi-Select Mode
   const handleBatchDeleteMessages = async () => {
     if (!currentUser || selectedMessageIds.length === 0) return
 
-    const confirmed = window.confirm(`Delete ${selectedMessageIds.length} selected message(s)?`)
-    if (!confirmed) return
+    modal.confirm({
+      title: 'Delete Selected Messages',
+      message: `Delete ${selectedMessageIds.length} selected message(s)?`,
+      confirmText: 'Delete All',
+      isDanger: true,
+      onConfirm: async () => {
+        const mySelectedIds = selectedMessageIds.filter(id => {
+          const msg = messages.find(m => m.id === id)
+          return msg && msg.sender_id === currentUser.id && !msg.is_deleted
+        })
 
-    const mySelectedIds = selectedMessageIds.filter(id => {
-      const msg = messages.find(m => m.id === id)
-      return msg && msg.sender_id === currentUser.id && !msg.is_deleted
-    })
+        const otherSelectedCount = selectedMessageIds.length - mySelectedIds.length
 
-    const otherSelectedCount = selectedMessageIds.length - mySelectedIds.length
+        if (mySelectedIds.length > 0) {
+          try {
+            const { error } = await supabase
+              .from('messages')
+              .update({ is_deleted: true })
+              .in('id', mySelectedIds)
+              .eq('sender_id', currentUser.id)
 
-    if (mySelectedIds.length > 0) {
-      try {
-        const { error } = await supabase
-          .from('messages')
-          .update({ is_deleted: true })
-          .in('id', mySelectedIds)
-          .eq('sender_id', currentUser.id)
+            if (error) throw error
+            setMessages(prev => prev.map(m => mySelectedIds.includes(m.id) ? { ...m, is_deleted: true } : m))
+            modal.toast(`${mySelectedIds.length} message(s) deleted`, 'info')
+          } catch (err) {
+            console.error("Batch delete error:", err)
+            modal.toast("Failed to delete messages. Please try again.", "error")
+          }
+        }
 
-        if (error) throw error
+        if (otherSelectedCount > 0 && activeMatch) {
+          modal.toast(`${otherSelectedCount} message(s) sent by ${activeMatch.name} could not be deleted because you can only delete your own messages.`, 'warning')
+        }
 
-        setMessages(prev => prev.map(m => mySelectedIds.includes(m.id) ? { ...m, is_deleted: true } : m))
-      } catch (err) {
-        console.error("Batch delete error:", err)
-        alert("Failed to delete messages. Please try again.")
+        setIsSelectMode(false)
+        setSelectedMessageIds([])
       }
-    }
-
-    if (otherSelectedCount > 0 && activeMatch) {
-      alert(`${otherSelectedCount} message(s) sent by ${activeMatch.name} could not be deleted because you can only delete your own messages.`)
-    }
-
-    setIsSelectMode(false)
-    setSelectedMessageIds([])
+    })
   }
 
   // View Profile Action
@@ -1043,21 +988,27 @@ function ChatHubContent() {
     if (!currentUser || !activeMatch || !matchId) return
     setIsMenuOpen(false)
 
-    const confirmed = window.confirm(`Clear all chat history with ${activeMatch.name}? This action cannot be undone.`)
-    if (!confirmed) return
+    modal.confirm({
+      title: 'Clear Chat History',
+      message: `Clear all chat history with ${activeMatch.name}? This action cannot be undone.`,
+      confirmText: 'Clear Chat',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await supabase.from('messages').delete().eq('match_id', matchId)
+          await supabase
+            .from('matches')
+            .update({ last_message: null, last_message_at: null, user1_unread: 0, user2_unread: 0 })
+            .eq('id', matchId)
 
-    try {
-      await supabase.from('messages').delete().eq('match_id', matchId)
-      await supabase
-        .from('matches')
-        .update({ last_message: null, last_message_at: null, user1_unread: 0, user2_unread: 0 })
-        .eq('id', matchId)
-
-      setMessages([])
-    } catch (err) {
-      console.error("Clear chat error:", err)
-      alert("Failed to clear chat history. Please try again.")
-    }
+          setMessages([])
+          modal.toast('Chat history cleared', 'info')
+        } catch (err) {
+          console.error("Clear chat error:", err)
+          modal.toast("Failed to clear chat history. Please try again.", "error")
+        }
+      }
+    })
   }
 
   // Unmatch Action
@@ -1065,17 +1016,22 @@ function ChatHubContent() {
     if (!currentUser || !activeMatch || !matchId) return
     setIsMenuOpen(false)
 
-    const confirmed = window.confirm(`Unmatch with ${activeMatch.name}? You will no longer be able to message each other.`)
-    if (!confirmed) return
-
-    try {
-      await supabase.from('matches').delete().eq('id', matchId)
-      alert(`You have unmatched with ${activeMatch.name}.`)
-      router.push('/matches')
-    } catch (err) {
-      console.error("Unmatch error:", err)
-      alert("Failed to unmatch. Please try again.")
-    }
+    modal.confirm({
+      title: 'Unmatch User',
+      message: `Unmatch with ${activeMatch.name}? You will no longer be able to message each other.`,
+      confirmText: 'Unmatch',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await supabase.from('matches').delete().eq('id', matchId)
+          modal.toast(`You have unmatched with ${activeMatch.name}.`, 'info')
+          router.push('/matches')
+        } catch (err) {
+          console.error("Unmatch error:", err)
+          modal.toast("Failed to unmatch. Please try again.", "error")
+        }
+      }
+    })
   }
 
   // Block User Action
@@ -1083,25 +1039,28 @@ function ChatHubContent() {
     if (!currentUser || !activeMatch || !matchId) return
     setIsMenuOpen(false)
 
-    const confirmed = window.confirm(`Are you sure you want to block ${activeMatch.name}? They will be removed from your matches and blocked from contacting you.`)
-    if (!confirmed) return
+    modal.confirm({
+      title: 'Block User',
+      message: `Are you sure you want to block ${activeMatch.name}? They will be removed from your matches and blocked from contacting you.`,
+      confirmText: 'Block',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await (supabase.from('blocked_users') as any).insert({
+            blocker_id: currentUser.id,
+            blocked_id: activeMatch.otherUserId
+          })
+          await supabase.from('matches').delete().eq('id', matchId)
 
-    try {
-      await (supabase.from('blocked_users') as any).insert({
-        blocker_id: currentUser.id,
-        blocked_id: activeMatch.otherUserId
-      })
-      await supabase.from('matches').delete().eq('id', matchId)
-
-      alert(`${activeMatch.name} has been blocked.`)
-      router.push('/matches')
-    } catch (e) {
-      console.error("Block user failed:", e)
-      alert("Failed to block user. Please try again.")
-    }
+          modal.toast(`${activeMatch.name} has been blocked.`, 'info')
+          router.push('/matches')
+        } catch (e) {
+          console.error("Block user failed:", e)
+          modal.toast("Failed to block user. Please try again.", "error")
+        }
+      }
+    })
   }
-
-
 
   // Toggle Mute Notifications Action
   const handleToggleMute = async () => {
@@ -1110,6 +1069,7 @@ function ChatHubContent() {
 
     const nextMuteState = !isMuted
     setIsMuted(nextMuteState)
+    modal.toast(nextMuteState ? `Muted notifications for ${activeMatch.name}` : `Unmuted notifications for ${activeMatch.name}`, 'info')
 
     try {
       const { data: matchRow } = await supabase
@@ -1146,16 +1106,20 @@ function ChatHubContent() {
 
       if (error) {
         console.error("Report submit error:", error)
-        alert("Failed to submit report. Please try again.")
+        modal.toast("Failed to submit report. Please try again.", "error")
         return
       }
 
-      alert("Thank you. Your report has been submitted for review.")
+      modal.alert({
+        title: 'Report Submitted',
+        message: 'Thank you. Your report has been submitted for review.',
+        type: 'success'
+      })
       setReportModalOpen(false)
       setReportDetails('')
     } catch (e) {
       console.error("Report submit error:", e)
-      alert("Failed to submit report. Please try again.")
+      modal.toast("Failed to submit report. Please try again.", "error")
     } finally {
       setSubmittingReport(false)
     }
@@ -1422,14 +1386,13 @@ function ChatHubContent() {
 
                       {/* Message Content (Text, Photo, File, or Audio) */}
                       {m.is_deleted ? (
-                        <div className="message-text deleted-text">
+                        <span className="message-text deleted-text">
                           <i>This message was deleted</i>
-                        </div>
+                        </span>
                       ) : m.image_url ? (
                         <div className="message-photo-wrap" onClick={(e) => {
                           e.stopPropagation()
-                          setMediaItems({ photos: [m], files: [], voice: [] })
-                          setActiveLightboxIndex(0)
+                          if (m.image_url) window.open(m.image_url, '_blank')
                         }}>
                           <img src={m.image_url} alt="Shared photo" className="message-photo-img" />
                         </div>
@@ -1446,12 +1409,12 @@ function ChatHubContent() {
                       ) : m.audio_url ? (
                         <InlineAudioPlayer audioUrl={m.audio_url} />
                       ) : (
-                        <div className="message-text">{m.content || m.text || m.message}</div>
+                        <span className="message-text">{m.content || m.text || m.message}</span>
                       )}
 
-                      <div className="message-time">
+                      <span className="message-time">
                         {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
+                      </span>
                     </div>
 
                     {/* Reaction Pills Row below Bubble */}
@@ -1583,33 +1546,6 @@ function ChatHubContent() {
 
         {/* Unified Chat Input Area & Reply Preview Bar Wrapper */}
         <div className="chat-input-wrapper">
-          {/* Attachment Menu Popover (+) */}
-          {showAttachMenu && !isSelectMode && (
-            <div ref={attachMenuRef} className="attach-menu-popover">
-              <button
-                type="button"
-                className="attach-menu-item"
-                onClick={() => {
-                  setShowAttachMenu(false)
-                  photoInputRef.current?.click()
-                }}
-              >
-                <span className="attach-icon">📷</span>
-                <span>Photo</span>
-              </button>
-              <button
-                type="button"
-                className="attach-menu-item"
-                onClick={() => {
-                  setShowAttachMenu(false)
-                  fileInputRef.current?.click()
-                }}
-              >
-                <span className="attach-icon">📄</span>
-                <span>File</span>
-              </button>
-            </div>
-          )}
 
           {/* Full Category Text Input Emoji Popover */}
           {showInputEmojiPicker && !isSelectMode && (
@@ -1795,12 +1731,12 @@ function ChatHubContent() {
                   </svg>
                 </button>
 
-                {/* 4. Attachment (Image/File) Button */}
+                {/* 4. Attachment / Gallery Button */}
                 <button
                   type="button"
                   className="btn-gallery"
-                  onClick={() => setShowAttachMenu(prev => !prev)}
-                  title="Attach Photo or File"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach Photo, Video or File"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -1893,8 +1829,6 @@ function ChatHubContent() {
             </div>
           </div>
         )}
-
-        <BottomNav activeTab="chat" />
       </div>
     )
   }
@@ -1905,7 +1839,7 @@ function ChatHubContent() {
       {/* Top Navbar */}
       <nav className="app-topnav">
         <div className="topnav-logo">
-          <div className="logo-mark">U</div>
+          <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           <span className="logo-text">UniMatch</span>
         </div>
       </nav>
@@ -2113,9 +2047,11 @@ function ChatHubContent() {
         </div>
       )}
 
-      {/* Shared Media Gallery Modal */}
+      <BottomNav activeTab="chat" />
     </div>
   )
+}
+}
 }
 
 export default function ChatPage() {
@@ -2125,7 +2061,7 @@ export default function ChatPage() {
         <p>Loading chat center…</p>
       </div>
     }>
-      <ChatHubContent />
+      <ChatPageContent />
     </Suspense>
   )
 }

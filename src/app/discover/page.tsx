@@ -486,7 +486,7 @@ export default function DiscoverPage() {
       {/* ═══ TOP NAV ═══ */}
       <nav className="disc-topnav">
         <div className="disc-topnav-logo" onClick={() => router.push('/dashboard')}>
-          <div className="disc-logo-mark">U</div>
+          <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           <span className="disc-logo-text">UniMatch</span>
         </div>
         <h2 className="disc-topnav-title">Discover</h2>

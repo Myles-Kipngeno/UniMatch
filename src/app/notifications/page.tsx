@@ -136,7 +136,7 @@ export default function NotificationsPage() {
       {/* Top Navbar */}
       <nav className="notif-topnav">
         <div className="notif-logo" onClick={() => router.push('/dashboard')}>
-          <div className="logo-mark">U</div>
+          <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
           <span className="logo-text">UniMatch</span>
         </div>
         <h2 className="topnav-title">Notifications</h2>

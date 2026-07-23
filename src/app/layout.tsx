@@ -22,9 +22,14 @@ export const metadata: Metadata = {
   title: "UniMatch",
   description: "University Match and Dating Web App",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" }
+    ],
   },
 };
+
+import Providers from "@/components/Providers";
 
 export default function RootLayout({
   children,
@@ -34,6 +39,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${outfit.variable} h-full antialiased`}>
       <head>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="alternate icon" href="/favicon.ico" />
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
@@ -43,7 +50,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${outfit.className} min-h-full flex flex-col`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
