@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import './landing.css'
 
 export default function LandingPage() {
   const [isDark, setIsDark] = useState(false)
@@ -373,7 +374,6 @@ export default function LandingPage() {
           <div className="section-header">
             <span className="section-eyebrow">Love Stories</span>
             <h2 className="section-title">Students Are <span className="gradient-text-inline">Connecting</span></h2>
-            <p className="section-subtitle">Real stories from real students on campus</p>
           </div>
 
           <div className="testimonials-grid">

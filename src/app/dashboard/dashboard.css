@@ -403,11 +403,15 @@ img { display: block; max-width: 100%; object-fit: cover; }
 }
 
 /* ── Section headers ── */
-.section-header {
+.dashboard-container .section-header,
+.dashboard-page .section-header,
+.dashboard-view .section-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px;
 }
-.section-title {
+.dashboard-container .section-title,
+.dashboard-page .section-title,
+.dashboard-view .section-title {
   font-size: 18px; font-weight: 800; color: #ffffff;
 }
 .section-link {
@@ -1583,8 +1587,10 @@ img { display: block; max-width: 100%; object-fit: cover; }
     padding-left: 136px;
   }
   .home-scroll {
-    margin-left: calc(112px + (100% - 112px - 520px) / 2);
+    margin-left: auto;
     margin-right: auto;
+    max-width: 560px;
+    width: calc(100% - 136px);
     padding-bottom: 40px;
   }
 }

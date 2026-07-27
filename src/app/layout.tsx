@@ -2,16 +2,6 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 
-// Import all existing CSS files from their root locations as-is
-import "../../style.css";
-import "../../profile.css";
-import "../../chat.css";
-import "../../discover.css";
-import "../../matches.css";
-import "../../notifications.css";
-import "../../upload-photos.css";
-import "../../dashboard.css";
-
 const outfit = Outfit({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],

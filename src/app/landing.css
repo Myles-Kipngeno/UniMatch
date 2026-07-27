@@ -47,14 +47,11 @@ html { scroll-behavior: smooth; }
   background: var(--surface);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
-  /* Hide scrollbar on landing page — removes the right-edge pink bar */
   scrollbar-width: none;
 }
 .landing-page::-webkit-scrollbar { display: none; }
 
-/* ═══════════════════════════════════════════
-   NAVBAR
-   ═══════════════════════════════════════════ */
+/* NAVBAR */
 .navbar,
 .landing-page .navbar {
   position: fixed !important;
@@ -149,9 +146,7 @@ html { scroll-behavior: smooth; }
 .mobile-nav-buttons .btn-login,
 .mobile-nav-buttons .btn-signup { flex: 1; text-align: center; }
 
-/* ═══════════════════════════════════════════
-   HERO
-   ═══════════════════════════════════════════ */
+/* HERO */
 .hero {
   position: relative;
   padding: 100px 32px 60px;
@@ -185,7 +180,6 @@ html { scroll-behavior: smooth; }
   gap: 60px; align-items: flex-start;
 }
 
-/* Hero Text */
 .hero-badge {
   display: inline-flex; align-items: center; gap: 8px;
   background: white; border: 1px solid var(--border);
@@ -336,7 +330,6 @@ html { scroll-behavior: smooth; }
   50% { transform: scale(1.12); }
 }
 
-/* Boy card — right side, tilted right, clearly visible */
 .card-back {
   top: 50px; right: 0;
   transform: rotate(5deg);
@@ -345,7 +338,6 @@ html { scroll-behavior: smooth; }
 }
 .card-back:hover { transform: rotate(5deg) translateY(-8px) scale(1.03); }
 
-/* Girl card — left side, tilted left, overlaps slightly */
 .card-front {
   top: 20px; right: 170px;
   transform: rotate(-4deg);
@@ -413,9 +405,7 @@ html { scroll-behavior: smooth; }
 .stat-item p { font-size: 13px; color: var(--ink-muted); font-weight: 500; }
 .stat-divider { width: 1px; height: 40px; background: var(--border-strong); flex-shrink: 0; margin: 0 20px; }
 
-/* ═══════════════════════════════════════════
-   FEATURES
-   ═══════════════════════════════════════════ */
+/* FEATURES */
 .features {
   padding: 120px 32px;
   background: var(--surface);
@@ -424,7 +414,16 @@ html { scroll-behavior: smooth; }
 
 .section-container { max-width: 1100px; margin: 0 auto; }
 
-.section-header { text-align: center; margin-bottom: 64px; }
+.landing-page .section-header,
+.section-header { 
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center; 
+  margin-bottom: 64px; 
+}
+.landing-page .section-eyebrow,
 .section-eyebrow {
   display: inline-block; font-size: 12px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 1.5px;
@@ -432,20 +431,24 @@ html { scroll-behavior: smooth; }
   background: var(--violet-light); padding: 6px 16px;
   border-radius: 50px;
 }
+.landing-page .section-title,
 .section-title {
   font-size: 44px; font-weight: 800;
   letter-spacing: -1.5px; line-height: 1.15;
   color: var(--ink); margin-bottom: 16px;
+  text-align: center;
 }
 .gradient-text-inline {
   background: var(--gradient-main);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+.landing-page .section-subtitle,
 .section-subtitle {
   font-size: 18px; color: var(--ink-muted);
   font-weight: 400; max-width: 520px;
   margin: 0 auto; line-height: 1.6;
+  text-align: center;
 }
 
 .features-grid {
@@ -499,9 +502,7 @@ html { scroll-behavior: smooth; }
 }
 .feature-card p strong { color: var(--ink-soft); }
 
-/* ═══════════════════════════════════════════
-   HOW IT WORKS
-   ═══════════════════════════════════════════ */
+/* HOW IT WORKS */
 .how-it-works {
   padding: 120px 32px;
   background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
@@ -549,9 +550,7 @@ html { scroll-behavior: smooth; }
   line-height: 1.65; max-width: 400px;
 }
 
-/* ═══════════════════════════════════════════
-   TESTIMONIALS
-   ═══════════════════════════════════════════ */
+/* TESTIMONIALS */
 .testimonials {
   padding: 120px 32px;
   background: var(--surface);
@@ -607,9 +606,7 @@ html { scroll-behavior: smooth; }
 .testimonial-name { font-size: 15px; font-weight: 700; color: var(--ink); }
 .testimonial-role { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
 
-/* ═══════════════════════════════════════════
-   CTA
-   ═══════════════════════════════════════════ */
+/* CTA */
 .cta {
   padding: 120px 32px;
   background: linear-gradient(135deg, #1a0533 0%, #2d1060 40%, #4a1a8a 100%);
@@ -647,9 +644,7 @@ html { scroll-behavior: smooth; }
 }
 .btn-cta:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
 
-/* ═══════════════════════════════════════════
-   FOOTER
-   ═══════════════════════════════════════════ */
+/* FOOTER */
 .footer {
   padding: 0 32px;
   background: #0a0a14; color: white;
@@ -677,17 +672,13 @@ html { scroll-behavior: smooth; }
 }
 .footer-bottom p { font-size: 13px; color: rgba(255,255,255,0.3); }
 
-/* ═══════════════════════════════════════════
-   ANIMATIONS
-   ═══════════════════════════════════════════ */
+/* ANIMATIONS */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(24px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ═══════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════ */
+/* RESPONSIVE */
 @media (max-width: 1024px) {
   .hero-content { grid-template-columns: 1fr; gap: 40px; text-align: center; }
   .hero-subtitle { margin: 0 auto 32px; }
@@ -695,11 +686,11 @@ html { scroll-behavior: smooth; }
   .trust-row { justify-content: center; }
   .hero-cards {
     height: 420px; display: flex; justify-content: center;
-    margin: 0 auto; max-width: 500px;
+    margin: 0 auto; max-width: 100%;
   }
-  .card-back { top: 40px; right: -20px; }
+  .card-back { top: 40px; right: 20px; }
   .card-front { top: 20px; right: auto; left: 20px; }
-  .hero-title { font-size: 48px; }
+  .hero-title { font-size: clamp(36px, 6vw, 48px); }
   .features-grid { grid-template-columns: 1fr 1fr; }
   .testimonials-grid { grid-template-columns: 1fr; max-width: 500px; margin: 0 auto; }
 }
@@ -710,56 +701,56 @@ html { scroll-behavior: smooth; }
   .mobile-menu-btn { display: block; }
 
   .hero { padding: 84px 20px 40px; }
-  .hero-title { font-size: 38px; letter-spacing: -1px; }
-  .hero-subtitle { font-size: 16px; }
-  .hero-buttons { flex-direction: column; align-items: center; }
-  .hero-cards { height: 360px; max-width: 400px; }
-  .profile-card { width: 200px; height: 290px; }
-  .card-back { top: 30px; right: 0px; }
+  .hero-title { font-size: clamp(28px, 7vw, 38px); letter-spacing: -1px; }
+  .hero-subtitle { font-size: clamp(14px, 4vw, 16px); }
+  .hero-buttons { flex-direction: column; align-items: center; width: 100%; }
+  .hero-buttons .btn-primary, .hero-buttons .btn-secondary { width: 100%; max-width: 320px; justify-content: center; }
+  .hero-cards { height: 360px; max-width: 360px; width: 100%; margin: 0 auto; }
+  .profile-card { width: 190px; height: 280px; }
+  .card-back { top: 30px; right: 10px; }
   .card-front { top: 10px; left: 10px; right: auto; }
-  .card-name { font-size: 20px; }
+  .card-name { font-size: 18px; }
 
-  .stats-strip { flex-direction: column; padding: 24px; gap: 20px; }
-  .stat-divider { width: 60px; height: 1px; margin: 0; }
+  .stats-strip { flex-direction: column; padding: 24px 16px; gap: 20px; width: 100%; box-sizing: border-box; }
+  .stat-divider { width: 60px; height: 1px; margin: 0 auto; }
 
-  .features, .how-it-works, .testimonials, .cta { padding: 80px 20px; }
-  .section-title { font-size: 32px; }
+  .features, .how-it-works, .testimonials, .cta { padding: 60px 16px; }
+  .landing-page .section-title, .section-title { font-size: clamp(26px, 6vw, 32px); }
+  .landing-page .section-subtitle, .section-subtitle { font-size: clamp(14px, 4vw, 16px); padding: 0 12px; }
   .features-grid { grid-template-columns: 1fr; }
 
-  .cta-content h2 { font-size: 30px; }
+  .cta-content h2 { font-size: clamp(24px, 6vw, 30px); }
 
   .footer-top { flex-direction: column; gap: 24px; text-align: center; }
   .footer-links { flex-wrap: wrap; justify-content: center; gap: 16px; }
 }
 
 @media (max-width: 420px) {
-  .hero-title { font-size: 32px; }
-  .hero-cards { height: 320px; max-width: 340px; }
-  .profile-card { width: 170px; height: 250px; }
-  .card-back { right: -5px; top: 30px; }
-  .card-front { left: 5px; top: 10px; }
-  .card-name { font-size: 18px; }
-  .card-detail { font-size: 11px; }
+  .hero-title { font-size: clamp(24px, 8vw, 30px); }
+  .hero-cards { height: 310px; max-width: 300px; width: 100%; }
+  .profile-card { width: 160px; height: 240px; }
+  .card-back { right: 0px; top: 25px; }
+  .card-front { left: 0px; top: 0px; }
+  .card-name { font-size: 16px; }
+  .card-detail { font-size: 10px; }
   .card-tags { display: none; }
-  .card-overlay { padding: 40px 14px 16px; }
-  .stats-strip { margin-top: 40px; }
-  .stat-item h3 { font-size: 26px; }
+  .card-overlay { padding: 30px 10px 12px; }
+  .stats-strip { margin-top: 30px; }
+  .stat-item h3 { font-size: 22px; }
+  .landing-page .section-title, .section-title { font-size: clamp(22px, 7vw, 26px); }
 }
 
-/* Global scrollbar — hidden on landing page via .landing-page rules above */
+/* Global scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(108,71,255,0.25); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(108,71,255,0.45); }
 
-/* ═══════════════════════════════════════════
-   DARK MODE
-   ═══════════════════════════════════════════ */
+/* DARK MODE */
 :root {
   --theme-transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
 }
 
-/* Theme Toggle Button Styling */
 .theme-toggle-btn {
   background: none;
   border: none;
@@ -777,12 +768,10 @@ html { scroll-behavior: smooth; }
   transform: scale(1.1);
 }
 
-/* Apply transitions to body and key components */
 body, .navbar, .mobile-nav, .hero, .features, .feature-card, .how-it-works, .testimonials, .testimonial-card, .stats-strip, .hero-badge, .btn-secondary {
   transition: var(--theme-transition);
 }
 
-/* Dark Theme Variables */
 .dark-theme {
   --ink:          #f0eeff;
   --ink-soft:     #c5c3e0;
