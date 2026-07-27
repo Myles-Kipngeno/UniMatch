@@ -27,3 +27,174 @@ html, body {
   max-width: 100vw;
   overflow-x: hidden;
 }
+
+/* ══════════════════════════════════════════════════════════
+   UNIMATCH GLOBAL NAVIGATION SYSTEM (MOBILE & DESKTOP SIDEBAR)
+   ══════════════════════════════════════════════════════════ */
+
+/* Mobile Bottom Navigation (5 Tabs) */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  height: 64px;
+  background: rgba(19, 17, 28, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: stretch;
+  max-width: 100vw;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
+.bn-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  position: relative;
+  transition: color 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.bn-item:hover {
+  color: #a855f7;
+}
+
+.bn-item:active {
+  transform: scale(0.9);
+}
+
+.bn-item.active {
+  color: #a855f7;
+}
+
+/* Glowing top bar indicator (Mobile) */
+.bn-indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, #a855f7, #ec4899);
+  transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s;
+  opacity: 0;
+}
+
+.bn-item.active .bn-indicator {
+  width: 28px;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.6);
+}
+
+.bn-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bn-item.active .bn-icon {
+  transform: scale(1.12);
+}
+
+.bn-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Badge on nav icon */
+.bn-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 20px);
+  min-width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ec4899;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #0d0c18;
+  padding: 0 3px;
+}
+
+/* Desktop Diagonal Left Sidebar Navigation (≥ 769px) */
+@media (min-width: 769px) {
+  .bottom-nav {
+    position: fixed;
+    top: 30px;
+    bottom: 30px;
+    left: 24px;
+    right: auto;
+    width: 88px;
+    height: calc(100vh - 60px);
+    max-width: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 40px 0;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(19, 17, 28, 0.75);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
+    transform: skewY(-6deg);
+    transform-origin: left top;
+    z-index: 500;
+  }
+
+  .bn-item {
+    width: 72px;
+    height: 72px;
+    flex: none;
+    border-radius: 16px;
+    transform: skewY(6deg);
+    transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .bn-item.active {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.08));
+    color: #a855f7;
+  }
+
+  .bn-indicator {
+    display: none !important;
+  }
+
+  .bn-item.active::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 20%;
+    height: 60%;
+    width: 3px;
+    border-radius: 99px;
+    background: linear-gradient(to bottom, #a855f7, #ec4899);
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+  }
+}

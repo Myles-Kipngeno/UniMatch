@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import './profile.css'
 
@@ -125,7 +126,7 @@ function ProfileFormContent() {
           .from('profiles')
           .select('*')
           .eq('id', targetId)
-          .single()
+          .single() as any
 
         if (profile) {
           setName(profile.name || '')
@@ -286,15 +287,13 @@ function ProfileFormContent() {
         updated_at: new Date().toISOString()
       }
 
-      const { error: updateErr } = await supabase
-        .from('profiles')
+      const { error: updateErr } = await (supabase.from('profiles') as any)
         .update(profilePayload)
         .eq('id', userId!)
 
       if (updateErr) {
         console.warn('Update error, trying upsert fallback:', updateErr)
-        const { error: upsertErr } = await supabase
-          .from('profiles')
+        const { error: upsertErr } = await (supabase.from('profiles') as any)
           .upsert(profilePayload, { onConflict: 'id' })
         if (upsertErr) throw upsertErr
       }
@@ -311,11 +310,7 @@ function ProfileFormContent() {
   }
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', background: '#0f0e17' }}>
-        <h3>Loading your profile...</h3>
-      </div>
-    )
+    return <LoadingScreen message="Loading your profile..." />
   }
 
   const showTabs = (isEditModeParam || profileComplete) && !isOtherUser
@@ -665,11 +660,7 @@ function ProfileFormContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', background: '#0f0e17' }}>
-        <h3>Loading profile content...</h3>
-      </div>
-    }>
+    <Suspense fallback={<LoadingScreen message="Loading profile..." />}>
       <ProfileFormContent />
     </Suspense>
   )

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import './matches.css'
 
@@ -314,7 +315,7 @@ export default function MatchesPage() {
         {/* Match Rows */}
         <div className="mp-list">
           {loading ? (
-            <div className="mp-loading"><div className="mp-spinner" /><span>Loading…</span></div>
+            <LoadingScreen message="Loading your matches..." fullScreen={false} />
           ) : shownMatches.length > 0 ? (
             <>
               {shownMatches.map(m => (

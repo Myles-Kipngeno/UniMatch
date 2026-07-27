@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import LoadingScreen from '@/components/LoadingScreen'
 import { getRandomIcebreakers } from '@/lib/icebreakers'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import './discover.css'
@@ -509,12 +510,7 @@ export default function DiscoverPage() {
       {/* ═══ SWIPE ARENA ═══ */}
       <main className="swipe-arena">
         {loading ? (
-          <div className="card-stack">
-            <div className="stack-loading">
-              <div className="stack-spinner"></div>
-              <p>Connecting to campus network...</p>
-            </div>
-          </div>
+          <LoadingScreen message="Finding profiles on campus..." fullScreen={false} />
         ) : candidates.length === 0 ? (
           <div className="card-stack">
             <div className="empty-state">

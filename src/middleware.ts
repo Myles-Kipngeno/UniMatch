@@ -16,7 +16,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({
             request,
@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest) {
         .from('profiles')
         .select('profile_complete')
         .eq('id', user.id)
-        .single()
+        .single() as any
 
       if (profile && profile.profile_complete === false) {
         url.pathname = '/profile'

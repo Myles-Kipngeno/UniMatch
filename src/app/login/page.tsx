@@ -56,7 +56,7 @@ export default function LoginPage() {
           .from('profiles')
           .select('profile_complete')
           .eq('id', data.user.id)
-          .single()
+          .single() as any
 
         if (profile && profile.profile_complete) {
           router.push('/dashboard')

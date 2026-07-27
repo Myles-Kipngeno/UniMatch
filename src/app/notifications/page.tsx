@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import LoadingScreen from '@/components/LoadingScreen'
 import './notifications.css'
 
 interface NotificationItem {
@@ -75,8 +76,7 @@ export default function NotificationsPage() {
     if (!uid) return
     setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
     try {
-      await supabase
-        .from('notifications')
+      await (supabase.from('notifications') as any)
         .update({ is_read: true })
         .eq('user_id', uid)
     } catch (e) {
@@ -165,10 +165,7 @@ export default function NotificationsPage() {
 
         <div className="notif-list">
           {loading ? (
-            <div className="notif-loading">
-              <div className="spinner"></div>
-              <span>Loading notifications...</span>
-            </div>
+            <LoadingScreen message="Loading notifications..." fullScreen={false} />
           ) : filteredNotifs.length > 0 ? (
             filteredNotifs.map(n => (
               <div

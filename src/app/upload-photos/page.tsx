@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import './upload-photos.css'
 
@@ -106,7 +107,7 @@ export default function UploadPhotosPage() {
 
           const publicUrl = publicUrlData.publicUrl
 
-          await supabase.from('profile_photos' as any).insert({
+          await (supabase.from('profile_photos') as any).insert({
             user_id: uid,
             url: publicUrl,
             type: type
@@ -117,11 +118,10 @@ export default function UploadPhotosPage() {
             .from('profiles')
             .select('photo_url')
             .eq('id', uid)
-            .single()
+            .single() as any
 
           if (!p || !p.photo_url) {
-            await supabase
-              .from('profiles')
+            await (supabase.from('profiles') as any)
               .update({ photo_url: publicUrl })
               .eq('id', uid)
             setProfilePhoto(publicUrl)
@@ -156,7 +156,7 @@ export default function UploadPhotosPage() {
             await supabase.storage.from('profile-images').remove([filePath])
           }
           if (profilePhoto === item.url) {
-            await supabase.from('profiles').update({ photo_url: null }).eq('id', uid!)
+            await (supabase.from('profiles') as any).update({ photo_url: null }).eq('id', uid!)
             setProfilePhoto('')
           }
           await loadMedia(uid!)
@@ -192,7 +192,7 @@ export default function UploadPhotosPage() {
         .from('profiles')
         .select('name, photo_url')
         .eq('id', user.id)
-        .single()
+        .single() as any
 
       if (profile) {
         setUserName(profile.name || 'User')
@@ -301,10 +301,7 @@ export default function UploadPhotosPage() {
           </h3>
           <div className="media-grid">
             {loading ? (
-              <div className="loading-state">
-                <div className="loading-spinner"></div>
-                <p>Loading...</p>
-              </div>
+              <LoadingScreen message="Loading photos..." fullScreen={false} />
             ) : photos.length > 0 ? (
               photos.map(item => (
                 <div key={item.id} className="media-card" onClick={() => handleMediaClick(item)}>
@@ -337,10 +334,7 @@ export default function UploadPhotosPage() {
           </h3>
           <div className="media-grid">
             {loading ? (
-              <div className="loading-state">
-                <div className="loading-spinner"></div>
-                <p>Loading...</p>
-              </div>
+              <LoadingScreen message="Loading videos..." fullScreen={false} />
             ) : videos.length > 0 ? (
               videos.map(item => (
                 <div key={item.id} className="media-card" onClick={() => handleMediaClick(item)}>

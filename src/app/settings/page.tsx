@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
+import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import './settings.css'
 
@@ -153,11 +154,7 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="settings-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#8b7fa8' }}>
-        <h3>Loading settings…</h3>
-      </div>
-    )
+    return <LoadingScreen message="Loading settings..." />
   }
 
   return (

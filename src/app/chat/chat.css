@@ -6,8 +6,9 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
-  max-width: 520px;
+  max-width: 100%;
   margin: 0 auto;
   background: #09090b; /* Deep solid black background matching screenshot */
   color: #ffffff;
@@ -792,9 +793,8 @@
   background: #09090b;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   width: 100%;
-  max-width: 520px;
-  margin: 0 auto;
-  padding: 10px 16px 14px 16px;
+  margin: 0;
+  padding: 10px 16px max(14px, env(safe-area-inset-bottom, 14px)) 16px;
   box-sizing: border-box;
 }
 
@@ -1805,4 +1805,134 @@
 .btn-file-dl {
   text-decoration: none;
   font-size: 14px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   CROSS-DEVICE RESPONSIVE LAYOUT & DESKTOP SPLIT VIEW
+   ══════════════════════════════════════════════════════════ */
+
+/* Mobile view: (< 768px) Single Pane switching */
+@media (max-width: 767px) {
+  .chat-page {
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  .chat-sidebar-col {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-main-col {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-page.active-thread-open .chat-sidebar-col {
+    display: none !important;
+  }
+
+  .chat-page.no-active-thread .chat-main-col {
+    display: none !important;
+  }
+}
+
+/* Desktop & Tablet Split View (>= 769px) */
+@media (min-width: 769px) {
+  .chat-page {
+    display: flex;
+    flex-direction: row;
+    margin-left: 136px;
+    width: calc(100vw - 160px);
+    max-width: 1240px;
+    height: calc(100vh - 40px);
+    height: calc(100dvh - 40px);
+    margin-top: 20px;
+    margin-bottom: 20px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
+    background: #09090b;
+    overflow: hidden;
+  }
+
+  .chat-sidebar-col {
+    width: 340px;
+    min-width: 300px;
+    max-width: 380px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    background: #09090b;
+    flex-shrink: 0;
+  }
+
+  .chat-main-col {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #0d0c18;
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* Hide back button on desktop split view */
+  .chat-page .back-btn {
+    display: none !important;
+  }
+
+  /* Desktop empty state graphic when no conversation is selected */
+  .chat-desktop-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    background: radial-gradient(circle at center, rgba(124, 58, 237, 0.08) 0%, transparent 70%);
+  }
+
+  .chat-desktop-empty-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(236, 72, 153, 0.2));
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    color: #c084fc;
+    box-shadow: 0 10px 30px rgba(124, 58, 237, 0.25);
+  }
+
+  .chat-desktop-empty-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: white;
+    margin: 0 0 8px 0;
+  }
+
+  .chat-desktop-empty-desc {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.6);
+    max-width: 320px;
+    line-height: 1.5;
+    margin: 0;
+  }
 }

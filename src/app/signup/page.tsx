@@ -100,7 +100,7 @@ export default function SignupPage() {
           university: UNIVERSITY_NAME,
           email_domain: KABARAK_DOMAIN,
           profile_complete: false,
-        })
+        } as any)
         if (upsertErr) throw upsertErr
       }
 
