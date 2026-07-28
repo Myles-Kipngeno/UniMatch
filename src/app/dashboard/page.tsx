@@ -121,9 +121,16 @@ export default function DashboardPage() {
   // Spots / Check-in States
   const [activeTab, setActiveTab] = useState<'spots' | 'radar'>('spots')
   const [myCurrentSpot, setMyCurrentSpot] = useState<string | null>(null)
+  const myCurrentSpotRef = useRef<string | null>(null)
+  const checkinTimeRef = useRef<number | null>(null)
   const [spotCounts, setSpotCounts] = useState<Record<string, number>>({})
   const [checkedUsers, setCheckedUsers] = useState<CheckedInUser[]>([])
   const [spotLoading, setSpotLoading] = useState(false)
+
+  const updateCurrentSpot = (spotName: string | null) => {
+    myCurrentSpotRef.current = spotName
+    setMyCurrentSpot(spotName)
+  }
 
   // Radar / Geolocation States
   const [radarRange, setRadarRange] = useState<number>(2000)
@@ -434,7 +441,7 @@ export default function DashboardPage() {
           const lng = Math.round(p.coords.longitude * 100) / 100
           setGpsLat(lat)
           setGpsLng(lng)
-          await upsertPresence(uid, lat, lng, myCurrentSpot)
+          await upsertPresence(uid, lat, lng, myCurrentSpotRef.current)
           fetchRadarDots(uid, lat, lng, radarRange)
         },
         () => {},
@@ -443,7 +450,7 @@ export default function DashboardPage() {
     }, 60000)
 
     return () => clearInterval(interval)
-  }, [uid, gpsLat, gpsLng, radarRange, myCurrentSpot])
+  }, [uid, gpsLat, gpsLng, radarRange])
 
   // Geolocation trigger & periodic refresh
   const initLocation = (userId: string) => {
@@ -460,7 +467,7 @@ export default function DashboardPage() {
         setGpsLat(lat)
         setGpsLng(lng)
 
-        await upsertPresence(userId, lat, lng, myCurrentSpot)
+        await upsertPresence(userId, lat, lng, myCurrentSpotRef.current)
         setRadarHint(`Showing students within ~${radarRange >= 1000 ? (radarRange / 1000) + 'km' : radarRange + 'm'}`)
         fetchRadarDots(userId, lat, lng, radarRange)
       },
@@ -473,10 +480,11 @@ export default function DashboardPage() {
   }
 
   // Upsert presence utility
-  const upsertPresence = async (userId: string, lat: number | null, lng: number | null, spotName: string | null) => {
+  const upsertPresence = async (userId: string, lat: number | null, lng: number | null, spotName?: string | null) => {
+    const targetSpot = spotName !== undefined ? spotName : myCurrentSpotRef.current
     try {
       await (supabase.from('presence' as any) as any).upsert(
-        { user_id: userId, online: true, location_name: spotName, lat, lng, updated_at: new Date().toISOString() },
+        { user_id: userId, online: true, location_name: targetSpot, lat, lng, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       )
     } catch (e) {
@@ -495,7 +503,12 @@ export default function DashboardPage() {
         .gte('updated_at', cutoff) as any
 
       const myPres = data?.find((p: any) => p.user_id === userId)
-      setMyCurrentSpot(myPres ? myPres.location_name : null)
+      const serverSpot = myPres ? myPres.location_name : null
+
+      const isRecentlyCheckedIn = checkinTimeRef.current && (Date.now() - checkinTimeRef.current < 5 * 60 * 1000)
+      const activeSpot = serverSpot || (isRecentlyCheckedIn ? myCurrentSpotRef.current : null)
+
+      updateCurrentSpot(activeSpot)
 
       const counts: Record<string, number> = {}
       data?.forEach((p: any) => {
@@ -503,10 +516,13 @@ export default function DashboardPage() {
           counts[p.location_name] = (counts[p.location_name] || 0) + 1
         }
       })
+      if (activeSpot && (!counts[activeSpot] || counts[activeSpot] === 0)) {
+        counts[activeSpot] = 1
+      }
       setSpotCounts(counts)
 
-      if (myPres && myPres.location_name) {
-        fetchCheckedInUsers(userId, myPres.location_name)
+      if (activeSpot) {
+        fetchCheckedInUsers(userId, activeSpot)
       } else {
         setCheckedUsers([])
       }
@@ -518,9 +534,16 @@ export default function DashboardPage() {
   // Spots check-in toggle check-in
   const toggleSpotCheckin = async (spotName: string) => {
     if (!uid) return
-    const isCheckingOut = myCurrentSpot === spotName
+    const isCheckingOut = myCurrentSpotRef.current === spotName
     const nextSpot = isCheckingOut ? null : spotName
-    setMyCurrentSpot(nextSpot)
+
+    if (nextSpot) {
+      checkinTimeRef.current = Date.now()
+    } else {
+      checkinTimeRef.current = null
+    }
+
+    updateCurrentSpot(nextSpot)
 
     try {
       await upsertPresence(uid, gpsLat, gpsLng, nextSpot)
@@ -1168,7 +1191,7 @@ export default function DashboardPage() {
                         <div className="spot-name">{spot.name}</div>
                         <div className="spot-count">{count === 1 ? "1 student here" : `${count} students here`}</div>
                       </div>
-                      <button className="spot-btn">
+                      <button className="spot-btn" onClick={(e) => { e.stopPropagation(); toggleSpotCheckin(spot.name); }}>
                         {isHere ? "Check-out ✕" : "Check-in 📍"}
                       </button>
                     </div>

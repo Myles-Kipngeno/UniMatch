@@ -132,6 +132,8 @@ function ChatPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const matchId = searchParams.get('matchId')
+  const userIdParam = searchParams.get('userId')
+  const userNameParam = searchParams.get('user')
   const supabase = createClient()
   const modal = useModal()
 
@@ -394,17 +396,27 @@ function ChatPageContent() {
     }
   }, [currentUser?.id])
 
-  // 4. Load Active Conversation thread when matchId changes
+  // 4. Load Active Conversation thread when URL parameters change
   useEffect(() => {
-    if (!currentUser || !matchId) {
-      if (!matchId) {
+    const targetMatchId = searchParams.get('matchId')
+    const targetUserId = searchParams.get('userId')
+    const targetUserName = searchParams.get('user')
+
+    if (!currentUser || (!targetMatchId && !targetUserId && !targetUserName)) {
+      if (!targetMatchId && !targetUserId && !targetUserName) {
         setActiveMatch(null)
         setMessages([])
       }
       return
     }
 
-    const found = conversations.find(c => c.id === matchId)
+    const found = conversations.find(c => {
+      if (targetMatchId && c.id === targetMatchId) return true
+      if (targetUserId && c.otherUserId === targetUserId) return true
+      if (targetUserName && c.name.toLowerCase().includes(targetUserName.toLowerCase())) return true
+      return false
+    })
+
     if (found) {
       setActiveMatch(found)
     }
@@ -414,11 +426,21 @@ function ChatPageContent() {
 
       // Fetch match detail & constructed conversation item
       try {
-        const { data: mData } = await supabase
-          .from('matches')
-          .select('*, p1:profiles!matches_user1_id_fkey(*), p2:profiles!matches_user2_id_fkey(*)')
-          .eq('id', matchId!)
-          .single() as any
+        let mData: any = null
+        if (targetMatchId) {
+          const { data } = await supabase
+            .from('matches')
+            .select('*, p1:profiles!matches_user1_id_fkey(*), p2:profiles!matches_user2_id_fkey(*)')
+            .eq('id', targetMatchId)
+            .single() as any
+          mData = data
+        } else if (targetUserId) {
+          const { data } = await supabase
+            .from('matches')
+            .select('*, p1:profiles!matches_user1_id_fkey(*), p2:profiles!matches_user2_id_fkey(*)')
+            .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${targetUserId}),and(user2_id.eq.${currentUser.id},user1_id.eq.${targetUserId})`) as any
+          mData = data && data[0]
+        }
 
         if (mData) {
           const isUser1 = mData.user1_id === currentUser.id
@@ -427,7 +449,7 @@ function ChatPageContent() {
 
           const constructedMatch: ConversationItem = {
             id: mData.id,
-            name: other?.name || 'Match',
+            name: other?.name || targetUserName || 'Match',
             photoUrl: other?.photo_url || DEFAULT_AVATAR,
             campus: other?.campus || null,
             course: other?.course || null,
@@ -436,7 +458,7 @@ function ChatPageContent() {
             lastMessageAt: mData.last_message_at || mData.created_at,
             unreadCount: unread,
             online: Boolean(other?.online),
-            otherUserId: other?.id || '',
+            otherUserId: other?.id || targetUserId || '',
             matchPct: calcMatchPct(mData, other, currentUser),
             bio: other?.bio || null,
             interests: other?.interests || null
@@ -445,7 +467,7 @@ function ChatPageContent() {
 
           await (supabase.from('matches') as any)
             .update(isUser1 ? { user1_unread: 0 } : { user2_unread: 0 })
-            .eq('id', matchId!)
+            .eq('id', mData.id)
         }
       } catch (e) {
         console.warn("Mark read error:", e)
