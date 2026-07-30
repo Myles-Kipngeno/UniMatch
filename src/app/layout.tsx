@@ -15,17 +15,28 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   interactiveWidget: "resizes-visual",
+  viewportFit: "cover",
+  themeColor: "#0f0e17",
 };
 
 export const metadata: Metadata = {
   title: "UniMatch",
   description: "University Match and Dating Web App",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/favicon.ico" }
     ],
+    apple: [
+      { url: "/Unimatch_icon.png" }
+    ]
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "UniMatch"
+  }
 };
 
 export default function RootLayout({
