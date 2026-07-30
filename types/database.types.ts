@@ -504,6 +504,7 @@ export type Database = {
           gender: string | null
           id: string
           interests: string[] | null
+          is_banned: boolean | null
           languages: string[] | null
           last_seen: string | null
           lifestyle: string[] | null
@@ -515,6 +516,7 @@ export type Database = {
           profile_complete: boolean | null
           prompts: Json | null
           relationship_goals: string | null
+          role: string | null
           university: string | null
           updated_at: string | null
           verified: boolean | null
@@ -532,6 +534,7 @@ export type Database = {
           gender?: string | null
           id: string
           interests?: string[] | null
+          is_banned?: boolean | null
           languages?: string[] | null
           last_seen?: string | null
           lifestyle?: string[] | null
@@ -543,6 +546,7 @@ export type Database = {
           profile_complete?: boolean | null
           prompts?: Json | null
           relationship_goals?: string | null
+          role?: string | null
           university?: string | null
           updated_at?: string | null
           verified?: boolean | null
@@ -560,6 +564,7 @@ export type Database = {
           gender?: string | null
           id?: string
           interests?: string[] | null
+          is_banned?: boolean | null
           languages?: string[] | null
           last_seen?: string | null
           lifestyle?: string[] | null
@@ -571,6 +576,7 @@ export type Database = {
           profile_complete?: boolean | null
           prompts?: Json | null
           relationship_goals?: string | null
+          role?: string | null
           university?: string | null
           updated_at?: string | null
           verified?: boolean | null

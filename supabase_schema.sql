@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   languages TEXT[] DEFAULT '{}',
   prompts JSONB DEFAULT '{}'::jsonb,
   interests TEXT[] DEFAULT '{}',
+  role TEXT DEFAULT 'user',
+  is_banned BOOLEAN DEFAULT FALSE,
   profile_complete BOOLEAN DEFAULT FALSE,
   email_verified BOOLEAN DEFAULT FALSE,
   verified BOOLEAN DEFAULT FALSE,
@@ -520,8 +522,18 @@ CREATE POLICY "Users insert own blocked" ON public.blocked_users FOR INSERT WITH
 
 -- Reports Policies
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Users insert reports" ON public.reports;
-CREATE POLICY "Users insert reports" ON public.reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Allow all reports insert" ON public.reports;
+CREATE POLICY "Allow all reports insert" ON public.reports FOR INSERT TO public WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated users view reports" ON public.reports;
+DROP POLICY IF EXISTS "Allow all reports select" ON public.reports;
+CREATE POLICY "Allow all reports select" ON public.reports FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users update reports" ON public.reports;
+DROP POLICY IF EXISTS "Allow all reports update" ON public.reports;
+CREATE POLICY "Allow all reports update" ON public.reports FOR UPDATE TO public USING (true);
 
 -- STORAGE BUCKETS SETUP --
 INSERT INTO storage.buckets (id, name, public) VALUES ('profile-images', 'profile-images', true) ON CONFLICT DO NOTHING;

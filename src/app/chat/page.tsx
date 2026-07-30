@@ -1265,18 +1265,48 @@ function ChatPageContent() {
     setSubmittingReport(true)
 
     try {
-      const { error } = await (supabase.from('reports') as any).insert({
-        reporter_id: currentUser.id,
-        reported_id: activeMatch.otherUserId,
-        reason: reportReason,
-        details: reportDetails.trim(),
-        status: 'pending'
+      const { data: { user } } = await supabase.auth.getUser()
+      const currentUserId = user?.id || currentUser.id
+
+      let targetUserId = activeMatch.otherUserId
+      if ((!targetUserId || targetUserId === '') && matchId) {
+        const { data: matchRow } = await supabase
+          .from('matches')
+          .select('user1_id, user2_id')
+          .eq('id', matchId)
+          .single() as any
+        if (matchRow) {
+          targetUserId = matchRow.user1_id === currentUserId ? matchRow.user2_id : matchRow.user1_id
+        }
+      }
+
+      if (!targetUserId) {
+        modal.toast("Could not identify the user being reported. Please try again.", "error")
+        return
+      }
+
+      // Retrieve active auth session token
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token
+
+      // Submit via Server API Route (Bypasses Client RLS)
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+        },
+        body: JSON.stringify({
+          reporter_id: currentUserId,
+          reported_id: targetUserId,
+          reason: reportReason,
+          details: reportDetails.trim() || null
+        })
       })
 
-      if (error) {
-        console.error("Report submit error:", error)
-        modal.toast("Failed to submit report. Please try again.", "error")
-        return
+      const json = await res.json()
+      if (!res.ok || json.error) {
+        throw new Error(json.error || 'Failed to submit report')
       }
 
       modal.alert({
@@ -1286,7 +1316,7 @@ function ChatPageContent() {
       })
       setReportModalOpen(false)
       setReportDetails('')
-    } catch (e) {
+    } catch (e: any) {
       console.error("Report submit error:", e)
       modal.toast("Failed to submit report. Please try again.", "error")
     } finally {
