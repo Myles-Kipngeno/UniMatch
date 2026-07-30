@@ -191,6 +191,7 @@ function ChatPageContent() {
   const [msgContextMenu, setMsgContextMenu] = useState<{ x: number; y: number; message: any } | null>(null)
 
   // DOM Refs
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatMenuRef = useRef<HTMLDivElement>(null)
   const chatMenuTriggerRef = useRef<HTMLButtonElement>(null)
@@ -200,6 +201,78 @@ function ChatPageContent() {
   const attachMenuRef = useRef<HTMLDivElement | null>(null)
   const photoInputRef = useRef<HTMLInputElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Scroll to bottom helper
+  const scrollToBottom = (smooth = true) => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      })
+    }
+  }
+
+  // Scroll to bottom when messages list changes
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom(false)
+    }
+  }, [messages.length])
+
+  // Mobile Visual Viewport & Keyboard Stability Handler
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    document.body.classList.add('chat-view-active')
+
+    const updateVisualViewport = () => {
+      if (!window.visualViewport) return
+      const vv = window.visualViewport
+      const height = vv.height
+      const keyboardHeight = Math.max(0, window.innerHeight - height)
+
+      document.documentElement.style.setProperty('--vv-height', `${height}px`)
+      document.documentElement.style.setProperty('--keyboard-height', `${keyboardHeight}px`)
+
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0)
+      }
+    }
+
+    updateVisualViewport()
+
+    const vv = window.visualViewport
+    if (vv) {
+      vv.addEventListener('resize', updateVisualViewport)
+      vv.addEventListener('scroll', updateVisualViewport)
+    }
+
+    const handleWindowScroll = () => {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0)
+      }
+    }
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true })
+
+    return () => {
+      document.body.classList.remove('chat-view-active')
+      if (vv) {
+        vv.removeEventListener('resize', updateVisualViewport)
+        vv.removeEventListener('scroll', updateVisualViewport)
+      }
+      window.removeEventListener('scroll', handleWindowScroll)
+    }
+  }, [activeMatch])
+
+  const handleInputFocus = () => {
+    setTimeout(() => {
+      scrollToBottom(true)
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0)
+      }
+    }, 150)
+  }
 
   // Text Input Emoji & Attachment Menu State
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false)
@@ -635,12 +708,6 @@ function ChatPageContent() {
         }))
       }
     }
-  }
-
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
   }
 
   // Start Voice Recording
@@ -1529,7 +1596,7 @@ function ChatPageContent() {
             )}
 
             {/* Thread Messages */}
-            <div className="messages-container">
+            <div className="messages-container" ref={messagesContainerRef}>
               {messagesLoading ? (
                 <div className="chat-empty-thread">
                   <p>Loading messages thread…</p>
@@ -1860,6 +1927,7 @@ function ChatPageContent() {
                       placeholder="Type a message…"
                       value={inputText}
                       onChange={e => setInputText(e.target.value)}
+                      onFocus={handleInputFocus}
                       onKeyDown={e => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault()

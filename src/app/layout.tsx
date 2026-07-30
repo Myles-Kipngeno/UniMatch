@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
@@ -8,6 +8,14 @@ const outfit = Outfit({
   weight: ["300", "400", "500", "600", "700", "800"],
   variable: "--font-outfit",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  interactiveWidget: "resizes-visual",
+};
 
 export const metadata: Metadata = {
   title: "UniMatch",
