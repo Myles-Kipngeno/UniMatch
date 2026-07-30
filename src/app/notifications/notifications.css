@@ -33,12 +33,18 @@
 
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  
+
   --topnav-h: 60px;
   --bottomnav-h: 72px;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 .notifications-page {
   font-family: 'Outfit', sans-serif;
@@ -50,13 +56,25 @@
   width: 100%;
 }
 
-a { text-decoration: none; color: inherit; }
-button { font-family: inherit; cursor: pointer; border: none; background: none; }
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
 
 /* Background Glow */
 .notifications-page::before {
   content: '';
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(ellipse 70% 60% at 50% 0%, rgba(124, 58, 237, 0.18) 0%, transparent 70%),
     #09080f;
@@ -64,18 +82,40 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* TOP NAV */
 .notif-topnav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
   height: var(--topnav-h);
   background: rgba(9, 8, 15, 0.88);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 20px;
 }
 
-.notif-logo { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.logo-text { font-size: 15px; font-weight: 800; color: var(--ink); letter-spacing: -0.4px; }
-.topnav-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+.notif-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.logo-text {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.4px;
+}
+
+.topnav-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
 
 .topnav-right {
   display: flex;
@@ -84,20 +124,34 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 .btn-mark-read {
-  font-size: 12px; font-weight: 600; color: #c084fc;
-  padding: 6px 12px; border-radius: var(--r-full);
-  background: var(--purple-alpha); border: 1px solid rgba(124, 58, 237, 0.3);
+  font-size: 12px;
+  font-weight: 600;
+  color: #c084fc;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  background: var(--purple-alpha);
+  border: 1px solid rgba(124, 58, 237, 0.3);
   transition: all 0.2s;
 }
-.btn-mark-read:hover { background: rgba(124, 58, 237, 0.28); }
+
+.btn-mark-read:hover {
+  background: rgba(124, 58, 237, 0.28);
+}
 
 .btn-clear-feed {
-  font-size: 12px; font-weight: 600; color: #f43f5e;
-  padding: 6px 12px; border-radius: var(--r-full);
-  background: rgba(244, 63, 94, 0.12); border: 1px solid rgba(244, 63, 94, 0.3);
+  font-size: 12px;
+  font-weight: 600;
+  color: #f43f5e;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.3);
   transition: all 0.2s;
 }
-.btn-clear-feed:hover { background: rgba(244, 63, 94, 0.22); }
+
+.btn-clear-feed:hover {
+  background: rgba(244, 63, 94, 0.22);
+}
 
 /* CONTAINER & TABS */
 .notif-container {
@@ -105,29 +159,49 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding-bottom: calc(var(--bottomnav-h) + 30px);
   max-width: 540px;
   margin: 0 auto;
-  padding-left: 16px; padding-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 .notif-tabs {
-  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 16px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 16px;
   scrollbar-width: none;
 }
-.notif-tabs::-webkit-scrollbar { display: none; }
+
+.notif-tabs::-webkit-scrollbar {
+  display: none;
+}
 
 .notif-tab {
-  padding: 8px 18px; border-radius: var(--r-full);
-  background: var(--surface-alpha); border: 1px solid var(--border);
-  color: var(--ink-muted); font-size: 13px; font-weight: 600;
-  white-space: nowrap; transition: all 0.2s var(--spring);
+  padding: 8px 18px;
+  border-radius: var(--r-full);
+  background: var(--surface-alpha);
+  border: 1px solid var(--border);
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.2s var(--spring);
 }
+
 .notif-tab.active {
-  background: var(--purple-alpha); border-color: rgba(124,58,237,0.4);
-  color: #c084fc; font-weight: 700;
+  background: var(--purple-alpha);
+  border-color: rgba(124, 58, 237, 0.4);
+  color: #c084fc;
+  font-weight: 700;
   box-shadow: 0 2px 12px var(--purple-glow);
 }
 
 /* NOTIFICATION FEED */
-.notif-list { display: flex; flex-direction: column; gap: 24px; margin-top: 8px; }
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 8px;
+}
 
 /* STACK WRAPPER & 3D STACKED CARD EFFECT */
 .notif-stack-wrapper {
@@ -176,7 +250,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: #0f172a;
   border-radius: 22px;
   padding: 16px 18px;
-  box-shadow: 
+  box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.38),
     0 2px 8px rgba(0, 0, 0, 0.15);
   display: flex;
@@ -188,7 +262,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .notif-card-stacked:hover {
   transform: translateY(-2px);
-  box-shadow: 
+  box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.45),
     0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -213,7 +287,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   height: 48px;
   border-radius: 14px;
   object-fit: cover;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .notif-avatar-badge {
@@ -228,7 +302,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .notif-icon-box {
@@ -265,7 +339,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   letter-spacing: -0.3px;
 }
 
-.header-right-meta, .sub-right-meta {
+.header-right-meta,
+.sub-right-meta {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -278,7 +353,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   white-space: nowrap;
 }
 
-.btn-dismiss-item, .btn-dismiss-subitem {
+.btn-dismiss-item,
+.btn-dismiss-subitem {
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -376,8 +452,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .notif-subcard {
@@ -453,44 +536,96 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: rgba(124, 58, 237, 0.22);
 }
 
-.notif-loading, .notif-empty {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 12px; padding: 48px 24px; text-align: center; color: var(--ink-muted);
+.notif-loading,
+.notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--ink-muted);
 }
 
 /* BOTTOM NAVIGATION */
 .bottom-nav {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 300;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 300;
   height: var(--bottomnav-h);
   background: rgba(19, 17, 28, 0.92);
   backdrop-filter: blur(24px);
   border-top: 1px solid var(--border);
-  display: flex; align-items: stretch;
+  display: flex;
+  align-items: stretch;
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
 }
 
 .bn-item {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 4px; padding: 8px 4px;
-  color: var(--ink-muted); text-decoration: none;
-  position: relative; transition: color 0.2s var(--ease), transform 0.2s var(--spring);
-  -webkit-tap-highlight-color: transparent; cursor: pointer;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  position: relative;
+  transition: color 0.2s var(--ease), transform 0.2s var(--spring);
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
-.bn-item:hover { color: var(--purple-soft); }
-.bn-item:active { transform: scale(0.9); }
-.bn-item.active { color: var(--purple-soft); }
+
+.bn-item:hover {
+  color: var(--purple-soft);
+}
+
+.bn-item:active {
+  transform: scale(0.9);
+}
+
+.bn-item.active {
+  color: var(--purple-soft);
+}
 
 .bn-indicator {
-  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-  width: 0; height: 3px; border-radius: 0 0 3px 3px;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
   background: linear-gradient(90deg, var(--purple), var(--rose));
-  transition: width 0.3s var(--spring), opacity 0.3s; opacity: 0;
+  transition: width 0.3s var(--spring), opacity 0.3s;
+  opacity: 0;
 }
-.bn-item.active .bn-indicator { width: 28px; opacity: 1; box-shadow: 0 2px 8px var(--purple-glow); }
-.bn-icon { width: 24px; height: 24px; flex-shrink: 0; transition: transform 0.2s var(--spring); }
-.bn-item.active .bn-icon { transform: scale(1.12); }
-.bn-label { font-size: 10px; font-weight: 600; line-height: 1; }
+
+.bn-item.active .bn-indicator {
+  width: 28px;
+  opacity: 1;
+  box-shadow: 0 2px 8px var(--purple-glow);
+}
+
+.bn-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  transition: transform 0.2s var(--spring);
+}
+
+.bn-item.active .bn-icon {
+  transform: scale(1.12);
+}
+
+.bn-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
 
 @media (min-width: 769px) {
   .bottom-nav {
@@ -531,5 +666,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     color: var(--purple-soft);
   }
 
-  .bn-indicator { display: none !important; }
+  .bn-indicator {
+    display: none !important;
+  }
 }

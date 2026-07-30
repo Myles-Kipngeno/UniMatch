@@ -100,12 +100,12 @@ function InlineAudioPlayer({ audioUrl }: { audioUrl: string }) {
       <button type="button" className="btn-audio-play" onClick={togglePlay}>
         {isPlaying ? (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16" rx="1"/>
-            <rect x="14" y="4" width="4" height="16" rx="1"/>
+            <rect x="6" y="4" width="4" height="16" rx="1" />
+            <rect x="14" y="4" width="4" height="16" rx="1" />
           </svg>
         ) : (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="5 3 19 12 5 21 5 3"/>
+            <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         )}
       </button>
@@ -158,7 +158,7 @@ function ChatPageContent() {
       try {
         const stored = localStorage.getItem('recent_emojis')
         if (stored) return JSON.parse(stored)
-      } catch (e) {}
+      } catch (e) { }
     }
     return ['👍', '❤️', '😂', '🔥', '✨', '😊', '🎉', '🙌']
   })
@@ -591,7 +591,7 @@ function ChatPageContent() {
     // Update recent emojis
     setRecentEmojis(prev => {
       const updated = [emoji, ...prev.filter(e => e !== emoji)].slice(0, 30)
-      try { localStorage.setItem('recent_emojis', JSON.stringify(updated)) } catch (e) {}
+      try { localStorage.setItem('recent_emojis', JSON.stringify(updated)) } catch (e) { }
       return updated
     })
 
@@ -1293,8 +1293,8 @@ function ChatPageContent() {
           <div className="chat-search-wrap">
             <div className="chat-search-box">
               <svg className="chat-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <input
                 type="text"
@@ -1416,8 +1416,8 @@ function ChatPageContent() {
                     title="Delete selected messages"
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
                   </button>
                 </div>
@@ -1431,7 +1431,7 @@ function ChatPageContent() {
                     title="Back to conversations"
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M19 12H5M12 19l-7-7 7-7"/>
+                      <path d="M19 12H5M12 19l-7-7 7-7" />
                     </svg>
                   </button>
 
@@ -1454,9 +1454,9 @@ function ChatPageContent() {
                     title="More options"
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                      <circle cx="12" cy="5" r="2.2"/>
-                      <circle cx="12" cy="12" r="2.2"/>
-                      <circle cx="12" cy="19" r="2.2"/>
+                      <circle cx="12" cy="5" r="2.2" />
+                      <circle cx="12" cy="12" r="2.2" />
+                      <circle cx="12" cy="19" r="2.2" />
                     </svg>
                   </button>
 
@@ -1464,7 +1464,7 @@ function ChatPageContent() {
                     <div ref={chatMenuRef} className="chat-menu">
                       <button className="menu-item" onClick={handleViewProfile}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
                         </svg>
                         <span>View Profile</span>
                       </button>
@@ -1473,14 +1473,14 @@ function ChatPageContent() {
                         {isMuted ? (
                           <>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><line x1="1" y1="1" x2="23" y2="23"/>
+                              <path d="M13.73 21a2 2 0 0 1-3.46 0" /><path d="M18.63 13A17.89 17.89 0 0 1 18 8" /><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" /><line x1="1" y1="1" x2="23" y2="23" />
                             </svg>
                             <span>Unmute Notifications</span>
                           </>
                         ) : (
                           <>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
                             </svg>
                             <span>Mute Notifications</span>
                           </>
@@ -1489,7 +1489,7 @@ function ChatPageContent() {
 
                       <button className="menu-item" onClick={handleClearChat}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                          <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                         </svg>
                         <span>Clear Chat</span>
                       </button>
@@ -1502,7 +1502,7 @@ function ChatPageContent() {
                         }}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
+                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />
                         </svg>
                         <span>Report User</span>
                       </button>
@@ -1511,14 +1511,14 @@ function ChatPageContent() {
 
                       <button className="menu-item danger" onClick={handleUnmatch}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/>
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="18" y1="8" x2="23" y2="13" /><line x1="23" y1="8" x2="18" y2="13" />
                         </svg>
                         <span>Unmatch</span>
                       </button>
 
                       <button className="menu-item danger" onClick={handleBlockUser}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                          <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
                         </svg>
                         <span>Block User</span>
                       </button>
@@ -1566,7 +1566,7 @@ function ChatPageContent() {
                         <div className={`select-checkbox ${isSelected ? 'checked' : ''}`}>
                           {isSelected && (
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12"/>
+                              <polyline points="20 6 9 17 4 12" />
                             </svg>
                           )}
                         </div>
@@ -1722,7 +1722,7 @@ function ChatPageContent() {
                     }}
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>
+                      <polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" />
                     </svg>
                     <span>Reply</span>
                   </button>
@@ -1738,7 +1738,7 @@ function ChatPageContent() {
                   }}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    <polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                   </svg>
                   <span>Select Message</span>
                 </button>
@@ -1750,7 +1750,7 @@ function ChatPageContent() {
                     onClick={() => handleSoftDeleteMessage(msgContextMenu.message)}
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
                     <span>Delete</span>
                   </button>
@@ -1775,8 +1775,8 @@ function ChatPageContent() {
                     title="Cancel reply"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </button>
                 </div>
@@ -1813,8 +1813,8 @@ function ChatPageContent() {
                         title="Send voice message"
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <line x1="22" y1="2" x2="11" y2="13"/>
-                          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
                         </svg>
                       </button>
                     </div>
@@ -1845,10 +1845,10 @@ function ChatPageContent() {
                       title="Insert emoji"
                     >
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
-                        <line x1="9" y1="9" x2="9.01" y2="9"/>
-                        <line x1="15" y1="9" x2="15.01" y2="9"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                        <line x1="9" y1="9" x2="9.01" y2="9" />
+                        <line x1="15" y1="9" x2="15.01" y2="9" />
                       </svg>
                     </button>
 
@@ -1876,10 +1876,10 @@ function ChatPageContent() {
                       title="Record voice message"
                     >
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <line x1="12" y1="19" x2="12" y2="23"/>
-                        <line x1="8" y1="23" x2="16" y2="23"/>
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" y1="19" x2="12" y2="23" />
+                        <line x1="8" y1="23" x2="16" y2="23" />
                       </svg>
                     </button>
 
@@ -1891,9 +1891,9 @@ function ChatPageContent() {
                       title="Attach Photo, Video or File"
                     >
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <circle cx="8.5" cy="8.5" r="1.5"/>
-                        <polyline points="21 15 16 10 5 21"/>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
                       </svg>
                     </button>
 
@@ -1909,8 +1909,8 @@ function ChatPageContent() {
                       title="Send message"
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="22" y1="2" x2="11" y2="13"/>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
                       </svg>
                     </button>
                   </form>
@@ -1922,7 +1922,7 @@ function ChatPageContent() {
           <div className="chat-desktop-empty">
             <div className="chat-desktop-empty-icon">
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </div>
             <h3 className="chat-desktop-empty-title">Your Messages</h3>
@@ -1932,69 +1932,69 @@ function ChatPageContent() {
           </div>
         )}
       </div>
-        {showFullPickerForMsgId && (
-          <div className="reaction-picker-overlay" onClick={() => setShowFullPickerForMsgId(null)}>
-            <div id="reactionPicker" className="reaction-picker-card" onClick={e => e.stopPropagation()}>
-              <div className="picker-header">
-                <span className="picker-title">Choose Reaction</span>
-                <button className="picker-close-btn" onClick={() => setShowFullPickerForMsgId(null)}>✕</button>
-              </div>
+      {showFullPickerForMsgId && (
+        <div className="reaction-picker-overlay" onClick={() => setShowFullPickerForMsgId(null)}>
+          <div id="reactionPicker" className="reaction-picker-card" onClick={e => e.stopPropagation()}>
+            <div className="picker-header">
+              <span className="picker-title">Choose Reaction</span>
+              <button className="picker-close-btn" onClick={() => setShowFullPickerForMsgId(null)}>✕</button>
+            </div>
 
-              <div className="picker-search-bar">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search emoji..."
-                  value={emojiSearch}
-                  onChange={e => setEmojiSearch(e.target.value)}
-                />
-                {emojiSearch && (
-                  <button className="search-clear-btn" onClick={() => setEmojiSearch('')}>✕</button>
-                )}
-              </div>
+            <div className="picker-search-bar">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search emoji..."
+                value={emojiSearch}
+                onChange={e => setEmojiSearch(e.target.value)}
+              />
+              {emojiSearch && (
+                <button className="search-clear-btn" onClick={() => setEmojiSearch('')}>✕</button>
+              )}
+            </div>
 
-              {/* Categories Tab Bar */}
-              <div className="picker-categories-bar">
-                {EMOJI_CATEGORIES.map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    className={`category-tab ${activeEmojiCategory === cat.id && !emojiSearch ? 'active' : ''}`}
-                    onClick={() => {
-                      setActiveEmojiCategory(cat.id)
-                      setEmojiSearch('')
-                    }}
-                    title={cat.name}
-                  >
-                    {cat.icon}
-                  </button>
-                ))}
-              </div>
+            {/* Categories Tab Bar */}
+            <div className="picker-categories-bar">
+              {EMOJI_CATEGORIES.map(cat => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`category-tab ${activeEmojiCategory === cat.id && !emojiSearch ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveEmojiCategory(cat.id)
+                    setEmojiSearch('')
+                  }}
+                  title={cat.name}
+                >
+                  {cat.icon}
+                </button>
+              ))}
+            </div>
 
-              {/* Emoji Grid */}
-              <div className="picker-emoji-grid">
-                {(emojiSearch.trim()
-                  ? Object.values(EMOJI_DATA).flat().filter(e => e.includes(emojiSearch))
-                  : (activeEmojiCategory === 'recent' ? recentEmojis : (EMOJI_DATA[activeEmojiCategory] || []))
-                ).map((emoji, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className="emoji-grid-btn"
-                    onClick={() => {
-                      handleToggleReaction(showFullPickerForMsgId, emoji)
-                      setShowFullPickerForMsgId(null)
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+            {/* Emoji Grid */}
+            <div className="picker-emoji-grid">
+              {(emojiSearch.trim()
+                ? Object.values(EMOJI_DATA).flat().filter(e => e.includes(emojiSearch))
+                : (activeEmojiCategory === 'recent' ? recentEmojis : (EMOJI_DATA[activeEmojiCategory] || []))
+              ).map((emoji, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="emoji-grid-btn"
+                  onClick={() => {
+                    handleToggleReaction(showFullPickerForMsgId, emoji)
+                    setShowFullPickerForMsgId(null)
+                  }}
+                >
+                  {emoji}
+                </button>
+              ))}
             </div>
           </div>
-        )}
+        </div>
+      )}
       {/* Report User Modal */}
       {reportModalOpen && (
         <div className="report-modal-overlay" onClick={() => setReportModalOpen(false)}>

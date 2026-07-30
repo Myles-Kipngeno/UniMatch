@@ -214,7 +214,7 @@ export default function MatchesPage() {
               Send Wave 👋
             </button>
             <Link href={`/profile?id=${m.otherUserId}`} className="mp-btn-ghost">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
               View Profile
             </Link>
           </div>
@@ -253,7 +253,7 @@ export default function MatchesPage() {
           <div className="mp-detail-topbar">
             <button className="mp-back-btn" onClick={() => setShowDetail(false)}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M19 12H5M12 5l-7 7 7 7"/>
+                <path d="M19 12H5M12 5l-7 7 7 7" />
               </svg>
             </button>
             <span className="mp-detail-topbar-title">Match 💕</span>
@@ -278,7 +278,7 @@ export default function MatchesPage() {
         <div className="mp-search-row">
           <div className="mp-search-wrap">
             <svg className="mp-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               type="text"
@@ -290,7 +290,7 @@ export default function MatchesPage() {
           </div>
           <button className="mp-filter-btn" title="Filter">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+              <line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" />
             </svg>
           </button>
         </div>
