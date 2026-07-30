@@ -32,6 +32,28 @@ export const metadata: Metadata = {
       { url: "/Unimatch_icon.png" }
     ]
   },
+  openGraph: {
+    title: "UniMatch",
+    description: "University Match and Dating Web App for Students",
+    url: "https://uni-match-one.vercel.app",
+    siteName: "UniMatch",
+    images: [
+      {
+        url: "/Unimatch_icon.png",
+        width: 1200,
+        height: 630,
+        alt: "UniMatch Logo"
+      }
+    ],
+    locale: "en_US",
+    type: "website"
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "UniMatch",
+    description: "University Match and Dating Web App for Students",
+    images: ["/Unimatch_icon.png"]
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
