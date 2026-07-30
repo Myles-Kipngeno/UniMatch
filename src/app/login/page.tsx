@@ -41,9 +41,10 @@ export default function LoginPage() {
       })
 
       if (loginError) {
-        if (loginError.message.toLowerCase().includes('email not confirmed')) {
+        const msg = loginError.message.toLowerCase()
+        if (msg.includes('email not confirmed') || msg.includes('confirm') || msg.includes('unverified')) {
           setUnverifiedEmail(trimmedEmail)
-          setError('Email not confirmed. Please verify your email first.')
+          setError('Email not confirmed. Please check your inbox or click resend below.')
         } else {
           setError(loginError.message)
         }

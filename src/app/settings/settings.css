@@ -109,6 +109,21 @@
   gap: 24px;
 }
 
+/* Responsive Desktop & Widescreen Sidebar Clearance */
+@media (min-width: 769px) {
+  .settings-page .settings-nav {
+    padding-left: 136px;
+    padding-right: 32px;
+  }
+
+  .settings-page .settings-container {
+    padding-left: 136px;
+    padding-right: 32px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+}
+
 /* Section Cards */
 .settings-page .settings-section {
   background: var(--surface-alpha);

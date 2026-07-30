@@ -180,6 +180,7 @@ function ChatPageContent() {
   // Menu & Report & Media Gallery State
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileModalUser, setProfileModalUser] = useState<any>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportReason, setReportReason] = useState('Harassment')
@@ -1148,9 +1149,40 @@ function ChatPageContent() {
   }
 
   // View Profile Action
-  const handleViewProfile = () => {
+  const handleViewProfile = async () => {
     setIsMenuOpen(false)
+    if (!activeMatch) return
+
+    setProfileModalUser(activeMatch)
     setShowProfileModal(true)
+
+    if (activeMatch.otherUserId) {
+      try {
+        const { data: p } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', activeMatch.otherUserId)
+          .single() as any
+
+        if (p) {
+          const freshUser = {
+            ...activeMatch,
+            name: p.name || activeMatch.name,
+            photoUrl: p.photo_url || activeMatch.photoUrl || DEFAULT_AVATAR,
+            bio: p.bio || activeMatch.bio || null,
+            interests: p.interests || activeMatch.interests || [],
+            campus: p.campus || activeMatch.campus || null,
+            course: p.course || activeMatch.course || null,
+            age: p.age || activeMatch.age || null,
+            yearOfStudy: p.year_of_study || null
+          }
+          setProfileModalUser(freshUser)
+          setActiveMatch(prev => prev ? { ...prev, photoUrl: freshUser.photoUrl } : prev)
+        }
+      } catch (e) {
+        console.warn("Fetch profile viewer error:", e)
+      }
+    }
   }
 
   // Clear Chat History Action
@@ -1482,8 +1514,6 @@ function ChatPageContent() {
             </div>
           )}
         </div>
-
-        {!activeMatch && <BottomNav activeTab="chat" />}
       </div>
 
       {/* ═══ MAIN COLUMN: ACTIVE CHAT THREAD WORKSPACE OR DESKTOP LANDING ═══ */}
@@ -2134,39 +2164,43 @@ function ChatPageContent() {
       )}
 
       {/* Read-Only Profile Viewer Modal */}
-      {showProfileModal && activeMatch && (
+      {showProfileModal && (profileModalUser || activeMatch) && (
         <div className="report-modal-overlay" onClick={() => setShowProfileModal(false)}>
           <div className="report-modal-card profile-view-card" onClick={e => e.stopPropagation()}>
             <div className="report-modal-header">
-              <h3>{activeMatch.name}'s Profile</h3>
+              <h3>{(profileModalUser || activeMatch).name}'s Profile</h3>
               <button className="report-modal-close" onClick={() => setShowProfileModal(false)}>✕</button>
             </div>
 
             <div className="profile-view-body">
               <div className="profile-view-avatar-wrap">
-                <img src={activeMatch.photoUrl} alt={activeMatch.name} className="profile-view-avatar" />
+                <img
+                  src={(profileModalUser || activeMatch).photoUrl || DEFAULT_AVATAR}
+                  alt={(profileModalUser || activeMatch).name}
+                  className="profile-view-avatar"
+                />
               </div>
 
               <div className="profile-view-info">
                 <h4 style={{ fontSize: '20px', fontWeight: 800, color: 'white', margin: '12px 0 4px' }}>
-                  {activeMatch.name} {activeMatch.age ? `, ${activeMatch.age}` : ''}
+                  {(profileModalUser || activeMatch).name} {(profileModalUser || activeMatch).age ? `, ${(profileModalUser || activeMatch).age}` : ''}
                 </h4>
                 <p style={{ fontSize: '13.5px', color: '#a855f7', fontWeight: 600, marginBottom: '12px' }}>
-                  {[activeMatch.course, activeMatch.campus].filter(Boolean).join(' • ') || 'UniMatch Student'}
+                  {[(profileModalUser || activeMatch).course, (profileModalUser || activeMatch).campus].filter(Boolean).join(' • ') || 'UniMatch Student'}
                 </p>
 
-                {activeMatch.bio && (
+                {(profileModalUser || activeMatch).bio && (
                   <div style={{ marginTop: '12px', textAlign: 'left', background: 'rgba(255, 255, 255, 0.04)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
                     <h5 style={{ fontSize: '12px', color: '#8b7fa8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>About</h5>
-                    <p style={{ fontSize: '14px', color: '#e2d8f3', lineHeight: 1.5 }}>{activeMatch.bio}</p>
+                    <p style={{ fontSize: '14px', color: '#e2d8f3', lineHeight: 1.5 }}>{(profileModalUser || activeMatch).bio}</p>
                   </div>
                 )}
 
-                {activeMatch.interests && activeMatch.interests.length > 0 && (
+                {(profileModalUser || activeMatch).interests && (profileModalUser || activeMatch).interests.length > 0 && (
                   <div style={{ marginTop: '12px', textAlign: 'left' }}>
                     <h5 style={{ fontSize: '12px', color: '#8b7fa8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Interests</h5>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {activeMatch.interests.map((tag: string, idx: number) => (
+                      {(profileModalUser || activeMatch).interests.map((tag: string, idx: number) => (
                         <span key={idx} style={{ padding: '4px 10px', borderRadius: '20px', background: 'rgba(168, 85, 247, 0.18)', border: '1px solid rgba(168, 85, 247, 0.35)', color: '#f3e8ff', fontSize: '12px', fontWeight: 600 }}>
                           ✨ {tag}
                         </span>
@@ -2179,6 +2213,9 @@ function ChatPageContent() {
           </div>
         </div>
       )}
+
+      {/* Navigation Sidebar (Always Active Tab: Chat) */}
+      <BottomNav activeTab="chat" />
     </div>
   )
 }

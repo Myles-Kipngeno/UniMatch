@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import './landing.css'
 
 export default function LandingPage() {
   const [isDark, setIsDark] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean | null>(null)
   const navRef = useRef<HTMLElement>(null)
 
-  // Initialize theme from localStorage or system preference
+  // Initialize theme and check active session
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme')
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -21,6 +24,25 @@ export default function LandingPage() {
     } else {
       document.documentElement.classList.remove('dark-theme')
     }
+
+    async function checkAuth() {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          setCurrentUser(user)
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('profile_complete')
+            .eq('id', user.id)
+            .single() as any
+
+          setIsProfileComplete(Boolean(profile?.profile_complete))
+        }
+      } catch (e) { }
+    }
+
+    checkAuth()
   }, [])
 
   const toggleTheme = () => {
@@ -101,8 +123,16 @@ export default function LandingPage() {
             </button>
 
             <div className="nav-buttons">
-              <Link href="/login" className="btn-login">Log In</Link>
-              <Link href="/signup" className="btn-signup">Join Free</Link>
+              {currentUser ? (
+                <Link href={isProfileComplete ? "/dashboard" : "/profile"} className="btn-signup">
+                  {isProfileComplete ? 'Dashboard ➔' : 'Complete Setup ➔'}
+                </Link>
+              ) : (
+                <>
+                  <Link href="/login" className="btn-login">Log In</Link>
+                  <Link href="/signup" className="btn-signup">Join Free</Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -140,8 +170,16 @@ export default function LandingPage() {
           </div>
 
           <div className="mobile-nav-buttons">
-            <Link href="/login" className="btn-login" onClick={() => setMobileMenuOpen(false)}>Log In</Link>
-            <Link href="/signup" className="btn-signup" onClick={() => setMobileMenuOpen(false)}>Join Free</Link>
+            {currentUser ? (
+              <Link href={isProfileComplete ? "/dashboard" : "/profile"} className="btn-signup" onClick={() => setMobileMenuOpen(false)}>
+                {isProfileComplete ? 'Dashboard ➔' : 'Complete Setup ➔'}
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="btn-login" onClick={() => setMobileMenuOpen(false)}>Log In</Link>
+                <Link href="/signup" className="btn-signup" onClick={() => setMobileMenuOpen(false)}>Join Free</Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -170,8 +208,8 @@ export default function LandingPage() {
               Whether it&apos;s love, friendship, or study buddies — it starts here.
             </p>
             <div className="hero-buttons">
-              <Link href="/signup" className="btn-primary" id="ctaHero">
-                <span>Start Matching</span>
+              <Link href={currentUser ? (isProfileComplete ? "/dashboard" : "/profile") : "/signup"} className="btn-primary" id="ctaHero">
+                <span>{currentUser ? (isProfileComplete ? "Go to Dashboard" : "Complete Profile") : "Start Matching"}</span>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                   <path d="M10 3.333l6.667 6.667-6.667 6.667M16.667 10H3.333" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

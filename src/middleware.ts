@@ -58,11 +58,25 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
+
+    // Query user profile completeness
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('profile_complete')
+      .eq('id', user.id)
+      .single() as any
+
+    const isComplete = Boolean(profile && profile.profile_complete === true)
+
+    // Incomplete accounts MUST complete onboarding at /profile before accessing other protected pages
+    if (!isComplete && pathname !== '/profile') {
+      url.pathname = '/profile'
+      return NextResponse.redirect(url)
+    }
   }
 
   if (isAuthRoute) {
     if (user) {
-      // If a valid session exists, check if profile is complete
       const { data: profile } = await supabase
         .from('profiles')
         .select('profile_complete')
@@ -83,14 +97,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - favicon.svg (user specified favicon)
-     * - files with common extensions (.svg, .png, etc.)
-     */
     '/((?!_next/static|_next/image|favicon.ico|favicon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }
