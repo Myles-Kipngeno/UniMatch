@@ -1451,7 +1451,7 @@ function ChatPageContent() {
           )}
         </div>
 
-        <BottomNav activeTab="chat" />
+        {!activeMatch && <BottomNav activeTab="chat" />}
       </div>
 
       {/* ═══ MAIN COLUMN: ACTIVE CHAT THREAD WORKSPACE OR DESKTOP LANDING ═══ */}

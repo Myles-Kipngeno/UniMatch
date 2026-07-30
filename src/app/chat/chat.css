@@ -1941,6 +1941,15 @@
     display: none !important;
   }
 
+  .chat-page.active-thread-open .bottom-nav,
+  .chat-page.active-thread-open ~ .bottom-nav,
+  body:has(.chat-page.active-thread-open) .bottom-nav {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
   .chat-page.no-active-thread .chat-main-col {
     display: none !important;
   }
