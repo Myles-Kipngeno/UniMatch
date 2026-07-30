@@ -519,6 +519,8 @@ function ChatPageContent() {
           const isUser1 = mData.user1_id === currentUser.id
           const other = isUser1 ? mData.p2 : mData.p1
           const unread = isUser1 ? (mData.user1_unread || 0) : (mData.user2_unread || 0)
+          const mutedState = isUser1 ? Boolean(mData.muted_by_user1) : Boolean(mData.muted_by_user2)
+          setIsMuted(mutedState)
 
           const constructedMatch: ConversationItem = {
             id: mData.id,

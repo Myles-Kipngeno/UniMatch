@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS public.matches (
   last_message_at TIMESTAMPTZ DEFAULT NOW(),
   user1_unread INTEGER DEFAULT 0,
   user2_unread INTEGER DEFAULT 0,
+  muted_by_user1 BOOLEAN DEFAULT FALSE,
+  muted_by_user2 BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user1_id, user2_id),
   CONSTRAINT no_self_match CHECK (user1_id <> user2_id)
@@ -121,13 +123,26 @@ CREATE TABLE IF NOT EXISTS public.messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID REFERENCES public.matches(id) ON DELETE CASCADE,
   sender_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  content TEXT,
   text TEXT,
   image_url TEXT,
   file_url TEXT,
   file_name TEXT,
   audio_url TEXT,
+  reply_to_id UUID REFERENCES public.messages(id) ON DELETE SET NULL,
+  is_deleted BOOLEAN DEFAULT FALSE,
   is_read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ── 10B. MESSAGE_REACTIONS TABLE ──
+CREATE TABLE IF NOT EXISTS public.message_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID REFERENCES public.messages(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  emoji TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(message_id, user_id, emoji)
 );
 
 -- ── 11. MESSAGE_ATTACHMENTS TABLE ──
@@ -417,6 +432,9 @@ CREATE POLICY "Select own matches" ON public.matches FOR SELECT USING (auth.uid(
 DROP POLICY IF EXISTS "Update own matches" ON public.matches;
 CREATE POLICY "Update own matches" ON public.matches FOR UPDATE USING (auth.uid() = user1_id OR auth.uid() = user2_id);
 
+DROP POLICY IF EXISTS "Delete own matches" ON public.matches;
+CREATE POLICY "Delete own matches" ON public.matches FOR DELETE USING (auth.uid() = user1_id OR auth.uid() = user2_id);
+
 -- Messages Policies
 DROP POLICY IF EXISTS "Select match messages" ON public.messages;
 CREATE POLICY "Select match messages" ON public.messages FOR SELECT USING (
@@ -428,6 +446,32 @@ CREATE POLICY "Insert match messages" ON public.messages FOR INSERT WITH CHECK (
   auth.uid() = sender_id AND
   EXISTS (SELECT 1 FROM public.matches WHERE id = match_id AND (user1_id = auth.uid() OR user2_id = auth.uid()))
 );
+
+DROP POLICY IF EXISTS "Update match messages" ON public.messages;
+CREATE POLICY "Update match messages" ON public.messages FOR UPDATE USING (
+  auth.uid() = sender_id OR
+  EXISTS (SELECT 1 FROM public.matches WHERE id = match_id AND (user1_id = auth.uid() OR user2_id = auth.uid()))
+);
+
+DROP POLICY IF EXISTS "Delete match messages" ON public.messages;
+CREATE POLICY "Delete match messages" ON public.messages FOR DELETE USING (
+  EXISTS (SELECT 1 FROM public.matches WHERE id = match_id AND (user1_id = auth.uid() OR user2_id = auth.uid()))
+);
+
+-- Message Reactions Policies
+ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Select reactions" ON public.message_reactions;
+CREATE POLICY "Select reactions" ON public.message_reactions FOR SELECT USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Insert own reactions" ON public.message_reactions;
+CREATE POLICY "Insert own reactions" ON public.message_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Update own reactions" ON public.message_reactions;
+CREATE POLICY "Update own reactions" ON public.message_reactions FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Delete own reactions" ON public.message_reactions;
+CREATE POLICY "Delete own reactions" ON public.message_reactions FOR DELETE USING (auth.uid() = user_id);
 
 -- Notifications Policies
 DROP POLICY IF EXISTS "Select own notifications" ON public.notifications;

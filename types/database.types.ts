@@ -145,6 +145,8 @@ export type Database = {
           id: string
           last_message: string | null
           last_message_at: string | null
+          muted_by_user1: boolean | null
+          muted_by_user2: boolean | null
           user1_id: string | null
           user1_unread: number | null
           user2_id: string | null
@@ -155,6 +157,8 @@ export type Database = {
           id?: string
           last_message?: string | null
           last_message_at?: string | null
+          muted_by_user1?: boolean | null
+          muted_by_user2?: boolean | null
           user1_id?: string | null
           user1_unread?: number | null
           user2_id?: string | null
@@ -165,6 +169,8 @@ export type Database = {
           id?: string
           last_message?: string | null
           last_message_at?: string | null
+          muted_by_user1?: boolean | null
+          muted_by_user2?: boolean | null
           user1_id?: string | null
           user1_unread?: number | null
           user2_id?: string | null
