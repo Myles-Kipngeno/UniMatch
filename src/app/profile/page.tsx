@@ -325,24 +325,16 @@ function ProfileFormContent() {
         <div className="card">
 
           {isOtherUser && (
-            <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <button
                 onClick={() => router.back()}
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  color: 'white',
-                  borderRadius: '10px',
-                  padding: '8px 16px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
+                className="compact-back-btn"
+                title="Go back"
               >
-                ← Back
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 5l-7 7 7 7" />
+                </svg>
+                <span>Back</span>
               </button>
             </div>
           )}
@@ -386,9 +378,9 @@ function ProfileFormContent() {
           )}
 
           <div className="header">
-            <h2>💖 UniMatch</h2>
+            <h2>💖 {isOtherUser ? name || 'Student' : 'UniMatch'}</h2>
             <p className="subtitle" id="pageSubtitle">
-              {isOtherUser ? `${name || 'User'}'s Profile` : (showTabs ? 'Manage your dating profile & photos' : 'Create your profile')}
+              {isOtherUser ? 'UniMatch Student Profile' : (showTabs ? 'Manage your dating profile & photos' : 'Create your profile')}
             </p>
           </div>
 
@@ -412,8 +404,8 @@ function ProfileFormContent() {
             </div>
           )}
 
-          {/* Onboarding Progress Bar */}
-          {!showTabs && (
+          {/* Onboarding Progress Bar (Only shown during self-onboarding) */}
+          {!showTabs && !isOtherUser && (
             <div className="onboarding-progress">
               <div className="progress-steps">
                 <span className={`step-dot ${currentStep >= 1 ? 'active' : ''}`}>1</span>
@@ -460,6 +452,45 @@ function ProfileFormContent() {
                     })}
                   </div>
                 </div>
+
+                {/* Own Profile Photo Upload CTA */}
+                {!isOtherUser && (
+                  <div className="preview-media-cta" style={{ marginTop: '20px', padding: '16px', borderRadius: '16px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #ff4b72, #ff758c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                        📸
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '15px', color: '#fff', fontWeight: 600 }}>My Media & Photo Gallery</h4>
+                        <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)' }}>Upload multiple photos & videos to your profile</p>
+                      </div>
+                    </div>
+                    <Link href="/upload-photos" className="save-btn" style={{ margin: 0, padding: '10px 18px', fontSize: '14px', borderRadius: '10px', textDecoration: 'none' }}>
+                      <span>Manage Gallery →</span>
+                    </Link>
+                  </div>
+                )}
+
+                {/* Other User Action Buttons */}
+                {isOtherUser && (
+                  <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <button
+                      className="save-btn"
+                      style={{ margin: 0 }}
+                      onClick={() => router.push(`/chat?userId=${viewUserIdParam}&user=${encodeURIComponent(name)}`)}
+                    >
+                      <span>💬 Message {name.split(' ')[0]}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-prev"
+                      style={{ width: '100%', padding: '12px', borderRadius: '50px', fontWeight: 600, fontSize: '14px', cursor: 'pointer' }}
+                      onClick={() => router.push(`/chat?userId=${viewUserIdParam}&prefill=Wave%20👋`)}
+                    >
+                      👋 Send Wave
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -594,8 +625,8 @@ function ProfileFormContent() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Profile Photo</label>
-                      <div className="photo-section" style={{ marginTop: '0.5rem' }}>
+                      <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo</label>
+                      <div className="photo-section" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
                         <div className="photo-container">
                           <img
                             id="profilePreview"
@@ -605,8 +636,8 @@ function ProfileFormContent() {
                           <div className="photo-overlay">
                             <label className="upload-label">
                               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" stroke-width="2"/>
-                                <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/>
+                                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" strokeWidth="2"/>
+                                <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2"/>
                               </svg>
                               <input type="file" accept="image/*" onChange={handlePhotoChange} hidden />
                             </label>
@@ -632,7 +663,7 @@ function ProfileFormContent() {
                     <button type="submit" className="save-btn" disabled={saving}>
                       <span>{saving ? 'Saving...' : 'Finish & Save'}</span>
                       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M7.5 15l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M7.5 15l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     </button>
                   )}
@@ -641,7 +672,7 @@ function ProfileFormContent() {
                 <button type="submit" className="save-btn" style={{ marginTop: '2rem' }} disabled={saving}>
                   <span>{saving ? 'Saving updates...' : 'Save Updates'}</span>
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M7.5 15l5-5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7.5 15l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
               )}
@@ -653,7 +684,7 @@ function ProfileFormContent() {
       </div>
 
       {/* Slanted Nav / Bottom Navigation */}
-      <BottomNav activeTab="profile" />
+      <BottomNav activeTab={isOtherUser ? "" : "profile"} />
     </div>
   )
 }

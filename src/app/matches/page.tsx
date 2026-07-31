@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
+import { useModal } from '@/components/ModalContext'
 import './matches.css'
 
 interface MatchItem {
@@ -30,6 +31,7 @@ interface MatchItem {
 export default function MatchesPage() {
   const router = useRouter()
   const supabase = createClient()
+  const modal = useModal()
 
   const [uid, setUid] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -40,6 +42,7 @@ export default function MatchesPage() {
   const [selectedMatch, setSelectedMatch] = useState<MatchItem | null>(null)
   const [showDetail, setShowDetail] = useState(false)   // mobile detail panel
   const [visibleCount, setVisibleCount] = useState(10)
+  const [activeMenuMatchId, setActiveMenuMatchId] = useState<string | null>(null)
 
   const calcMatchPct = (m: any, other: any, meProfile: any) => {
     if (m.match_pct) return m.match_pct
@@ -170,18 +173,136 @@ export default function MatchesPage() {
     setShowDetail(true)
   }
 
+  // Match Action Handlers for three dots
+  const handleUnmatch = (match: MatchItem) => {
+    setActiveMenuMatchId(null)
+    modal.confirm({
+      title: `Unmatch ${match.name}?`,
+      message: `Are you sure you want to unmatch with ${match.name}? Your chat conversation will be removed.`,
+      confirmText: 'Unmatch',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('matches')
+            .delete()
+            .eq('id', match.id)
+          if (error) throw error
+          modal.toast(`Unmatched with ${match.name}`, 'info')
+          setMatches(prev => prev.filter(m => m.id !== match.id))
+          setSelectedMatch(prev => prev?.id === match.id ? null : prev)
+          setShowDetail(false)
+        } catch (err: any) {
+          console.error('Unmatch error:', err)
+          modal.toast('Failed to unmatch. Please try again.', 'error')
+        }
+      }
+    })
+  }
+
+  const handleReport = (match: MatchItem) => {
+    setActiveMenuMatchId(null)
+    modal.confirm({
+      title: `Report ${match.name}`,
+      message: `Are you reporting ${match.name} for inappropriate content or behavior? Our moderation team will review this report.`,
+      confirmText: 'Submit Report',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reporter_id: uid,
+              reported_id: match.otherUserId,
+              reason: 'Inappropriate Content or Profile',
+              details: `Reported from Matches page for ${match.name}`
+            })
+          })
+          if (res.ok) {
+            modal.toast(`Report submitted for ${match.name}. Thank you!`, 'success')
+          } else {
+            throw new Error('Report request failed')
+          }
+        } catch (err: any) {
+          console.error('Report error:', err)
+          modal.toast('Failed to submit report.', 'error')
+        }
+      }
+    })
+  }
+
+  const handleBlock = (match: MatchItem) => {
+    setActiveMenuMatchId(null)
+    modal.confirm({
+      title: `Block ${match.name}?`,
+      message: `Blocking will hide ${match.name}'s profile and unmatch you automatically.`,
+      confirmText: 'Block User',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await supabase.from('blocks' as any).insert({
+            blocker_id: uid,
+            blocked_id: match.otherUserId
+          }).catch(() => {})
+          await supabase.from('matches').delete().eq('id', match.id)
+          modal.toast(`${match.name} has been blocked.`, 'info')
+          setMatches(prev => prev.filter(m => m.id !== match.id))
+          setSelectedMatch(prev => prev?.id === match.id ? null : prev)
+          setShowDetail(false)
+        } catch (err: any) {
+          console.error('Block error:', err)
+          modal.toast('Failed to block user.', 'error')
+        }
+      }
+    })
+  }
+
   // Profile detail panel (used on both desktop sidebar and mobile full-screen)
   const ProfileDetail = ({ m }: { m: MatchItem }) => {
     const tags = m.interests?.slice(0, 4) || []
     const extra = Math.max(0, (m.interests?.length || 0) - 4)
     const more = matches.filter(x => x.id !== m.id).slice(0, 6)
+    const isMenuOpen = activeMenuMatchId === m.id
+
     return (
       <div className="mp-detail">
         {/* Photo */}
         <div className="mp-photo-wrap">
           <img src={m.photoUrl} alt={m.name} className="mp-photo" />
           <span className="mp-match-pct">{m.matchPct}% Match</span>
-          <button className="mp-more-btn">···</button>
+          <button
+            className="mp-more-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              setActiveMenuMatchId(prev => prev === m.id ? null : m.id)
+            }}
+            title="Match Options"
+          >
+            ···
+          </button>
+          
+          {isMenuOpen && (
+            <div className="mp-action-dropdown" onClick={(e) => e.stopPropagation()}>
+              <button className="mp-dropdown-item" onClick={() => { setActiveMenuMatchId(null); router.push(`/chat?matchId=${m.id}`); }}>
+                💬 Send Message
+              </button>
+              <button className="mp-dropdown-item" onClick={() => { setActiveMenuMatchId(null); router.push(`/profile?id=${m.otherUserId}`); }}>
+                👤 View Profile
+              </button>
+              <div className="mp-dropdown-divider" />
+              <button className="mp-dropdown-item danger" onClick={() => handleUnmatch(m)}>
+                💔 Unmatch User
+              </button>
+              <button className="mp-dropdown-item danger" onClick={() => handleReport(m)}>
+                🚩 Report Profile
+              </button>
+              <button className="mp-dropdown-item danger" onClick={() => handleBlock(m)}>
+                🚫 Block User
+              </button>
+            </div>
+          )}
+
           <span className="mp-photo-num">1/1</span>
         </div>
 
@@ -210,13 +331,15 @@ export default function MatchesPage() {
             <button className="mp-btn-primary" onClick={() => router.push(`/chat?matchId=${m.id}`)}>
               💬 Send Message
             </button>
-            <button className="mp-btn-outline" onClick={() => router.push(`/chat?matchId=${m.id}&prefill=Wave%20👋`)}>
-              Send Wave 👋
-            </button>
-            <Link href={`/profile?id=${m.otherUserId}`} className="mp-btn-ghost">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-              View Profile
-            </Link>
+            <div className="mp-actions-sub-row">
+              <button className="mp-btn-outline" onClick={() => router.push(`/chat?matchId=${m.id}&prefill=Wave%20👋`)}>
+                Send Wave 👋
+              </button>
+              <Link href={`/profile?id=${m.otherUserId}`} className="mp-btn-ghost">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                <span>View Profile</span>
+              </Link>
+            </div>
           </div>
 
           {/* More Matches */}
@@ -244,7 +367,7 @@ export default function MatchesPage() {
   }
 
   return (
-    <div className="mp-root">
+    <div className="mp-root" onClick={() => setActiveMenuMatchId(null)}>
 
       {/* ── Mobile Full-Screen Detail Overlay ── */}
       {showDetail && selectedMatch && (
@@ -257,7 +380,15 @@ export default function MatchesPage() {
               </svg>
             </button>
             <span className="mp-detail-topbar-title">Match 💕</span>
-            <button className="mp-detail-topbar-more">···</button>
+            <button
+              className="mp-detail-topbar-more"
+              onClick={(e) => {
+                e.stopPropagation()
+                setActiveMenuMatchId(prev => prev === selectedMatch.id ? null : selectedMatch.id)
+              }}
+            >
+              ···
+            </button>
           </div>
           <div className="mp-mobile-detail-scroll">
             <ProfileDetail m={selectedMatch} />
