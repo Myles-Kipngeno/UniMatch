@@ -74,6 +74,10 @@ export default function SignupPage() {
     }
 
     try {
+      // Clear any prior active session on this device first
+      sessionStorage.clear()
+      await supabase.auth.signOut()
+
       // 5️⃣ Create user in Supabase Auth
       const { data, error: signUpErr } = await supabase.auth.signUp({
         email: trimmedEmail,

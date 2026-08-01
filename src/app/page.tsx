@@ -38,11 +38,31 @@ export default function LandingPage() {
             .single() as any
 
           setIsProfileComplete(Boolean(profile?.profile_complete))
+        } else {
+          setCurrentUser(null)
+          setIsProfileComplete(null)
         }
-      } catch (e) { }
+      } catch (e) {
+        setCurrentUser(null)
+        setIsProfileComplete(null)
+      }
     }
 
     checkAuth()
+
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setCurrentUser(session.user)
+      } else {
+        setCurrentUser(null)
+        setIsProfileComplete(null)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   const toggleTheme = () => {
@@ -99,6 +119,17 @@ export default function LandingPage() {
     </svg>
   )
 
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      setCurrentUser(null)
+      setIsProfileComplete(null)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const ThemeIcon = () => isDark ? <SunIcon /> : <MoonIcon />
 
   return (
@@ -124,13 +155,16 @@ export default function LandingPage() {
 
             <div className="nav-buttons">
               {currentUser ? (
-                <Link href={isProfileComplete ? "/dashboard" : "/profile"} className="btn-signup">
-                  {isProfileComplete ? 'Dashboard ➔' : 'Complete Setup ➔'}
-                </Link>
+                <>
+                  <Link href={isProfileComplete ? "/dashboard" : "/profile"} className="btn-signup">
+                    {isProfileComplete ? 'Dashboard ➔' : 'Complete Setup ➔'}
+                  </Link>
+                  <button onClick={handleSignOut} className="btn-login">Log Out</button>
+                </>
               ) : (
                 <>
                   <Link href="/login" className="btn-login">Log In</Link>
-                  <Link href="/signup" className="btn-signup">Join Free</Link>
+                  <Link href="/signup" className="btn-signup">Join Now</Link>
                 </>
               )}
             </div>
@@ -171,13 +205,16 @@ export default function LandingPage() {
 
           <div className="mobile-nav-buttons">
             {currentUser ? (
-              <Link href={isProfileComplete ? "/dashboard" : "/profile"} className="btn-signup" onClick={() => setMobileMenuOpen(false)}>
-                {isProfileComplete ? 'Dashboard ➔' : 'Complete Setup ➔'}
-              </Link>
+              <>
+                <Link href={isProfileComplete ? "/dashboard" : "/profile"} className="btn-signup" onClick={() => setMobileMenuOpen(false)}>
+                  {isProfileComplete ? 'Dashboard ➔' : 'Complete Setup ➔'}
+                </Link>
+                <button onClick={() => { handleSignOut(); setMobileMenuOpen(false); }} className="btn-login">Log Out</button>
+              </>
             ) : (
               <>
                 <Link href="/login" className="btn-login" onClick={() => setMobileMenuOpen(false)}>Log In</Link>
-                <Link href="/signup" className="btn-signup" onClick={() => setMobileMenuOpen(false)}>Join Free</Link>
+                <Link href="/signup" className="btn-signup" onClick={() => setMobileMenuOpen(false)}>Join Now</Link>
               </>
             )}
           </div>
@@ -214,9 +251,15 @@ export default function LandingPage() {
                   <path d="M10 3.333l6.667 6.667-6.667 6.667M16.667 10H3.333" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </Link>
-              <a href="#how-it-works" className="btn-secondary" id="ctaLearn">
-                <span>See How It Works</span>
-              </a>
+              {currentUser ? (
+                <button onClick={handleSignOut} className="btn-secondary" id="ctaSwitch" style={{ cursor: 'pointer' }}>
+                  <span>Switch Account</span>
+                </button>
+              ) : (
+                <a href="#how-it-works" className="btn-secondary" id="ctaLearn">
+                  <span>See How It Works</span>
+                </a>
+              )}
             </div>
 
             {/* Trust Row */}

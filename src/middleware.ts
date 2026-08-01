@@ -58,36 +58,11 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
-
-    // Query user profile completeness
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('profile_complete')
-      .eq('id', user.id)
-      .single() as any
-
-    const isComplete = Boolean(profile && profile.profile_complete === true)
-
-    // Incomplete accounts MUST complete onboarding at /profile before accessing other protected pages
-    if (!isComplete && pathname !== '/profile') {
-      url.pathname = '/profile'
-      return NextResponse.redirect(url)
-    }
   }
 
   if (isAuthRoute) {
     if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('profile_complete')
-        .eq('id', user.id)
-        .single() as any
-
-      if (profile && profile.profile_complete === false) {
-        url.pathname = '/profile'
-      } else {
-        url.pathname = '/dashboard'
-      }
+      url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
   }
