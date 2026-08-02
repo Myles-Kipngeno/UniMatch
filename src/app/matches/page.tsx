@@ -241,10 +241,10 @@ export default function MatchesPage() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          await supabase.from('blocks' as any).insert({
+          await (supabase.from('blocks') as any).insert({
             blocker_id: uid,
             blocked_id: match.otherUserId
-          }).catch(() => {})
+          })
           await supabase.from('matches').delete().eq('id', match.id)
           modal.toast(`${match.name} has been blocked.`, 'info')
           setMatches(prev => prev.filter(m => m.id !== match.id))

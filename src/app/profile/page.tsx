@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
+import { compressImage } from '@/lib/imageCompression'
 import './profile.css'
 
 const CURATED_INTERESTS = [
@@ -254,12 +255,13 @@ function ProfileFormContent() {
       let finalPhotoUrl = currentPhotoUrl
 
       if (photoFile && userId) {
-        const fileExt = photoFile.name.split('.').pop()
+        const compressedFile = await compressImage(photoFile)
+        const fileExt = compressedFile.name.split('.').pop()
         const filePath = `${userId}/profile_${Date.now()}.${fileExt}`
 
         const { error: uploadErr } = await supabase.storage
           .from('profile-images')
-          .upload(filePath, photoFile, { upsert: true })
+          .upload(filePath, compressedFile, { upsert: true })
 
         if (uploadErr) throw uploadErr
 

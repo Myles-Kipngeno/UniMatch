@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
+import { compressImage } from '@/lib/imageCompression'
 import './upload-photos.css'
 
 interface MediaItem {
@@ -92,12 +93,13 @@ export default function UploadPhotosPage() {
         setProgressLabelText(`Uploading ${count} of ${total} (${pct}%)`)
 
         try {
-          const ext = file.name.split('.').pop()
+          const fileToUpload = type === 'image' ? await compressImage(file) : file
+          const ext = fileToUpload.name.split('.').pop()
           const filePath = `${uid}/${type}_${Date.now()}_${count}.${ext}`
 
           const { error: uploadErr } = await supabase.storage
             .from('profile-images')
-            .upload(filePath, file, { upsert: true })
+            .upload(filePath, fileToUpload, { upsert: true })
 
           if (uploadErr) throw uploadErr
 
