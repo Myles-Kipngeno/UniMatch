@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
 import { DEFAULT_AVATAR } from '@/lib/constants'
+import { compressImage } from '@/lib/imageCompression'
 import './chat.css'
 
 interface ConversationItem {
@@ -810,17 +811,7 @@ function ChatPageContent() {
       setSending(true)
       try {
         const filePath = `chat_${matchId}/audio_${Date.now()}.webm`
-        const { error: uploadError } = await supabase.storage
-          .from('chat-images')
-          .upload(filePath, audioBlob, { contentType: 'audio/webm' })
-
-        if (uploadError) throw uploadError
-
-        const { data: publicUrlData } = supabase.storage
-          .from('chat-images')
-          .getPublicUrl(filePath)
-
-        const publicUrl = publicUrlData.publicUrl
+        const publicUrl = await uploadFileToStorage(filePath, audioBlob, 'chat-images')
 
         const { data: newMsg, error: insertError } = await supabase
           .from('messages')
@@ -968,6 +959,27 @@ function ChatPageContent() {
     }
   }
 
+  // Helper for resilient file/image uploads with fallback bucket support
+  const uploadFileToStorage = async (filePath: string, fileOrBlob: File | Blob, preferredBucket = 'chat-files'): Promise<string> => {
+    try {
+      const { error: err1 } = await supabase.storage.from(preferredBucket).upload(filePath, fileOrBlob, { upsert: true })
+      if (!err1) {
+        const { data } = supabase.storage.from(preferredBucket).getPublicUrl(filePath)
+        if (data?.publicUrl) return data.publicUrl
+      }
+      console.warn(`Primary storage bucket '${preferredBucket}' upload notice:`, err1?.message)
+    } catch (e: any) {
+      console.warn(`Primary storage bucket '${preferredBucket}' exception:`, e?.message || e)
+    }
+
+    // Fall back to 'profile-images' bucket (guaranteed to exist)
+    const { error: err2 } = await supabase.storage.from('profile-images').upload(filePath, fileOrBlob, { upsert: true })
+    if (err2) throw err2
+
+    const { data: fallbackData } = supabase.storage.from('profile-images').getPublicUrl(filePath)
+    return fallbackData.publicUrl
+  }
+
   // Handle Photo Selection & Upload
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -976,18 +988,11 @@ function ChatPageContent() {
     setShowAttachMenu(false)
     setSending(true)
     try {
-      const filePath = `chat_${matchId}/img_${Date.now()}_${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('chat-images')
-        .upload(filePath, file)
+      const compressedFile = await compressImage(file)
+      const ext = compressedFile.name.split('.').pop() || 'jpg'
+      const filePath = `chat_${matchId}/img_${Date.now()}.${ext}`
 
-      if (uploadError) throw uploadError
-
-      const { data: publicUrlData } = supabase.storage
-        .from('chat-images')
-        .getPublicUrl(filePath)
-
-      const publicUrl = publicUrlData.publicUrl
+      const publicUrl = await uploadFileToStorage(filePath, compressedFile, 'chat-images')
 
       const { data: newMsg, error: insertError } = await supabase
         .from('messages')
@@ -1013,9 +1018,9 @@ function ChatPageContent() {
         last_message: '📷 Photo',
         last_message_at: new Date().toISOString()
       }).eq('id', matchId!)
-    } catch (err) {
+    } catch (err: any) {
       console.error("Photo upload error:", err)
-      alert("Failed to upload photo. Please try again.")
+      modal.toast(`Photo upload failed: ${err.message || 'Unknown error'}`, 'error')
     } finally {
       setSending(false)
       if (e.target) e.target.value = ''
@@ -1030,18 +1035,11 @@ function ChatPageContent() {
     setShowAttachMenu(false)
     setSending(true)
     try {
-      const filePath = `chat_${matchId}/file_${Date.now()}_${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('chat-files')
-        .upload(filePath, file)
+      const isImg = file.type.startsWith('image/')
+      const fileToUpload = isImg ? await compressImage(file) : file
+      const filePath = `chat_${matchId}/file_${Date.now()}_${fileToUpload.name}`
 
-      if (uploadError) throw uploadError
-
-      const { data: publicUrlData } = supabase.storage
-        .from('chat-files')
-        .getPublicUrl(filePath)
-
-      const publicUrl = publicUrlData.publicUrl
+      const publicUrl = await uploadFileToStorage(filePath, fileToUpload, 'chat-files')
 
       const { data: newMsg, error: insertError } = await supabase
         .from('messages')
@@ -1050,7 +1048,7 @@ function ChatPageContent() {
           sender_id: currentUser.id,
           file_url: publicUrl,
           file_name: file.name,
-          content: `📁 ${file.name}`,
+          content: isImg ? '📷 Photo' : `📁 ${file.name}`,
           is_deleted: false,
           created_at: new Date().toISOString()
         } as any)
@@ -1065,12 +1063,12 @@ function ChatPageContent() {
       }
 
       await (supabase.from('matches') as any).update({
-        last_message: `📁 ${file.name}`,
+        last_message: isImg ? '📷 Photo' : `📁 ${file.name}`,
         last_message_at: new Date().toISOString()
       }).eq('id', matchId!)
-    } catch (err) {
+    } catch (err: any) {
       console.error("File upload error:", err)
-      alert("Failed to upload file. Please try again.")
+      modal.toast(`File upload failed: ${err.message || 'Unknown error'}`, 'error')
     } finally {
       setSending(false)
       if (e.target) e.target.value = ''

@@ -538,14 +538,15 @@ CREATE POLICY "Allow all reports update" ON public.reports FOR UPDATE TO public 
 -- STORAGE BUCKETS SETUP --
 INSERT INTO storage.buckets (id, name, public) VALUES ('profile-images', 'profile-images', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('chat-images', 'chat-images', true) ON CONFLICT DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('chat-files', 'chat-files', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('verification-images', 'verification-images', true) ON CONFLICT DO NOTHING;
 
 -- Storage Policies
 DROP POLICY IF EXISTS "Public access to profile images" ON storage.objects;
-CREATE POLICY "Public access to profile images" ON storage.objects FOR SELECT USING (bucket_id IN ('profile-images', 'chat-images', 'verification-images'));
+CREATE POLICY "Public access to profile images" ON storage.objects FOR SELECT USING (bucket_id IN ('profile-images', 'chat-images', 'chat-files', 'verification-images'));
 
 DROP POLICY IF EXISTS "Authenticated upload profile images" ON storage.objects;
-CREATE POLICY "Authenticated upload profile images" ON storage.objects FOR INSERT WITH CHECK (bucket_id IN ('profile-images', 'chat-images', 'verification-images') AND auth.role() = 'authenticated');
+CREATE POLICY "Authenticated upload profile images" ON storage.objects FOR INSERT WITH CHECK (bucket_id IN ('profile-images', 'chat-images', 'chat-files', 'verification-images'));
 
 -- ============================================================
 -- CAMPUS RADAR MIGRATION
