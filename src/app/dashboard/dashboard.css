@@ -619,6 +619,9 @@ img {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* ── Section headers ── */
@@ -629,6 +632,8 @@ img {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+  min-width: 0;
+  width: 100%;
 }
 
 .dashboard-container .section-title,
@@ -637,6 +642,9 @@ img {
   font-size: 18px;
   font-weight: 800;
   color: #ffffff;
+  overflow: visible;
+  white-space: normal;
+  min-width: 0;
 }
 
 .section-link {
@@ -1109,6 +1117,21 @@ img {
   border-bottom: 1px solid var(--border-soft);
   transition: background 0.15s;
   cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.activity-item--clickable {
+  cursor: pointer;
+}
+
+.activity-item--clickable:hover {
+  background: var(--purple-alpha);
+  border-radius: var(--r-md);
+}
+
+.activity-item--clickable:active {
+  background: rgba(124, 58, 237, 0.18);
+  transform: scale(0.99);
 }
 
 .activity-item:last-child {

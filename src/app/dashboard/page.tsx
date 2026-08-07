@@ -31,6 +31,7 @@ interface ActivityEvent {
   emoji: string
   cls: string
   text?: string
+  link?: string
 }
 
 interface MatchChat {
@@ -965,8 +966,8 @@ export default function DashboardPage() {
 
     if (list.length === 0) {
       list.push(
-        { type: 'join', name: 'UniMatch', time: null, emoji: '🎉', cls: 'activity-dot--join', text: 'Welcome to UniMatch! Start swiping to find matches' },
-        { type: 'view', name: 'Get started', time: null, emoji: '👀', cls: 'activity-dot--view', text: 'Complete your profile to get more views' }
+        { type: 'join', name: 'UniMatch', time: null, emoji: '🎉', cls: 'activity-dot--join', text: 'Welcome to UniMatch! Start swiping to find matches', link: '/discover' },
+        { type: 'view', name: 'Get started', time: null, emoji: '👀', cls: 'activity-dot--view', text: 'Complete your profile to get more views', link: '/profile?edit=true' }
       )
     }
 
@@ -1385,14 +1386,26 @@ export default function DashboardPage() {
           <div className="activity-feed glass-card">
             {activityEvents.length > 0 ? (
               activityEvents.map((ev, i) => (
-                <div key={i} className="activity-item">
+                <div
+                  key={i}
+                  className={`activity-item ${ev.link ? 'activity-item--clickable' : ''}`}
+                  onClick={() => ev.link && router.push(ev.link)}
+                  role={ev.link ? 'button' : undefined}
+                  tabIndex={ev.link ? 0 : undefined}
+                  onKeyDown={ev.link ? (e) => { if (e.key === 'Enter' || e.key === ' ') router.push(ev.link!) } : undefined}
+                >
                   <div className={`activity-dot ${ev.cls}`}>{ev.emoji}</div>
                   <div className="activity-text" dangerouslySetInnerHTML={{ __html: ev.text || `<strong>${ev.name}</strong> ${ev.type === 'view' ? 'viewed your profile' : 'liked your profile'}` }}></div>
                   <div className="activity-time">{ev.time ? relativeTime(ev.time) : 'Just now'}</div>
                 </div>
               ))
             ) : (
-              <div className="activity-item">
+              <div
+                className="activity-item activity-item--clickable"
+                onClick={() => router.push('/discover')}
+                role="button"
+                tabIndex={0}
+              >
                 <div className="activity-dot activity-dot--join">🎉</div>
                 <div className="activity-text"><strong>Welcome to UniMatch!</strong> Start swiping to find matches</div>
                 <div className="activity-time">Just now</div>
