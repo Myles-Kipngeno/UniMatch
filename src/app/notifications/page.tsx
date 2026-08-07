@@ -6,6 +6,10 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useAppCache } from '@/context/AppCacheContext'
+import { useNetwork } from '@/context/NetworkContext'
+import { NotificationsSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { useModal } from '@/components/ModalContext'
 import './notifications.css'
 
@@ -135,12 +139,24 @@ export default function NotificationsPage() {
   const router = useRouter()
   const supabase = createClient()
   const modal = useModal()
+  const { getCache, setCache } = useAppCache()
+  const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
+  const cachedNotifs = getCache('notifications')
   const [uid, setUid] = useState<string | null>(null)
-  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => cachedNotifs || [])
   const [activeCat, setActiveCat] = useState<string>('all')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !cachedNotifs)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+
+  // Sync cache on mount if updated
+  useEffect(() => {
+    const cached = getCache('notifications')
+    if (cached) {
+      setNotifications(cached)
+      setLoading(false)
+    }
+  }, [getCache])
 
   // Fetch notifications
   const fetchNotifications = async (userId: string) => {
@@ -193,14 +209,18 @@ export default function NotificationsPage() {
         }
       })
 
-      if (mapped.length === 0) {
-        setNotifications(DEMO_NOTIFICATIONS)
-      } else {
-        setNotifications(mapped)
-      }
-    } catch (e) {
+      const finalNotifs = mapped
+      setNotifications(finalNotifs)
+      setCache('notifications', finalNotifs)
+      clearNetworkError()
+    } catch (e: any) {
       console.warn("Error fetching notifications:", e)
-      setNotifications(DEMO_NOTIFICATIONS)
+      if (!getCache('notifications')) {
+        setNotifications([])
+      }
+      if (!navigator.onLine || e?.message?.includes('fetch')) {
+        reportNetworkError()
+      }
     } finally {
       setLoading(false)
     }
@@ -210,7 +230,11 @@ export default function NotificationsPage() {
   const handleNotificationClick = async (item: NotificationItem) => {
     // 1. Mark as read
     if (item.unread) {
-      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, unread: false } : n))
+      setNotifications(prev => {
+        const updated = prev.map(n => n.id === item.id ? { ...n, unread: false } : n)
+        setCache('notifications', updated)
+        return updated
+      })
       if (uid && !item.id.startsWith('demo-')) {
         try {
           await (supabase.from('notifications') as any)
@@ -262,7 +286,11 @@ export default function NotificationsPage() {
       return
     }
 
-    setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, unread: false }))
+      setCache('notifications', updated)
+      return updated
+    })
     modal.toast('All notifications marked as read ✓', 'success')
 
     if (uid) {
@@ -283,27 +311,37 @@ export default function NotificationsPage() {
       return
     }
 
-    const confirmed = window.confirm("Are you sure you want to clear all notifications?")
-    if (!confirmed) return
+    modal.confirm({
+      title: 'Clear All Notifications',
+      message: 'Are you sure you want to delete all notifications? This action cannot be undone.',
+      confirmText: 'Clear All',
+      isDanger: true,
+      onConfirm: async () => {
+        setNotifications([])
+        setCache('notifications', [])
+        modal.toast('Cleared all notifications', 'success')
 
-    setNotifications([])
-    modal.toast('Cleared all notifications', 'success')
-
-    if (uid) {
-      try {
-        await (supabase.from('notifications') as any)
-          .delete()
-          .eq('user_id', uid)
-      } catch (e) {
-        console.warn("Error clearing notifications:", e)
+        if (uid) {
+          try {
+            await (supabase.from('notifications') as any)
+              .delete()
+              .eq('user_id', uid)
+          } catch (e) {
+            console.warn("Error clearing notifications:", e)
+          }
+        }
       }
-    }
+    })
   }
 
   // Delete individual notification
   const handleDeleteItem = async (e: React.MouseEvent, itemId: string) => {
     e.stopPropagation()
-    setNotifications(prev => prev.filter(n => n.id !== itemId))
+    setNotifications(prev => {
+      const updated = prev.filter(n => n.id !== itemId)
+      setCache('notifications', updated)
+      return updated
+    })
     modal.toast('Notification removed', 'info')
 
     if (uid && !itemId.startsWith('demo-')) {
@@ -321,7 +359,11 @@ export default function NotificationsPage() {
   const handleDeleteGroup = async (e: React.MouseEvent, group: NotificationGroup) => {
     e.stopPropagation()
     const itemIds = group.items.map(i => i.id)
-    setNotifications(prev => prev.filter(n => !itemIds.includes(n.id)))
+    setNotifications(prev => {
+      const updated = prev.filter(n => !itemIds.includes(n.id))
+      setCache('notifications', updated)
+      return updated
+    })
     modal.toast('Cleared stacked notifications', 'info')
 
     if (uid) {
@@ -379,14 +421,14 @@ export default function NotificationsPage() {
     return Math.floor(diff / 86400) + "d ago"
   }
 
-  // Grouping Algorithm
+  // Grouping Algorithm (Groups by Sender + Category)
   const groupNotifications = (items: NotificationItem[]): NotificationGroup[] => {
     const map: Record<string, NotificationItem[]> = {}
 
     items.forEach(item => {
       let key = ''
       if (item.senderId || item.senderName) {
-        key = `sender_${item.senderId || item.senderName}`
+        key = `sender_${item.senderId || item.senderName}_${item.cat}`
       } else {
         key = `single_${item.id}`
       }
@@ -440,16 +482,33 @@ export default function NotificationsPage() {
 
   const groupedNotifs = groupNotifications(filteredNotifs)
 
+  if (isNetworkError && !getCache('notifications')) {
+    return (
+      <div className="notifications-page">
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <BottomNav />
+      </div>
+    )
+  }
+
   return (
     <div className="notifications-page">
-      {/* Top Navbar */}
-      <nav className="notif-topnav">
-        <div className="notif-logo" onClick={() => router.push('/dashboard')}>
-          <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
-          <span className="logo-text">UniMatch</span>
+      {!isOnline && <OfflineBanner />}
+
+      {/* Top Main Navigation Header */}
+      <header className="notif-page-header">
+        <div className="nph-left">
+          <button className="notif-back-btn" onClick={() => router.back()} title="Back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <div>
+            <h1 className="nph-title">Notifications</h1>
+            <p className="nph-sub">Stay updated with your campus vibe ✨</p>
+          </div>
         </div>
-        <h2 className="topnav-title">Notifications</h2>
-        <div className="topnav-right">
+        <div className="nph-right">
           <button className="btn-mark-read" onClick={handleMarkAllRead} title="Mark all as read">
             ✓ Read all
           </button>
@@ -457,7 +516,7 @@ export default function NotificationsPage() {
             🗑️ Clear
           </button>
         </div>
-      </nav>
+      </header>
 
       {/* Main Container */}
       <main className="notif-container">
@@ -483,7 +542,7 @@ export default function NotificationsPage() {
         {/* Notification Cards Feed */}
         <div className="notif-list">
           {loading ? (
-            <LoadingScreen message="Loading notifications..." fullScreen={false} />
+            <NotificationsSkeleton />
           ) : groupedNotifs.length > 0 ? (
             groupedNotifs.map(group => {
               const isStacked = group.items.length > 1

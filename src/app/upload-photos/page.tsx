@@ -5,18 +5,18 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
-import LoadingScreen from '@/components/LoadingScreen'
+import { SkeletonBlock } from '@/components/skeletons/Skeletons'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { compressImage } from '@/lib/imageCompression'
+import { useModal } from '@/components/ModalContext'
 import './upload-photos.css'
 
 interface MediaItem {
   id: string
   url: string
   type: 'image' | 'video'
+  created_at?: string
 }
-
-import { useModal } from '@/components/ModalContext'
 
 export default function UploadPhotosPage() {
   const router = useRouter()
@@ -24,26 +24,66 @@ export default function UploadPhotosPage() {
   const modal = useModal()
 
   const [uid, setUid] = useState<string | null>(null)
-  const [userName, setUserName] = useState('User')
+  const [userName, setUserName] = useState('Student')
   const [profilePhoto, setProfilePhoto] = useState(DEFAULT_AVATAR)
-  
+  const [isVerified, setIsVerified] = useState(true)
+
   const [photos, setPhotos] = useState<MediaItem[]>([])
   const [videos, setVideos] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'all' | 'photos' | 'videos'>('all')
 
-  // Upload Progress
+  // Drag & Drop / Upload
+  const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [progressFillPct, setProgressFillPct] = useState(0)
   const [progressLabelText, setProgressLabelText] = useState('Uploading...')
 
-  // Lightbox
+  // Lightbox & Touch Navigation
   const [viewerOpen, setViewerOpen] = useState(false)
-  const [activeMedia, setActiveMedia] = useState<MediaItem | null>(null)
+  const [viewerIndex, setViewerIndex] = useState(0)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [showTipsModal, setShowTipsModal] = useState(false)
+  const [activeMenuMediaId, setActiveMenuMediaId] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+
+  // Single outside-click / touch-tap dismiss listener
+  useEffect(() => {
+    if (!activeMenuMediaId) return
+
+    const handleOutsideAction = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+      if (
+        menuRef.current && !menuRef.current.contains(target) &&
+        triggerRef.current && !triggerRef.current.contains(target)
+      ) {
+        setActiveMenuMediaId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideAction)
+    document.addEventListener('touchstart', handleOutsideAction, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideAction)
+      document.removeEventListener('touchstart', handleOutsideAction)
+    }
+  }, [activeMenuMediaId])
 
   const loadMedia = async (userId: string) => {
     try {
+      // 1. Fetch user's active main photo from profile
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('photo_url')
+        .eq('id', userId)
+        .single() as any
+
+      const activeMainUrl = prof?.photo_url || profilePhoto
+
+      // 2. Fetch all user photos & videos
       const { data, error } = await supabase
         .from('profile_photos' as any)
         .select('*')
@@ -52,13 +92,25 @@ export default function UploadPhotosPage() {
 
       if (error) throw error
 
-      const items = (data || []).map((m: any) => ({
+      const items: MediaItem[] = (data || []).map((m: any) => ({
         id: m.id,
         url: m.url,
-        type: m.type
+        type: m.type,
+        created_at: m.created_at
       }))
 
-      setPhotos(items.filter(i => i.type === 'image'))
+      const imgItems = items.filter(i => i.type === 'image')
+
+      // 3. Ensure Main Photo ALWAYS remains constant at Index 0
+      if (activeMainUrl && imgItems.length > 0) {
+        const mainIdx = imgItems.findIndex(i => i.url === activeMainUrl)
+        if (mainIdx > 0) {
+          const [mainItem] = imgItems.splice(mainIdx, 1)
+          imgItems.unshift(mainItem)
+        }
+      }
+
+      setPhotos(imgItems)
       setVideos(items.filter(i => i.type === 'video'))
     } catch (e) {
       console.warn("Load media error:", e)
@@ -71,18 +123,17 @@ export default function UploadPhotosPage() {
     fileInputRef.current?.click()
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    if (!files.length || !uid) return
+  const processFiles = async (filesList: File[]) => {
+    if (!filesList.length || !uid) return
 
-    const photosList = files.filter(f => f.type.startsWith('image/'))
-    const videosList = files.filter(f => f.type.startsWith('video/'))
+    const photosList = filesList.filter(f => f.type.startsWith('image/'))
+    const videosList = filesList.filter(f => f.type.startsWith('video/'))
 
     setUploading(true)
     setProgressFillPct(0)
     setProgressLabelText(`Uploading...`)
 
-    let total = files.length
+    let total = filesList.length
     let count = 0
 
     const uploadGroup = async (group: File[], type: 'image' | 'video') => {
@@ -115,7 +166,7 @@ export default function UploadPhotosPage() {
             type: type
           })
 
-          // Primary photo fallback
+          // Set main photo if user has no avatar set
           const { data: p } = await supabase
             .from('profiles')
             .select('photo_url')
@@ -140,26 +191,85 @@ export default function UploadPhotosPage() {
 
     setUploading(false)
     await loadMedia(uid)
+    modal.toast('Media uploaded successfully! ✨', 'success')
   }
 
-  const handleDelete = async (e: React.MouseEvent, item: MediaItem) => {
-    e.stopPropagation()
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    processFiles(files)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = Array.from(e.dataTransfer.files || [])
+    processFiles(files)
+  }
+
+  const handleSetMainPhoto = async (item: MediaItem) => {
+    if (!uid) return
+    try {
+      const nowIso = new Date().toISOString()
+      
+      // Update created_at so DB order keeps it first
+      await (supabase.from('profile_photos') as any)
+        .update({ created_at: nowIso })
+        .eq('id', item.id)
+
+      // Update primary avatar photo_url
+      await (supabase.from('profiles') as any)
+        .update({ photo_url: item.url })
+        .eq('id', uid)
+
+      setProfilePhoto(item.url)
+
+      // Move photo to first position in state array
+      setPhotos(prev => {
+        const target = prev.find(p => p.id === item.id) || item
+        const rest = prev.filter(p => p.id !== item.id)
+        return [{ ...target, created_at: nowIso }, ...rest]
+      })
+
+      modal.toast('Main profile photo updated! 🌟', 'success')
+    } catch (e: any) {
+      console.error("Set main photo error:", e)
+      modal.toast('Failed to set main photo', 'error')
+    } finally {
+      setActiveMenuMediaId(null)
+    }
+  }
+
+  const handleDelete = async (item: MediaItem) => {
+    setActiveMenuMediaId(null)
     modal.confirm({
       title: 'Delete Media',
-      message: 'Are you sure you want to delete this photo/video? This action cannot be undone.',
+      message: 'Are you sure you want to delete this media? This action cannot be undone.',
       confirmText: 'Delete',
       isDanger: true,
       onConfirm: async () => {
         try {
-          // 1. Extract storage path from url
           const parts = item.url.split('/profile-images/')
           if (parts.length > 1) {
             const filePath = decodeURIComponent(parts[1])
             await supabase.storage.from('profile-images').remove([filePath])
           }
+          await (supabase.from('profile_photos') as any)
+            .delete()
+            .eq('id', item.id)
+
           if (profilePhoto === item.url) {
             await (supabase.from('profiles') as any).update({ photo_url: null }).eq('id', uid!)
-            setProfilePhoto('')
+            setProfilePhoto(DEFAULT_AVATAR)
           }
           await loadMedia(uid!)
           modal.toast('Media deleted', 'info')
@@ -171,14 +281,9 @@ export default function UploadPhotosPage() {
     })
   }
 
-  const handleMediaClick = (item: MediaItem) => {
-    setActiveMedia(item)
+  const handleMediaClick = (index: number) => {
+    setViewerIndex(index)
     setViewerOpen(true)
-  }
-
-  const closeViewer = () => {
-    setViewerOpen(false)
-    setActiveMedia(null)
   }
 
   useEffect(() => {
@@ -197,7 +302,7 @@ export default function UploadPhotosPage() {
         .single() as any
 
       if (profile) {
-        setUserName(profile.name || 'User')
+        setUserName(profile.name || 'Student')
         if (profile.photo_url) setProfilePhoto(profile.photo_url)
       }
       await loadMedia(user.id)
@@ -206,71 +311,146 @@ export default function UploadPhotosPage() {
     initPage()
   }, [supabase, router])
 
+  const displayedItems = activeTab === 'all' 
+    ? [...photos, ...videos] 
+    : activeTab === 'photos' 
+    ? photos 
+    : videos
+
+  const hasProfilePhotoMatch = displayedItems.some(i => i.url === profilePhoto)
+  const currentViewerMedia = displayedItems[viewerIndex] || null
+
+  const handleNextMedia = () => {
+    if (displayedItems.length === 0) return
+    setViewerIndex(prev => (prev + 1) % displayedItems.length)
+  }
+
+  const handlePrevMedia = () => {
+    if (displayedItems.length === 0) return
+    setViewerIndex(prev => (prev - 1 + displayedItems.length) % displayedItems.length)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX)
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null) return
+    const touchEndX = e.changedTouches[0].clientX
+    const diff = touchStartX - touchEndX
+    if (diff > 40) {
+      handleNextMedia()
+    } else if (diff < -40) {
+      handlePrevMedia()
+    }
+    setTouchStartX(null)
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!viewerOpen) return
+      if (e.key === 'ArrowRight') handleNextMedia()
+      if (e.key === 'ArrowLeft') handlePrevMedia()
+      if (e.key === 'Escape') setViewerOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewerOpen, displayedItems])
+
   return (
     <div className="upload-photos-page">
       <div className="bg-gradient"></div>
 
-      {/* Shared Top Nav */}
-      <nav className="top-navbar">
-        <div className="top-nav-content">
-          <div className="top-nav-logo" onClick={() => router.push('/dashboard')}>
-            <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
-            <div className="top-nav-logo-words">
-              <span className="top-nav-logo-main">UniMatch</span>
-              <span className="top-nav-logo-sub">Your campus, connected</span>
-            </div>
-          </div>
-          <div className="top-nav-links">
-            <Link href="/dashboard" className="top-nav-link">Home</Link>
-            <Link href="/discover" className="top-nav-link">Discover</Link>
-            <Link href="/chat" className="top-nav-link">Messages</Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Page Navbar */}
-      <nav className="navbar">
-        <div className="nav-content">
-          <button onClick={() => router.back()} className="back-btn">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Top Main Navigation Header */}
+      <header className="media-page-header">
+        <div className="mph-left">
+          <button className="media-back-btn" onClick={() => router.back()} title="Back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6"/>
             </svg>
           </button>
-          <h1 className="page-title">My Media</h1>
-          <div className="spacer"></div>
-        </div>
-      </nav>
-
-      <main className="upload-page">
-        {/* User Profile Section */}
-        <div className="profile-header">
-          <div className="profile-photo-large">
-            <img src={profilePhoto} alt="Profile" />
+          <div>
+            <h1 className="mph-title">My Media</h1>
+            <p className="mph-sub">Show your world. Share your vibe. ✨</p>
           </div>
-          <div className="profile-info">
-            <h2>{userName}</h2>
-            <div className="profile-stats">
-              <div className="stat">
-                <span className="stat-value">{photos.length}</span>
-                <span className="stat-label">photos</span>
+        </div>
+        <div className="mph-right">
+          <button className="mph-tips-btn" onClick={() => setShowTipsModal(true)}>
+            <span className="bulb-icon">💡</span> Tips for good photos
+          </button>
+          <Link href="/notifications" className="mph-bell-btn" title="Notifications">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span className="bell-badge-dot"></span>
+          </Link>
+        </div>
+      </header>
+
+      <main className="media-page-container">
+        {/* Upper Split Hero Banner */}
+        <section className="media-hero-banner">
+          {/* Left: User Overview */}
+          <div className="mhb-user-card">
+            <div className="mhb-avatar-wrap">
+              <div className="mhb-avatar-ring">
+                <img src={profilePhoto} alt={userName} className="mhb-avatar-img" />
               </div>
-              <div className="stat">
-                <span className="stat-value">{videos.length}</span>
-                <span className="stat-label">videos</span>
+              <button className="mhb-avatar-edit-btn" onClick={handleUploadClick} title="Change Profile Photo">
+                ✏️
+              </button>
+            </div>
+            <div className="mhb-user-details">
+              <div className="mhb-name-row">
+                <h2 className="mhb-user-name">{userName}</h2>
+                {isVerified && (
+                  <span className="mhb-verified-badge" title="Verified Student">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#3b82f6">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                  </span>
+                )}
+              </div>
+              <p className="mhb-user-quote">Showcasing real moments helps you attract real connections.</p>
+              <div className="mhb-counters-row">
+                <div className="mhb-counter-item">
+                  <span className="mhb-counter-num">{photos.length}</span>
+                  <span className="mhb-counter-lbl">Photos</span>
+                </div>
+                <div className="mhb-counter-divider"></div>
+                <div className="mhb-counter-item">
+                  <span className="mhb-counter-num">{videos.length}</span>
+                  <span className="mhb-counter-lbl">Videos</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Upload Action */}
-        <div className="upload-actions">
-          <button className="upload-btn upload-photo-btn" onClick={handleUploadClick}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              <polyline points="17 8 12 3 7 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <span>Upload</span>
+          {/* Right: Drag & Drop Upload Zone */}
+          <div
+            className={`mhb-upload-dropzone ${isDragging ? 'dragging' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={handleUploadClick}
+          >
+            <div className="mhb-upload-icon-circle">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+                <path d="M12 13v-6"/>
+                <path d="m9 10 3-3 3 3"/>
+              </svg>
+            </div>
+            <div className="mhb-upload-text-wrap">
+              <div className="mhb-upload-title">Add new photos or videos</div>
+              <div className="mhb-upload-sub">
+                Drag &amp; drop or <span className="mhb-browse-link">browse</span>
+              </div>
+            </div>
+            <button className="mhb-upload-gradient-btn" onClick={(e) => { e.stopPropagation(); handleUploadClick(); }}>
+              ↑ Upload
+            </button>
             <input
               type="file"
               ref={fileInputRef}
@@ -279,112 +459,261 @@ export default function UploadPhotosPage() {
               hidden
               onChange={handleFileChange}
             />
-          </button>
-        </div>
+          </div>
+        </section>
 
+        {/* Upload Progress Bar */}
         {uploading && (
-          <div className="upload-progress">
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progressFillPct}%` }}></div>
+          <div className="upload-progress-card">
+            <div className="progress-bar-track">
+              <div className="progress-bar-fill" style={{ width: `${progressFillPct}%` }}></div>
             </div>
-            <p>{progressLabelText}</p>
+            <p className="progress-status-text">{progressLabelText}</p>
           </div>
         )}
 
-        {/* Photos Grid */}
-        <div className="media-section" id="photosSection">
-          <h3 className="section-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ marginRight: '6px' }}>
-              <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.5"/>
-              <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-              <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            Photos
-          </h3>
-          <div className="media-grid">
-            {loading ? (
-              <LoadingScreen message="Loading photos..." fullScreen={false} />
-            ) : photos.length > 0 ? (
-              photos.map(item => (
-                <div key={item.id} className="media-card" onClick={() => handleMediaClick(item)}>
-                  <img src={item.url} alt="User Media" />
-                  <button className="delete-btn" title="Delete Media" onClick={(e) => handleDelete(e, item)}>✕</button>
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">
-                <svg width="64" height="64" viewBox="0 0 80 80" fill="none">
-                  <rect x="10" y="15" width="60" height="50" rx="4" stroke="currentColor" strokeWidth="2"/>
-                  <circle cx="40" cy="35" r="8" stroke="currentColor" stroke-width="2"/>
-                  <path d="M10 55l15-15 10 10 20-20 15 15" stroke="currentColor" stroke-width="2" strokeLinecap="round"/>
-                </svg>
-                <h3>No photos yet</h3>
-                <p>Upload photos to share with others</p>
-              </div>
-            )}
+        {/* Sub-Nav Tabs & Recommendation Pill Row */}
+        <div className="media-tabs-row">
+          <div className="media-tabs">
+            <button
+              className={`media-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
+              onClick={() => setActiveTab('all')}
+            >
+              ✨ All ({photos.length + videos.length})
+            </button>
+            <button
+              className={`media-tab-btn ${activeTab === 'photos' ? 'active' : ''}`}
+              onClick={() => setActiveTab('photos')}
+            >
+              🖼️ Photos ({photos.length})
+            </button>
+            <button
+              className={`media-tab-btn ${activeTab === 'videos' ? 'active' : ''}`}
+              onClick={() => setActiveTab('videos')}
+            >
+              🎥 Videos ({videos.length})
+            </button>
+          </div>
+          <div className="media-rec-pill" onClick={() => setShowTipsModal(true)}>
+            <span className="rec-shield-icon">🛡️</span>
+            <span>Add at least 3 photos for better matches</span>
+            <span className="rec-arrow">›</span>
           </div>
         </div>
 
-        {/* Videos Grid */}
-        <div className="media-section" id="videosSection">
-          <h3 className="section-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ marginRight: '6px' }}>
-              <rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M16 9l6-4v14l-6-4V9z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-            </svg>
-            Videos
-          </h3>
-          <div className="media-grid">
-            {loading ? (
-              <LoadingScreen message="Loading videos..." fullScreen={false} />
-            ) : videos.length > 0 ? (
-              videos.map(item => (
-                <div key={item.id} className="media-card" onClick={() => handleMediaClick(item)}>
-                  <video src={item.url}></video>
-                  <div className="video-badge">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                      <polygon points="5 3 19 12 5 21 5 3"/>
-                    </svg>
-                    <span>VIDEO</span>
-                  </div>
-                  <div className="video-play-icon">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="white">
-                      <polygon points="8 5 19 12 8 19 8 5"/>
-                    </svg>
-                  </div>
-                  <button className="delete-btn" title="Delete Media" onClick={(e) => handleDelete(e, item)}>✕</button>
+        {/* Main Content Grid & Tips Sidebar */}
+        {(() => {
+          const hasMediaOrUploading = photos.length > 0 || videos.length > 0 || uploading
+          return (
+            <div className={`media-main-grid-layout ${hasMediaOrUploading ? 'full-width' : ''}`}>
+              {/* Left Column: Photos / Videos Grid */}
+              <div className="media-grid-section">
+                <div className="media-cards-grid">
+                  {loading ? (
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <SkeletonBlock key={i} width="100%" height="180px" borderRadius="16px" />
+                    ))
+                  ) : (
+                    <>
+                      {displayedItems.map((item, idx) => {
+                        const isMain = item.type === 'image' && (hasProfilePhotoMatch ? item.url === profilePhoto : photos[0]?.id === item.id)
+                        const isMenuOpen = activeMenuMediaId === item.id
+                        return (
+                          <div key={item.id} className="media-grid-card">
+                            {item.type === 'video' ? (
+                              <div className="mgc-video-preview" onClick={() => handleMediaClick(idx)}>
+                                <video src={`${item.url}#t=0.1`} preload="metadata" className="mgc-video" muted playsInline />
+                                <div className="mgc-video-play-overlay">
+                                  <span className="mgc-play-icon">▶</span>
+                                </div>
+                                <div className="mgc-video-badge">VIDEO</div>
+                              </div>
+                            ) : (
+                              <img src={item.url} alt="Uploaded Media" className="mgc-img" onClick={() => handleMediaClick(idx)} />
+                            )}
+                            
+                            {/* Main Photo Tag */}
+                            {isMain && item.type === 'image' && (
+                              <div className="mgc-main-badge">
+                                <span className="star-icon">★</span> Main Photo
+                              </div>
+                            )}
+
+                            {/* Top-Right Menu Ellipsis (Vertical) */}
+                            <div className="mgc-menu-wrap">
+                              <button
+                                ref={isMenuOpen ? triggerRef : null}
+                                className="mgc-menu-trigger"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setActiveMenuMediaId(isMenuOpen ? null : item.id)
+                                }}
+                              >
+                                ⋮
+                              </button>
+                              {isMenuOpen && (
+                                <div ref={menuRef} className="mgc-dropdown-popover" onClick={(e) => e.stopPropagation()}>
+                                  {item.type === 'image' && (
+                                    isMain ? (
+                                      <div className="mgc-dropdown-item active-main">
+                                        ✓ Main Profile Photo
+                                      </div>
+                                    ) : (
+                                      <button className="mgc-dropdown-item" onClick={() => handleSetMainPhoto(item)}>
+                                        🌟 Set as Main Photo
+                                      </button>
+                                    )
+                                  )}
+                                  <button className="mgc-dropdown-item" onClick={() => { setActiveMenuMediaId(null); handleMediaClick(idx); }}>
+                                    🔍 View Fullscreen
+                                  </button>
+                                  <button className="mgc-dropdown-item danger" onClick={() => handleDelete(item)}>
+                                    🗑️ Delete Media
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Bottom Drag / Video Handle */}
+                            <div className="mgc-bottom-handle">
+                              {item.type === 'video' ? '▶' : '≡'}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {/* Always Show "Add More Photos" Slot */}
+                      <div className="media-add-card" onClick={handleUploadClick}>
+                        <div className="mac-plus-circle">+</div>
+                        <div className="mac-title">Add More {activeTab === 'photos' ? 'Photos' : 'Videos'}</div>
+                        <div className="mac-sub">You can add up to 9 {activeTab === 'photos' ? 'photos' : 'videos'}</div>
+                      </div>
+                    </>
+                  )}
                 </div>
-              ))
-            ) : (
-              <div className="empty-state">
-                <svg width="64" height="64" viewBox="0 0 80 80" fill="none">
-                  <rect x="10" y="15" width="60" height="50" rx="4" stroke="currentColor" stroke-width="2"/>
-                  <polygon points="35 30 52 40 35 50" fill="currentColor"/>
-                </svg>
-                <h3>No videos yet</h3>
-                <p>Upload short clips to show your campus lifestyle</p>
               </div>
-            )}
-          </div>
-        </div>
+
+              {/* Right Column: Tips Sidebar (disappears when uploading or when media exists) */}
+              {!hasMediaOrUploading && (
+                <aside className="media-tips-sidebar">
+                  <div className="tips-card">
+                    <div className="tips-header">
+                      <span className="tips-rocket-icon">🚀</span>
+                      <h3 className="tips-title">Make a great impression</h3>
+                    </div>
+
+                    <div className="tips-list">
+                      <div className="tip-item">
+                        <div className="tip-icon-box pink">📷</div>
+                        <div className="tip-text-wrap">
+                          <div className="tip-heading">Use clear, recent photos</div>
+                          <div className="tip-body">Help others see the real you.</div>
+                        </div>
+                      </div>
+
+                      <div className="tip-item">
+                        <div className="tip-icon-box yellow">😊</div>
+                        <div className="tip-text-wrap">
+                          <div className="tip-heading">Show your lifestyle</div>
+                          <div className="tip-body">Photos that show your vibe get more interactions.</div>
+                        </div>
+                      </div>
+
+                      <div className="tip-item">
+                        <div className="tip-icon-box purple">🖼️</div>
+                        <div className="tip-text-wrap">
+                          <div className="tip-heading">Variety is key</div>
+                          <div className="tip-body">Mix solo shots, activities and social photos.</div>
+                        </div>
+                      </div>
+
+                      <div className="tip-item">
+                        <div className="tip-icon-box cyan">🩵</div>
+                        <div className="tip-text-wrap">
+                          <div className="tip-heading">Be yourself</div>
+                          <div className="tip-body">Authenticity attracts authentic connections.</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button className="tips-guidelines-btn" onClick={() => setShowTipsModal(true)}>
+                      View Photo Guidelines ›
+                    </button>
+                  </div>
+                </aside>
+              )}
+            </div>
+          )
+        })()}
       </main>
 
-      {/* Full-screen Lightbox Media Viewer */}
-      <div className={`up-viewer ${viewerOpen ? 'open' : ''}`}>
-        <div className="up-viewer-bg" onClick={closeViewer}></div>
-        <button className="up-viewer-close" onClick={closeViewer}>✕</button>
-        <div className="up-viewer-content">
-          {activeMedia && (
-            activeMedia.type === 'video' ? (
-              <video src={activeMedia.url} className="up-viewer-video" controls autoPlay></video>
-            ) : (
-              <img src={activeMedia.url} alt="Enlarged view" className="up-viewer-img" />
-            )
-          )}
-        </div>
-      </div>
+      {/* Full-screen Lightbox Gallery Viewer with Swipe & Prev/Next Buttons */}
+      {viewerOpen && currentViewerMedia && (
+        <div className="up-viewer open" onClick={() => setViewerOpen(false)}>
+          <div className="up-viewer-bg"></div>
+          <button className="up-viewer-close" onClick={() => setViewerOpen(false)} title="Close">✕</button>
 
-      {/* 5-TAB BOTTOM NAVIGATION */}
+          {/* Desktop / Laptop Prev & Next Buttons */}
+          {displayedItems.length > 1 && (
+            <>
+              <button
+                className="up-viewer-nav-btn prev"
+                onClick={(e) => { e.stopPropagation(); handlePrevMedia(); }}
+                title="Previous photo (Left Arrow)"
+              >
+                ‹
+              </button>
+              <button
+                className="up-viewer-nav-btn next"
+                onClick={(e) => { e.stopPropagation(); handleNextMedia(); }}
+                title="Next photo (Right Arrow)"
+              >
+                ›
+              </button>
+            </>
+          )}
+
+          <div
+            className="up-viewer-content"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            {currentViewerMedia.type === 'video' ? (
+              <video src={currentViewerMedia.url} className="up-viewer-video" controls autoPlay></video>
+            ) : (
+              <img src={currentViewerMedia.url} alt="Full view" className="up-viewer-img" />
+            )}
+            {displayedItems.length > 1 && (
+              <div className="up-viewer-counter">
+                {viewerIndex + 1} / {displayedItems.length}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Photo Guidelines Modal */}
+      {showTipsModal && (
+        <div className="modal-backdrop" onClick={() => setShowTipsModal(false)}>
+          <div className="modal-card photo-tips-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>💡 Photo &amp; Media Guidelines</h3>
+              <button className="modal-close" onClick={() => setShowTipsModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <ul className="guidelines-list">
+                <li><strong>Clear Face Photo:</strong> Ensure your main profile photo clearly shows your face without heavy filters.</li>
+                <li><strong>Good Lighting:</strong> Natural outdoor daylight works best for vibrant, attractive photos.</li>
+                <li><strong>No Group Photos as Main:</strong> Keep your main photo solo so people instantly know who you are!</li>
+                <li><strong>Show Hobbies &amp; Campus Vibe:</strong> Include photos of sports, music, law/campus events, or social hangouts.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Navigation */}
       <BottomNav activeTab="profile" />
     </div>
   )

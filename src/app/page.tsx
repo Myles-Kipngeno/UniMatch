@@ -84,7 +84,7 @@ export default function LandingPage() {
   useEffect(() => {
     if (!mobileMenuOpen) return
 
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       const target = e.target as Node
       if (
         mobileMenuRef.current && !mobileMenuRef.current.contains(target) &&
@@ -94,7 +94,11 @@ export default function LandingPage() {
       }
     }
     document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
+    }
   }, [mobileMenuOpen])
 
   // Sun icon (show when dark, clicking switches to light)

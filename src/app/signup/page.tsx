@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import LoadingScreen from '@/components/LoadingScreen'
 import './signup.css'
 
 import { useModal } from '@/components/ModalContext'
@@ -119,6 +120,10 @@ export default function SignupPage() {
       setError(err.message || 'An error occurred during signup. Please try again.')
       setLoading(false)
     }
+  }
+
+  if (loading) {
+    return <LoadingScreen message="Creating your account..." />
   }
 
   return (

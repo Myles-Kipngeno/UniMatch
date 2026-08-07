@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import LoadingScreen from '@/components/LoadingScreen'
 import './login.css'
 
 import { useModal } from '@/components/ModalContext'
@@ -175,6 +176,10 @@ export default function LoginPage() {
         type: 'error'
       })
     }
+  }
+
+  if (loading) {
+    return <LoadingScreen message="Setting up your session..." />
   }
 
   return (

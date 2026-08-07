@@ -6,9 +6,27 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useAppCache } from '@/context/AppCacheContext'
+import { useNetwork } from '@/context/NetworkContext'
+import { ChatSkeleton, ChatMessageSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { compressImage } from '@/lib/imageCompression'
+import EmojiPicker from '@/components/EmojiPicker'
 import './chat.css'
+
+const isVid = (url?: string) => {
+  if (!url) return false
+  const clean = url.toLowerCase().split('?')[0]
+  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov') || clean.endsWith('.m4v') || clean.endsWith('.avi') || clean.includes('/video/')
+}
+
+const isImg = (url?: string) => {
+  if (!url) return false
+  if (isVid(url)) return false
+  const clean = url.toLowerCase().split('?')[0]
+  return clean.endsWith('.jpg') || clean.endsWith('.jpeg') || clean.endsWith('.png') || clean.endsWith('.gif') || clean.endsWith('.webp') || clean.endsWith('.svg') || clean.includes('chat-images') || clean.includes('profile-images')
+}
 
 interface ConversationItem {
   id: string
@@ -27,28 +45,7 @@ interface ConversationItem {
   interests?: string[] | null
 }
 
-const EMOJI_CATEGORIES = [
-  { id: 'recent', name: 'Recent', icon: '🕒' },
-  { id: 'smileys', name: 'Smileys', icon: '😀' },
-  { id: 'love', name: 'Love', icon: '❤️' },
-  { id: 'gestures', name: 'Gestures', icon: '👍' },
-  { id: 'animals', name: 'Animals', icon: '🐶' },
-  { id: 'food', name: 'Food', icon: '🍕' },
-  { id: 'activities', name: 'Activities', icon: '⚽' },
-  { id: 'travel', name: 'Travel', icon: '🚗' },
-  { id: 'symbols', name: 'Symbols', icon: '💡' },
-]
 
-const EMOJI_DATA: Record<string, string[]> = {
-  smileys: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '🥹', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🫣', '🤗', '🫡', '🤔', '🤭', '🥱', '😴', '🤤', '😪', '😵', '😵‍💫', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '🤡', '💩', '👻', '💀', '👽', '👾', '🤖'],
-  love: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '💌', '😍', '🥰', '😘', '👨‍❤️‍💋‍👨', '👩‍❤️‍💋‍👩', '💑', '👩‍❤️‍👨', '💋', '❤️‍🔥', '❤️‍🩹'],
-  gestures: ['👍', '👎', '👌', '🤌', '🤏', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '🫵', '🖐️', '✋', '🖖', '🫱', '🫲', '🫳', '🫴', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪'],
-  animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈', '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🦭', '🐊', '🐅', '🐆', 'zebra', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🦬', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🦚', '🦜', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦦', '🦥', '🦔'],
-  food: ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '☕', '🫖', '🍵', '🧃', '🥤', '🧋', '🍺', '🍻', '🥂', '🍷', '🥃', '🍸', '🍹', '🍾'],
-  activities: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '⛹️', '🤺', '🤾', '🏌️', '🏇', '🧘', '🏄', '🏊', '🚣', '🧗', '🚵', '🚴', '🏆', '🥇', '🥈', '🥉', '🏅', '🎖️', '🎟️', '🎪', '🎭', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩'],
-  travel: ['🚗', '🚕', '🚙', '🚌', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🛵', '🏍️', '🛺', '🚲', '🛴', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⚓', '🛟', '⛽', '🚧', '🚦', '🚥', '🚏', '🗺️', '🗿', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️', '🏕️', '⛺', '🏠', '🏡', '🏢', '🏣', '🏥', '🏦', '🏨', '🏪', '🏫', '🏬', '🏭', '💒', '🏛️', '⛪', '🕌', '🕍', '🛕'],
-  symbols: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '☣️', '📴', '📳', '🈶', '🈚', '✴️', '💯', '💢', '♨️', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '💡', '💬', '💭', '🔔', '🔕', '📢', '📣', '🔍', '🔎', '🕯️', '🔦', '🏮', '🔥', '✨', '⚡', '🌟', '💫', '💥']
-}
 
 // Custom Inline Audio Player Component
 function InlineAudioPlayer({ audioUrl }: { audioUrl: string }) {
@@ -137,13 +134,25 @@ function ChatPageContent() {
   const userNameParam = searchParams.get('user')
   const supabase = createClient()
   const modal = useModal()
+  const { getCache, setCache } = useAppCache()
+  const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
   // State
+  const cachedChat = getCache('chat')
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [conversations, setConversations] = useState<ConversationItem[]>([])
-  const [conversationsLoading, setConversationsLoading] = useState(true)
+  const [conversations, setConversations] = useState<ConversationItem[]>(() => cachedChat?.conversations || [])
+  const [conversationsLoading, setConversationsLoading] = useState(() => !cachedChat?.conversations)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'online' | 'unread' | 'recent'>('all')
+
+  // Sync cache on mount if updated
+  useEffect(() => {
+    const cached = getCache('chat')
+    if (cached?.conversations) {
+      setConversations(cached.conversations)
+      setConversationsLoading(false)
+    }
+  }, [getCache])
 
   // Multi-Select Mode State
   const [isSelectMode, setIsSelectMode] = useState(false)
@@ -246,7 +255,6 @@ function ChatPageContent() {
     const vv = window.visualViewport
     if (vv) {
       vv.addEventListener('resize', updateVisualViewport)
-      vv.addEventListener('scroll', updateVisualViewport)
     }
 
     const handleWindowScroll = () => {
@@ -261,7 +269,6 @@ function ChatPageContent() {
       document.body.classList.remove('chat-view-active')
       if (vv) {
         vv.removeEventListener('resize', updateVisualViewport)
-        vv.removeEventListener('scroll', updateVisualViewport)
       }
       window.removeEventListener('scroll', handleWindowScroll)
     }
@@ -283,44 +290,56 @@ function ChatPageContent() {
   // Attachment Menu outside-click listener
   useEffect(() => {
     if (!showAttachMenu) return
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
         setShowAttachMenu(false)
       }
     }
     document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
+    }
   }, [showAttachMenu])
 
   // Text Input Emoji Picker outside-click listener
   useEffect(() => {
     if (!showInputEmojiPicker) return
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (inputEmojiPickerRef.current && !inputEmojiPickerRef.current.contains(e.target as Node)) {
         setShowInputEmojiPicker(false)
       }
     }
     document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
+    }
   }, [showInputEmojiPicker])
 
   // Context Menu outside-click listener
   useEffect(() => {
     if (!msgContextMenu) return
-    const handleOutside = (e: MouseEvent) => {
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
       if (msgContextMenuRef.current && !msgContextMenuRef.current.contains(e.target as Node)) {
         setMsgContextMenu(null)
       }
     }
     document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
   }, [msgContextMenu])
 
   // Single outside-click dismiss listener pattern
   useEffect(() => {
     if (!isMenuOpen) return
 
-    const handleOutsideClick = (event: MouseEvent) => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node
       if (
         chatMenuRef.current && !chatMenuRef.current.contains(target) &&
@@ -331,8 +350,10 @@ function ChatPageContent() {
     }
 
     document.addEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true })
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
     }
   }, [isMenuOpen])
 
@@ -440,9 +461,14 @@ function ChatPageContent() {
         })
 
         setConversations(mapped)
+        setCache('chat', mapped)
+        clearNetworkError()
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn("Error fetching conversations:", e)
+      if (!navigator.onLine || e?.message?.includes('fetch')) {
+        reportNetworkError()
+      }
     } finally {
       setConversationsLoading(false)
     }
@@ -497,7 +523,7 @@ function ChatPageContent() {
     }
 
     async function loadThread() {
-      setMessagesLoading(true)
+      let resolvedMatchId = targetMatchId || found?.id || null
 
       // Fetch match detail & constructed conversation item
       try {
@@ -518,6 +544,7 @@ function ChatPageContent() {
         }
 
         if (mData) {
+          resolvedMatchId = mData.id
           const isUser1 = mData.user1_id === currentUser.id
           const other = isUser1 ? mData.p2 : mData.p1
           const unread = isUser1 ? (mData.user1_unread || 0) : (mData.user2_unread || 0)
@@ -550,35 +577,56 @@ function ChatPageContent() {
         console.warn("Mark read error:", e)
       }
 
-      // Fetch messages
+      const activeId = resolvedMatchId || activeMatch?.id
+      if (!activeId) {
+        setMessagesLoading(false)
+        return
+      }
+
+      // Fetch messages using activeId
       try {
+        const cachedMsgs = getCache('chat', activeId)
+        if (cachedMsgs && cachedMsgs.length > 0) {
+          setMessages(cachedMsgs)
+          setMessagesLoading(false)
+        } else {
+          setMessagesLoading(true)
+        }
+
         const { data: msgData } = await supabase
           .from('messages')
           .select('*')
-          .eq('match_id', matchId!)
+          .eq('match_id', activeId)
           .order('created_at', { ascending: true }) as any
 
         setMessages(msgData || [])
-      } catch (e) {
+        setCache('chat', msgData || [], activeId)
+        clearNetworkError()
+      } catch (e: any) {
         console.warn("Error loading messages:", e)
+        if (!navigator.onLine || e?.message?.includes('fetch')) {
+          reportNetworkError()
+        }
       } finally {
         setMessagesLoading(false)
-        scrollToBottom()
+        scrollToBottom(false)
       }
     }
 
     loadThread()
   }, [matchId, currentUser?.id])
 
+  const activeMatchId = matchId || activeMatch?.id
+
   // 5. Realtime subscription for Active Thread Messages
   useEffect(() => {
-    if (!matchId || !currentUser) return
+    if (!activeMatchId || !currentUser) return
 
     const msgChannel = supabase
-      .channel(`messages_thread_${matchId}`)
+      .channel(`messages_thread_${activeMatchId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${activeMatchId}` },
         payload => {
           const newMsg = payload.new
           setMessages(prev => {
@@ -593,11 +641,11 @@ function ChatPageContent() {
     return () => {
       supabase.removeChannel(msgChannel)
     }
-  }, [matchId, currentUser?.id])
+  }, [activeMatchId, currentUser?.id])
 
   // 6. Realtime subscription & initial load for Message Reactions
   useEffect(() => {
-    if (!matchId || messages.length === 0) return
+    if (!activeMatchId || messages.length === 0) return
 
     const msgIds = messages.map(m => m.id)
 
@@ -621,7 +669,7 @@ function ChatPageContent() {
 
     // Realtime postgres_changes subscription for message_reactions
     const reactionChannel = supabase
-      .channel(`reactions_thread_${matchId}`)
+      .channel(`reactions_thread_${activeMatchId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'message_reactions' },
@@ -659,7 +707,7 @@ function ChatPageContent() {
     return () => {
       supabase.removeChannel(reactionChannel)
     }
-  }, [matchId, messages.length])
+  }, [activeMatchId, messages.length])
 
   // Handle Toggle Reaction
   const handleToggleReaction = async (msgId: string, emoji: string) => {
@@ -793,7 +841,8 @@ function ChatPageContent() {
 
   // Stop & Send Voice Recording
   const handleStopAndSendRecording = async () => {
-    if (!mediaRecorderRef.current || !matchId || !currentUser) return
+    const targetId = activeMatchId
+    if (!mediaRecorderRef.current || !targetId || !currentUser) return
 
     const mediaRecorder = mediaRecorderRef.current
 
@@ -810,13 +859,13 @@ function ChatPageContent() {
 
       setSending(true)
       try {
-        const filePath = `chat_${matchId}/audio_${Date.now()}.webm`
+        const filePath = `chat_${targetId}/audio_${Date.now()}.webm`
         const publicUrl = await uploadFileToStorage(filePath, audioBlob, 'chat-images')
 
         const { data: newMsg, error: insertError } = await supabase
           .from('messages')
           .insert({
-            match_id: matchId,
+            match_id: targetId,
             sender_id: currentUser.id,
             audio_url: publicUrl,
             is_deleted: false,
@@ -835,7 +884,7 @@ function ChatPageContent() {
         const { data: matchRow } = await supabase
           .from('matches')
           .select('user1_id, user2_id, user1_unread, user2_unread')
-          .eq('id', matchId)
+          .eq('id', targetId)
           .single() as any
 
         if (matchRow) {
@@ -844,7 +893,7 @@ function ChatPageContent() {
             ? { last_message: '🎵 Voice message', last_message_at: new Date().toISOString(), user2_unread: (matchRow.user2_unread || 0) + 1 }
             : { last_message: '🎵 Voice message', last_message_at: new Date().toISOString(), user1_unread: (matchRow.user1_unread || 0) + 1 }
 
-          await (supabase.from('matches') as any).update(updateData).eq('id', matchId!)
+          await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
         }
       } catch (err) {
         console.error("Audio message upload error:", err)
@@ -891,7 +940,8 @@ function ChatPageContent() {
   // Handle Send Message
   const handleSendMessage = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault()
-    if (!inputText.trim() || !matchId || !currentUser) return
+    const targetId = activeMatchId
+    if (!inputText.trim() || !targetId || !currentUser) return
 
     const content = inputText.trim()
     const activeReplyId = replyingToMessage ? replyingToMessage.id : null
@@ -900,7 +950,7 @@ function ChatPageContent() {
     const optimisticId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
     const optimisticMsg = {
       id: optimisticId,
-      match_id: matchId,
+      match_id: targetId,
       sender_id: currentUser.id,
       content: content,
       reply_to_id: activeReplyId,
@@ -917,9 +967,9 @@ function ChatPageContent() {
     try {
       // 2. Insert into Supabase
       const insertPayload: any = {
-        match_id: matchId,
+        match_id: targetId,
         sender_id: currentUser.id,
-        content: content,
+        text: content,
         is_deleted: false
       }
       if (activeReplyId) {
@@ -943,7 +993,7 @@ function ChatPageContent() {
       const { data: matchRow } = await supabase
         .from('matches')
         .select('user1_id, user2_id, user1_unread, user2_unread')
-        .eq('id', matchId)
+        .eq('id', targetId)
         .single() as any
 
       if (matchRow) {
@@ -952,7 +1002,7 @@ function ChatPageContent() {
           ? { last_message: content, last_message_at: new Date().toISOString(), user2_unread: (matchRow.user2_unread || 0) + 1 }
           : { last_message: content, last_message_at: new Date().toISOString(), user1_unread: (matchRow.user1_unread || 0) + 1 }
 
-        await (supabase.from('matches') as any).update(updateData).eq('id', matchId!)
+        await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
       }
     } catch (err: any) {
       console.warn("Send message background notice:", err?.message || err)
@@ -980,27 +1030,30 @@ function ChatPageContent() {
     return fallbackData.publicUrl
   }
 
-  // Handle Photo Selection & Upload
+  // Handle Media (Photo/Video) Selection & Upload
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !matchId || !currentUser) return
+    const targetId = activeMatchId
+    if (!file || !targetId || !currentUser) return
 
     setShowAttachMenu(false)
     setSending(true)
     try {
-      const compressedFile = await compressImage(file)
-      const ext = compressedFile.name.split('.').pop() || 'jpg'
-      const filePath = `chat_${matchId}/img_${Date.now()}.${ext}`
+      const isVideo = file.type.startsWith('video/') || isVid(file.name)
+      const fileToUpload = isVideo ? file : await compressImage(file)
+      const ext = file.name.split('.').pop() || (isVideo ? 'mp4' : 'jpg')
+      const filePath = `chat_${targetId}/${isVideo ? 'vid' : 'img'}_${Date.now()}.${ext}`
 
-      const publicUrl = await uploadFileToStorage(filePath, compressedFile, 'chat-images')
+      const publicUrl = await uploadFileToStorage(filePath, fileToUpload, 'chat-images')
+      const messageLabel = isVideo ? '🎥 Video' : '📷 Photo'
 
       const { data: newMsg, error: insertError } = await supabase
         .from('messages')
         .insert({
-          match_id: matchId,
+          match_id: targetId,
           sender_id: currentUser.id,
           image_url: publicUrl,
-          content: '📷 Photo',
+          text: messageLabel,
           is_deleted: false,
           created_at: new Date().toISOString()
         } as any)
@@ -1015,12 +1068,12 @@ function ChatPageContent() {
       }
 
       await (supabase.from('matches') as any).update({
-        last_message: '📷 Photo',
+        last_message: messageLabel,
         last_message_at: new Date().toISOString()
-      }).eq('id', matchId!)
+      }).eq('id', targetId)
     } catch (err: any) {
-      console.error("Photo upload error:", err)
-      modal.toast(`Photo upload failed: ${err.message || 'Unknown error'}`, 'error')
+      console.error("Media upload error:", err)
+      modal.toast(`Media upload failed: ${err.message || 'Unknown error'}`, 'error')
     } finally {
       setSending(false)
       if (e.target) e.target.value = ''
@@ -1030,25 +1083,26 @@ function ChatPageContent() {
   // Handle File Selection & Upload
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !matchId || !currentUser) return
+    const targetId = activeMatchId
+    if (!file || !targetId || !currentUser) return
 
     setShowAttachMenu(false)
     setSending(true)
     try {
       const isImg = file.type.startsWith('image/')
       const fileToUpload = isImg ? await compressImage(file) : file
-      const filePath = `chat_${matchId}/file_${Date.now()}_${fileToUpload.name}`
+      const filePath = `chat_${targetId}/file_${Date.now()}_${fileToUpload.name}`
 
       const publicUrl = await uploadFileToStorage(filePath, fileToUpload, 'chat-files')
 
       const { data: newMsg, error: insertError } = await supabase
         .from('messages')
         .insert({
-          match_id: matchId,
+          match_id: targetId,
           sender_id: currentUser.id,
           file_url: publicUrl,
           file_name: file.name,
-          content: isImg ? '📷 Photo' : `📁 ${file.name}`,
+          text: isImg ? '📷 Photo' : `📁 ${file.name}`,
           is_deleted: false,
           created_at: new Date().toISOString()
         } as any)
@@ -1065,7 +1119,7 @@ function ChatPageContent() {
       await (supabase.from('matches') as any).update({
         last_message: isImg ? '📷 Photo' : `📁 ${file.name}`,
         last_message_at: new Date().toISOString()
-      }).eq('id', matchId!)
+      }).eq('id', targetId)
     } catch (err: any) {
       console.error("File upload error:", err)
       modal.toast(`File upload failed: ${err.message || 'Unknown error'}`, 'error')
@@ -1185,7 +1239,8 @@ function ChatPageContent() {
 
   // Clear Chat History Action
   const handleClearChat = async () => {
-    if (!currentUser || !activeMatch || !matchId) return
+    const targetId = activeMatchId
+    if (!currentUser || !activeMatch || !targetId) return
     setIsMenuOpen(false)
 
     modal.confirm({
@@ -1195,10 +1250,10 @@ function ChatPageContent() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          await (supabase.from('messages') as any).delete().eq('match_id', matchId)
+          await (supabase.from('messages') as any).delete().eq('match_id', targetId)
           await (supabase.from('matches') as any)
             .update({ last_message: null, last_message_at: null, user1_unread: 0, user2_unread: 0 })
-            .eq('id', matchId)
+            .eq('id', targetId)
 
           setMessages([])
           modal.toast('Chat history cleared', 'info')
@@ -1212,7 +1267,8 @@ function ChatPageContent() {
 
   // Unmatch Action
   const handleUnmatch = async () => {
-    if (!currentUser || !activeMatch || !matchId) return
+    const targetId = activeMatchId
+    if (!currentUser || !activeMatch || !targetId) return
     setIsMenuOpen(false)
 
     modal.confirm({
@@ -1222,7 +1278,7 @@ function ChatPageContent() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          await supabase.from('matches').delete().eq('id', matchId)
+          await supabase.from('matches').delete().eq('id', targetId)
           modal.toast(`You have unmatched with ${activeMatch.name}.`, 'info')
           router.push('/matches')
         } catch (err) {
@@ -1235,7 +1291,8 @@ function ChatPageContent() {
 
   // Block User Action
   const handleBlockUser = async () => {
-    if (!currentUser || !activeMatch || !matchId) return
+    const targetId = activeMatchId
+    if (!currentUser || !activeMatch || !targetId) return
     setIsMenuOpen(false)
 
     modal.confirm({
@@ -1249,7 +1306,7 @@ function ChatPageContent() {
             blocker_id: currentUser.id,
             blocked_id: activeMatch.otherUserId
           })
-          await supabase.from('matches').delete().eq('id', matchId)
+          await supabase.from('matches').delete().eq('id', targetId)
 
           modal.toast(`${activeMatch.name} has been blocked.`, 'info')
           router.push('/matches')
@@ -1263,7 +1320,8 @@ function ChatPageContent() {
 
   // Toggle Mute Notifications Action
   const handleToggleMute = async () => {
-    if (!currentUser || !activeMatch || !matchId) return
+    const targetId = activeMatchId
+    if (!currentUser || !activeMatch || !targetId) return
     setIsMenuOpen(false)
 
     const nextMuteState = !isMuted
@@ -1274,13 +1332,13 @@ function ChatPageContent() {
       const { data: matchRow } = await supabase
         .from('matches')
         .select('user1_id, user2_id')
-        .eq('id', matchId)
+        .eq('id', targetId)
         .single() as any
 
       if (matchRow) {
         const isUser1 = matchRow.user1_id === currentUser.id
         const updateData = isUser1 ? { muted_by_user1: nextMuteState } : { muted_by_user2: nextMuteState }
-        await (supabase.from('matches') as any).update(updateData).eq('id', matchId!)
+        await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
       }
     } catch (e) {
       console.warn("Mute update warning:", e)
@@ -1399,19 +1457,21 @@ function ChatPageContent() {
     return msg && msg.sender_id === currentUser?.id && !msg.is_deleted
   })
 
+  if (isNetworkError && !getCache('chat')) {
+    return (
+      <div className="chat-page">
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <BottomNav activeTab="chat" />
+      </div>
+    )
+  }
+
   // Return Unified Responsive Chat Page Layout
   return (
     <div className={`chat-page ${activeMatch ? 'active-thread-open' : 'no-active-thread'}`}>
+      {!isOnline && <OfflineBanner />}
       {/* ═══ SIDEBAR COLUMN: CONVERSATIONS & MATCHES LIST ═══ */}
       <div className="chat-sidebar-col">
-        {/* Top Navbar */}
-        <nav className="app-topnav">
-          <div className="topnav-logo">
-            <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
-            <span className="logo-text">UniMatch</span>
-          </div>
-        </nav>
-
         {/* Messaging Header */}
         <div className="chat-hub-header">
           <span className="chat-hub-title">Messages</span>
@@ -1467,9 +1527,7 @@ function ChatPageContent() {
         {/* Conversations List */}
         <div className="chat-list-container">
           {conversationsLoading ? (
-            <div className="chat-empty-hub">
-              <p>Loading messages…</p>
-            </div>
+            <ChatSkeleton />
           ) : filteredConversations.length > 0 ? (
             filteredConversations.map(c => (
               <Link
@@ -1701,7 +1759,7 @@ function ChatPageContent() {
 
                       <div className="bubble-and-reactions">
                         <div
-                          className={`message-bubble ${isSent ? 'sent' : 'received'} ${m.is_deleted ? 'deleted-bubble' : ''} ${isSelected ? 'selected-bubble' : ''}`}
+                          className={`message-bubble ${isSent ? 'sent' : 'received'} ${m.is_deleted ? 'deleted-bubble' : ''} ${isSelected ? 'selected-bubble' : ''} ${(m.image_url || (m.file_url && isVid(m.file_url))) ? 'has-media' : ''}`}
                           onContextMenu={(e) => {
                             if (isSelectMode) {
                               e.preventDefault()
@@ -1734,20 +1792,30 @@ function ChatPageContent() {
                           ) : m.image_url ? (
                             <div className="message-photo-wrap" onClick={(e) => {
                               e.stopPropagation()
-                              if (m.image_url) window.open(m.image_url, '_blank')
+                              if (m.image_url && !isVid(m.image_url)) window.open(m.image_url, '_blank')
                             }}>
-                              <img src={m.image_url} alt="Shared photo" className="message-photo-img" />
+                              {isVid(m.image_url) ? (
+                                <video src={m.image_url} controls className="message-video-player" onClick={(e) => e.stopPropagation()} />
+                              ) : (
+                                <img src={m.image_url} alt="Shared attachment" className="message-photo-img" />
+                              )}
                             </div>
                           ) : m.file_url ? (
-                            <div className="message-file-wrap">
-                              <div className="file-icon">📄</div>
-                              <div className="file-info">
-                                <span className="file-title">{m.file_name || m.content || 'Attachment'}</span>
+                            isVid(m.file_url) ? (
+                              <div className="message-photo-wrap">
+                                <video src={m.file_url} controls className="message-video-player" onClick={(e) => e.stopPropagation()} />
                               </div>
-                              <a href={m.file_url} target="_blank" rel="noopener noreferrer" className="btn-file-dl" download title="Download file">
-                                ⬇️
-                              </a>
-                            </div>
+                            ) : (
+                              <div className="message-file-wrap">
+                                <div className="file-icon">📄</div>
+                                <div className="file-info">
+                                  <span className="file-title">{m.file_name || m.content || 'Attachment'}</span>
+                                </div>
+                                <a href={m.file_url} target="_blank" rel="noopener noreferrer" className="btn-file-dl" download title="Download file">
+                                  ⬇️
+                                </a>
+                              </div>
+                            )
                           ) : m.audio_url ? (
                             <InlineAudioPlayer audioUrl={m.audio_url} />
                           ) : (
@@ -1952,7 +2020,7 @@ function ChatPageContent() {
                     <input
                       ref={photoInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,video/*"
                       style={{ display: 'none' }}
                       onChange={handlePhotoSelect}
                     />
@@ -1964,22 +2032,53 @@ function ChatPageContent() {
                       onChange={handleFileSelect}
                     />
 
-                    {/* 1. Emoji Button */}
+                    {/* 1. Emoji Button & Popover / Bottom-sheet */}
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        type="button"
+                        className={`btn-input-emoji ${showInputEmojiPicker ? 'active' : ''}`}
+                        onClick={() => {
+                          setShowInputEmojiPicker(prev => !prev)
+                        }}
+                        title="Insert emoji"
+                      >
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                          <line x1="9" y1="9" x2="9.01" y2="9" />
+                          <line x1="15" y1="9" x2="15.01" y2="9" />
+                        </svg>
+                      </button>
+
+                      {showInputEmojiPicker && (
+                        <div ref={inputEmojiPickerRef}>
+                          <EmojiPicker
+                            onSelect={(emoji) => {
+                              handleInsertEmoji(emoji)
+                              setShowInputEmojiPicker(false)
+                            }}
+                            onClose={() => setShowInputEmojiPicker(false)}
+                            isBottomSheet={typeof window !== 'undefined' && window.innerWidth < 768}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. Direct Photo / Video Media Picker Button */}
                     <button
                       type="button"
-                      className="btn-input-emoji"
-                      onClick={() => setShowInputEmojiPicker(prev => !prev)}
-                      title="Insert emoji"
+                      className="btn-gallery"
+                      onClick={() => photoInputRef.current?.click()}
+                      title="Send Photo or Video"
                     >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                        <line x1="9" y1="9" x2="9.01" y2="9" />
-                        <line x1="15" y1="9" x2="15.01" y2="9" />
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
                       </svg>
                     </button>
 
-                    {/* Text Input Field */}
+                    {/* 3. Text Input Field */}
                     <input
                       ref={inputRef}
                       type="text"
@@ -1996,21 +2095,24 @@ function ChatPageContent() {
                       }}
                     />
 
-                    {/* Attachment / Gallery Button */}
-                    <button
-                      type="button"
-                      className="btn-gallery"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Attach Photo, Video or File"
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <polyline points="21 15 16 10 5 21" />
-                      </svg>
-                    </button>
+                    {/* 4. Mic / Voice Note Button */}
+                    {!inputText.trim() && (
+                      <button
+                        type="button"
+                        className="btn-mic"
+                        onClick={handleStartRecording}
+                        title="Record voice message"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                          <line x1="12" y1="19" x2="12" y2="23" />
+                          <line x1="8" y1="23" x2="16" y2="23" />
+                        </svg>
+                      </button>
+                    )}
 
-                    {/* Send Button */}
+                    {/* 5. Send Button */}
                     <button
                       type="submit"
                       className="btn-send"
@@ -2047,64 +2149,15 @@ function ChatPageContent() {
       </div>
       {showFullPickerForMsgId && (
         <div className="reaction-picker-overlay" onClick={() => setShowFullPickerForMsgId(null)}>
-          <div id="reactionPicker" className="reaction-picker-card" onClick={e => e.stopPropagation()}>
-            <div className="picker-header">
-              <span className="picker-title">Choose Reaction</span>
-              <button className="picker-close-btn" onClick={() => setShowFullPickerForMsgId(null)}>✕</button>
-            </div>
-
-            <div className="picker-search-bar">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search emoji..."
-                value={emojiSearch}
-                onChange={e => setEmojiSearch(e.target.value)}
-              />
-              {emojiSearch && (
-                <button className="search-clear-btn" onClick={() => setEmojiSearch('')}>✕</button>
-              )}
-            </div>
-
-            {/* Categories Tab Bar */}
-            <div className="picker-categories-bar">
-              {EMOJI_CATEGORIES.map(cat => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  className={`category-tab ${activeEmojiCategory === cat.id && !emojiSearch ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveEmojiCategory(cat.id)
-                    setEmojiSearch('')
-                  }}
-                  title={cat.name}
-                >
-                  {cat.icon}
-                </button>
-              ))}
-            </div>
-
-            {/* Emoji Grid */}
-            <div className="picker-emoji-grid">
-              {(emojiSearch.trim()
-                ? Object.values(EMOJI_DATA).flat().filter(e => e.includes(emojiSearch))
-                : (activeEmojiCategory === 'recent' ? recentEmojis : (EMOJI_DATA[activeEmojiCategory] || []))
-              ).map((emoji, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="emoji-grid-btn"
-                  onClick={() => {
-                    handleToggleReaction(showFullPickerForMsgId, emoji)
-                    setShowFullPickerForMsgId(null)
-                  }}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+          <div onClick={e => e.stopPropagation()}>
+            <EmojiPicker
+              onSelect={(emoji) => {
+                handleToggleReaction(showFullPickerForMsgId, emoji)
+                setShowFullPickerForMsgId(null)
+              }}
+              onClose={() => setShowFullPickerForMsgId(null)}
+              isBottomSheet={typeof window !== 'undefined' && window.innerWidth < 768}
+            />
           </div>
         </div>
       )}
@@ -2220,7 +2273,14 @@ function ChatPageContent() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<LoadingScreen message="Loading conversation..." />}>
+    <Suspense
+      fallback={
+        <div className="chat-page">
+          <ChatSkeleton />
+          <BottomNav activeTab="chat" />
+        </div>
+      }
+    >
       <ChatPageContent />
     </Suspense>
   )

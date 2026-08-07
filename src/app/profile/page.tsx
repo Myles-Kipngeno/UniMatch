@@ -6,6 +6,10 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useAppCache } from '@/context/AppCacheContext'
+import { useNetwork } from '@/context/NetworkContext'
+import { ProfileSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { compressImage } from '@/lib/imageCompression'
 import './profile.css'
@@ -77,9 +81,41 @@ function ProfileFormContent() {
   const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view')
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const [loading, setLoading] = useState(true)
+  const { getCache, setCache } = useAppCache()
+  const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
+
+  const viewUserIdParam = searchParams.get('id') || searchParams.get('userId')
+  const [isOtherUser, setIsOtherUser] = useState(false)
+
+  const [loading, setLoading] = useState(() => !getCache('profile', viewUserIdParam || 'self'))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Load from cache initially if present
+  useEffect(() => {
+    const targetKey = viewUserIdParam || 'self'
+    const cached = getCache('profile', targetKey)
+    if (cached) {
+      if (cached.name) setName(cached.name)
+      if (cached.gender) setGender(cached.gender)
+      if (cached.age) setAge(String(cached.age))
+      if (cached.campus) setCampus(cached.campus)
+      if (cached.course) setCourse(cached.course)
+      if (cached.year_of_study) setYearOfStudy(cached.year_of_study)
+      if (cached.bio) setBio(cached.bio)
+      if (cached.preference) setPreference(cached.preference)
+      if (cached.interests) setSelectedInterests(cached.interests)
+      if (cached.photo_url) {
+        setCurrentPhotoUrl(cached.photo_url)
+        setPreviewUrl(cached.photo_url)
+      }
+      if (cached.profile_complete || Boolean(viewUserIdParam)) {
+        setProfileComplete(true)
+        setActiveTab('view')
+      }
+      setLoading(false)
+    }
+  }, [getCache, viewUserIdParam])
 
   // Menu DOM Refs
   const menuRef = useRef<HTMLDivElement>(null)
@@ -89,7 +125,7 @@ function ProfileFormContent() {
   useEffect(() => {
     if (!menuOpen) return
 
-    const handleOutsideClick = (event: MouseEvent) => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node
       if (
         menuRef.current && !menuRef.current.contains(target) &&
@@ -100,13 +136,12 @@ function ProfileFormContent() {
     }
 
     document.addEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true })
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
     }
   }, [menuOpen])
-
-  const viewUserIdParam = searchParams.get('id') || searchParams.get('userId')
-  const [isOtherUser, setIsOtherUser] = useState(false)
 
   useEffect(() => {
     async function getProfile() {
@@ -149,16 +184,22 @@ function ProfileFormContent() {
             setProfileComplete(true)
             setActiveTab('view')
           }
+
+          setCache('profile', profile, viewUserIdParam || 'self')
+          clearNetworkError()
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Fetch profile error:', err)
+        if (!navigator.onLine || err?.message?.includes('fetch')) {
+          reportNetworkError()
+        }
       } finally {
         setLoading(false)
       }
     }
 
     getProfile()
-  }, [supabase, router, viewUserIdParam])
+  }, [supabase, router, viewUserIdParam, setCache, clearNetworkError, reportNetworkError])
 
   // Sign out action
   const handleSignOut = () => {
@@ -311,8 +352,23 @@ function ProfileFormContent() {
     }
   }
 
+  if (isNetworkError && !getCache('profile', viewUserIdParam || 'self')) {
+    return (
+      <div className="profile-page">
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <BottomNav activeTab={isOtherUser ? "" : "profile"} />
+      </div>
+    )
+  }
+
   if (loading) {
-    return <LoadingScreen message="Loading your profile..." />
+    return (
+      <div className="profile-page">
+        {!isOnline && <OfflineBanner />}
+        <ProfileSkeleton />
+        <BottomNav activeTab={isOtherUser ? "" : "profile"} />
+      </div>
+    )
   }
 
   const showTabs = (isEditModeParam || profileComplete) && !isOtherUser
@@ -321,6 +377,7 @@ function ProfileFormContent() {
 
   return (
     <div className="profile-page">
+      {!isOnline && <OfflineBanner />}
       <div className="bg-gradient"></div>
 
       <div className="container" style={{ paddingBottom: '96px' }}>
@@ -693,7 +750,14 @@ function ProfileFormContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<LoadingScreen message="Loading profile..." />}>
+    <Suspense
+      fallback={
+        <div className="profile-page">
+          <ProfileSkeleton />
+          <BottomNav activeTab="profile" />
+        </div>
+      }
+    >
       <ProfileFormContent />
     </Suspense>
   )

@@ -7,6 +7,10 @@ import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useAppCache } from '@/context/AppCacheContext'
+import { useNetwork } from '@/context/NetworkContext'
+import { DiscoverSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { getRandomIcebreakers } from '@/lib/icebreakers'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import './discover.css'
@@ -61,15 +65,29 @@ interface Profile {
 export default function DiscoverPage() {
   const router = useRouter()
   const supabase = createClient()
+  const { getCache, setCache } = useAppCache()
+  const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
   // State
+  const cachedDiscover = getCache('discover')
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null)
-  const [allProfiles, setAllProfiles] = useState<Profile[]>([])
-  const [candidates, setCandidates] = useState<(Profile & { _compatibility: number })[]>([])
+  const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(() => cachedDiscover?.currentUserProfile || null)
+  const [allProfiles, setAllProfiles] = useState<Profile[]>(() => cachedDiscover?.allProfiles || [])
+  const [candidates, setCandidates] = useState<(Profile & { _compatibility: number })[]>(() => cachedDiscover?.candidates || [])
   
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !cachedDiscover)
   const [profileIncomplete, setProfileIncomplete] = useState(false)
+
+  // Sync cache on mount if updated
+  useEffect(() => {
+    const cached = getCache('discover')
+    if (cached) {
+      if (cached.currentUserProfile) setCurrentUserProfile(cached.currentUserProfile)
+      if (cached.allProfiles) setAllProfiles(cached.allProfiles)
+      if (cached.candidates) setCandidates(cached.candidates)
+      setLoading(false)
+    }
+  }, [getCache])
 
   // Filters State
   const [filterCampus, setFilterCampus] = useState("")
@@ -86,7 +104,7 @@ export default function DiscoverPage() {
   useEffect(() => {
     if (!showFilters) return
 
-    const handleOutsideClick = (event: MouseEvent) => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node
       if (
         filterPanelRef.current && !filterPanelRef.current.contains(target) &&
@@ -97,8 +115,10 @@ export default function DiscoverPage() {
     }
 
     document.addEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true })
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
     }
   }, [showFilters])
 
@@ -182,16 +202,25 @@ export default function DiscoverPage() {
           .sort((a: any, b: any) => b._compatibility - a._compatibility)
 
         setCandidates(filtered)
+        setCache('discover', {
+          currentUserProfile: profile,
+          allProfiles: candidatesProfiles,
+          candidates: filtered
+        })
+        clearNetworkError()
         setLoading(false)
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Discover boot error:", err)
+        if (!navigator.onLine || err?.message?.includes('fetch')) {
+          reportNetworkError()
+        }
         setLoading(false)
       }
     }
 
     initDiscover()
-  }, [])
+  }, [setCache, clearNetworkError, reportNetworkError])
 
   // Compatibility Calculation
   const calculateCompatibility = (me: Profile, target: Profile) => {
@@ -480,8 +509,18 @@ export default function DiscoverPage() {
     )
   }
 
+  if (isNetworkError && !getCache('discover')) {
+    return (
+      <div className="discover-page">
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <BottomNav activeTab="discover" />
+      </div>
+    )
+  }
+
   return (
     <div className="discover-page">
+      {!isOnline && <OfflineBanner />}
       {/* ═══ TOP NAV ═══ */}
       <nav className="disc-topnav">
         <div className="disc-topnav-logo" onClick={() => router.push('/dashboard')}>
@@ -510,7 +549,7 @@ export default function DiscoverPage() {
       {/* ═══ SWIPE ARENA ═══ */}
       <main className="swipe-arena">
         {loading ? (
-          <LoadingScreen message="Finding profiles on campus..." fullScreen={false} />
+          <DiscoverSkeleton />
         ) : candidates.length === 0 ? (
           <div className="card-stack">
             <div className="empty-state">

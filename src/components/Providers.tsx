@@ -2,11 +2,17 @@
 
 import { ReactNode } from 'react'
 import { ModalProvider } from './ModalContext'
+import { AppCacheProvider } from '@/context/AppCacheContext'
+import { NetworkProvider } from '@/context/NetworkContext'
 
 export default function Providers({ children }: { children: ReactNode }) {
   return (
-    <ModalProvider>
-      {children}
-    </ModalProvider>
+    <NetworkProvider>
+      <AppCacheProvider>
+        <ModalProvider>
+          {children}
+        </ModalProvider>
+      </AppCacheProvider>
+    </NetworkProvider>
   )
 }

@@ -6,6 +6,9 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useNetwork } from '@/context/NetworkContext'
+import { SettingsSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import './settings.css'
 
@@ -153,12 +156,30 @@ export default function SettingsPage() {
     }
   }
 
+  const { isOnline, isNetworkError, clearNetworkError } = useNetwork()
+
+  if (isNetworkError && loading) {
+    return (
+      <div className="settings-page">
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <BottomNav activeTab="profile" />
+      </div>
+    )
+  }
+
   if (loading) {
-    return <LoadingScreen message="Loading settings..." />
+    return (
+      <div className="settings-page">
+        {!isOnline && <OfflineBanner />}
+        <SettingsSkeleton />
+        <BottomNav activeTab="profile" />
+      </div>
+    )
   }
 
   return (
     <div className="settings-page">
+      {!isOnline && <OfflineBanner />}
       {/* Top Navbar */}
       <nav className="settings-nav">
         <div className="nav-left">

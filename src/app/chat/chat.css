@@ -1699,40 +1699,298 @@
   background: rgba(168, 85, 247, 0.15);
 }
 
-.input-emoji-full-popover {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 16px;
-  width: 320px;
-  max-width: calc(100vw - 32px);
-  background: rgba(24, 20, 42, 0.98);
+/* ══════════════════════════════════════════════════════════
+   SHARED COMPREHENSIVE EMOJI PICKER & POP OVER / BOTTOM SHEET
+   ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════
+   WHATSAPP-STYLE SHARED EMOJI PICKER (NO EMPTY SPACE, PURE UNICODE)
+   ══════════════════════════════════════════════════════════ */
+.emoji-picker-container {
+  display: flex;
+  flex-direction: column;
+  background: #141224;
   border: 1px solid rgba(168, 85, 247, 0.35);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
-  border-radius: 16px;
-  padding: 12px;
-  z-index: 100;
-  animation: popIn 0.15s ease-out;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+  border-radius: 20px;
+  overflow: hidden;
+  font-family: inherit;
+  z-index: 500;
+  width: 100%;
 }
 
-.input-emoji-grid {
+.emoji-picker-container.popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 340px;
+  max-width: calc(100vw - 20px);
+  height: 380px;
+  max-height: 52vh;
+  animation: popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.emoji-picker-container.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100vw;
+  height: 55vh;
+  max-height: 480px;
+  border-radius: 20px 20px 0 0;
+  border-bottom: none;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 1. TOP ROW: Category Icon Tabs Row with Active Underline Indicator */
+.emoji-picker-tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  background: rgba(13, 11, 24, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.emoji-picker-tabs-row::-webkit-scrollbar {
+  display: none;
+}
+
+.emoji-tab-item {
+  flex: 1;
+  min-width: 32px;
+  height: 38px;
+  background: transparent;
+  border: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  border-radius: 8px;
+}
+
+.emoji-tab-item:hover {
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.emoji-tab-item.active {
+  opacity: 1;
+  background: rgba(168, 85, 247, 0.15);
+}
+
+.emoji-tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(90deg, #a855f7, #ec4899);
+  box-shadow: 0 -1px 6px rgba(168, 85, 247, 0.6);
+}
+
+.emoji-tab-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* 2. SECOND ROW: Search Input directly below Category Tabs */
+.emoji-picker-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.emoji-picker-search-bar .search-icon {
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.emoji-search-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0 10px;
+  height: 34px;
+  color: #ffffff;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.emoji-search-input:focus {
+  border-color: rgba(168, 85, 247, 0.55);
+}
+
+.emoji-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.search-clear-btn,
+.picker-close-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.search-clear-btn:hover,
+.picker-close-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 3. MAIN BODY: Dense WhatsApp Grid View */
+.emoji-picker-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px 10px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.3) transparent;
+}
+
+.emoji-section {
+  margin-bottom: 10px;
+}
+
+.emoji-section-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #c084fc;
+  padding: 4px 2px;
+  margin-bottom: 4px;
+  position: sticky;
+  top: 0;
+  background: #141224;
+  z-index: 5;
+}
+
+.emoji-grid-dense {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  width: 100%;
+}
+
+.emoji-btn {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.12s ease, transform 0.12s ease;
+  user-select: none;
+}
+
+.emoji-btn:hover {
+  background: rgba(168, 85, 247, 0.25);
+  transform: scale(1.2);
+}
+
+.emoji-btn:active {
+  transform: scale(0.95);
+}
+
+.emoji-empty-search {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 16px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  gap: 6px;
+}
+
+.emoji-category-section {
+  margin-bottom: 14px;
+}
+
+.emoji-category-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #a855f7;
+  margin-bottom: 8px;
+  position: sticky;
+  top: 0;
+  background: #141224;
+  padding: 2px 0;
+  z-index: 5;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
   gap: 4px;
 }
 
-.input-emoji-btn {
+.emoji-item-btn {
   background: transparent;
   border: none;
-  font-size: 18px;
+  font-size: 22px;
+  padding: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.input-emoji-btn:hover {
+.emoji-item-btn:hover {
   background: rgba(168, 85, 247, 0.25);
-  transform: scale(1.2);
+  transform: scale(1.25);
+}
+
+.emoji-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  gap: 8px;
+}
+
+/* Inline Video Player in Message Bubbles */
+.message-video-player {
+  max-width: 100%;
+  width: 280px;
+  max-height: 240px;
+  border-radius: 12px;
+  background: #000;
+  object-fit: cover;
+  display: block;
 }
 
 /* Message Bubble Width & WhatsApp Inline Sentence Format Fix */
@@ -1837,26 +2095,53 @@
   font-size: 16px;
 }
 
-/* Chat Thread Photo & File Message Bubbles */
+/* ── Media Bubble: strip padding when content is an image/video ─── */
+.chat-page .message-bubble.has-media,
+.message-bubble.has-media {
+  padding: 0 !important;
+  overflow: hidden;
+  min-width: 0 !important;
+}
+
+/* Timestamp overlaid on media bubbles (bottom-right, like WhatsApp) */
+.message-bubble.has-media .message-time {
+  position: absolute;
+  bottom: 5px;
+  right: 7px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-radius: 8px;
+  padding: 1px 5px;
+  font-size: 10px !important;
+  float: none !important;
+  margin: 0 !important;
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+/* ── Chat Thread Photo & File Message Bubbles ─── */
 .message-photo-wrap {
-  max-width: 240px;
-  border-radius: 12px;
+  display: block;
+  width: 100%;
+  border-radius: inherit;
   overflow: hidden;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: transform 0.15s ease;
+  transition: opacity 0.15s ease;
+  position: relative;
 }
 
 .message-photo-wrap:hover {
-  transform: scale(1.02);
+  opacity: 0.92;
 }
 
 .message-photo-img {
   width: 100%;
   height: auto;
-  max-height: 280px;
+  max-height: 260px;
+  min-width: 120px;
   object-fit: cover;
   display: block;
+  border-radius: inherit;
 }
 
 .message-file-wrap {
@@ -1942,7 +2227,7 @@
   }
 
   .chat-page.active-thread-open .bottom-nav,
-  .chat-page.active-thread-open ~ .bottom-nav,
+  .chat-page.active-thread-open~.bottom-nav,
   body:has(.chat-page.active-thread-open) .bottom-nav {
     display: none !important;
     visibility: hidden !important;

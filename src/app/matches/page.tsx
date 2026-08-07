@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useAppCache } from '@/context/AppCacheContext'
+import { useNetwork } from '@/context/NetworkContext'
+import { MatchesSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { useModal } from '@/components/ModalContext'
 import './matches.css'
@@ -32,17 +36,59 @@ export default function MatchesPage() {
   const router = useRouter()
   const supabase = createClient()
   const modal = useModal()
+  const { getCache, setCache } = useAppCache()
+  const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
+  const cachedMatches = getCache('matches')
   const [uid, setUid] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [matches, setMatches] = useState<MatchItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [matches, setMatches] = useState<MatchItem[]>(() => cachedMatches || [])
+  const [loading, setLoading] = useState(() => !cachedMatches)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'online' | 'unread' | 'recent'>('all')
-  const [selectedMatch, setSelectedMatch] = useState<MatchItem | null>(null)
+  const [selectedMatch, setSelectedMatch] = useState<MatchItem | null>(() => cachedMatches?.[0] || null)
   const [showDetail, setShowDetail] = useState(false)   // mobile detail panel
   const [visibleCount, setVisibleCount] = useState(10)
   const [activeMenuMatchId, setActiveMenuMatchId] = useState<string | null>(null)
+
+  const matchMenuRef = useRef<HTMLDivElement | null>(null)
+  const matchTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const mobileHeaderTriggerRef = useRef<HTMLButtonElement | null>(null)
+
+  // Single outside-click / touch-tap dismiss listener
+  useEffect(() => {
+    if (!activeMenuMatchId) return
+
+    const handleOutsideAction = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node
+      if (
+        matchMenuRef.current && !matchMenuRef.current.contains(target) &&
+        matchTriggerRef.current && !matchTriggerRef.current.contains(target) &&
+        mobileHeaderTriggerRef.current && !mobileHeaderTriggerRef.current.contains(target)
+      ) {
+        setActiveMenuMatchId(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideAction)
+    document.addEventListener('touchstart', handleOutsideAction, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideAction)
+      document.removeEventListener('touchstart', handleOutsideAction)
+    }
+  }, [activeMenuMatchId])
+
+  // Sync cache on mount if updated
+  useEffect(() => {
+    const cached = getCache('matches')
+    if (cached) {
+      setMatches(cached)
+      if (cached.length > 0 && !selectedMatch) {
+        setSelectedMatch(cached[0])
+      }
+      setLoading(false)
+    }
+  }, [getCache])
 
   const calcMatchPct = (m: any, other: any, meProfile: any) => {
     if (m.match_pct) return m.match_pct
@@ -109,10 +155,15 @@ export default function MatchesPage() {
           return tB - tA
         })
         setMatches(mapped)
+        setCache('matches', mapped)
+        clearNetworkError()
         if (mapped.length > 0) setSelectedMatch(prev => prev ? (mapped.find(x => x.id === prev.id) || mapped[0]) : mapped[0])
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Error fetching matches:', e)
+      if (!navigator.onLine || e?.message?.includes('fetch')) {
+        reportNetworkError()
+      }
     } finally {
       setLoading(false)
     }
@@ -272,6 +323,7 @@ export default function MatchesPage() {
           <img src={m.photoUrl} alt={m.name} className="mp-photo" />
           <span className="mp-match-pct">{m.matchPct}% Match</span>
           <button
+            ref={isMenuOpen ? matchTriggerRef : null}
             className="mp-more-btn"
             onClick={(e) => {
               e.stopPropagation()
@@ -283,7 +335,7 @@ export default function MatchesPage() {
           </button>
           
           {isMenuOpen && (
-            <div className="mp-action-dropdown" onClick={(e) => e.stopPropagation()}>
+            <div ref={matchMenuRef} className="mp-action-dropdown" onClick={(e) => e.stopPropagation()}>
               <button className="mp-dropdown-item" onClick={() => { setActiveMenuMatchId(null); router.push(`/chat?matchId=${m.id}`); }}>
                 💬 Send Message
               </button>
@@ -366,8 +418,18 @@ export default function MatchesPage() {
     )
   }
 
+  if (isNetworkError && !getCache('matches')) {
+    return (
+      <div className="mp-root">
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <BottomNav activeTab="matches" />
+      </div>
+    )
+  }
+
   return (
     <div className="mp-root" onClick={() => setActiveMenuMatchId(null)}>
+      {!isOnline && <OfflineBanner />}
 
       {/* ── Mobile Full-Screen Detail Overlay ── */}
       {showDetail && selectedMatch && (
@@ -381,6 +443,7 @@ export default function MatchesPage() {
             </button>
             <span className="mp-detail-topbar-title">Match 💕</span>
             <button
+              ref={activeMenuMatchId === selectedMatch.id ? mobileHeaderTriggerRef : null}
               className="mp-detail-topbar-more"
               onClick={(e) => {
                 e.stopPropagation()
@@ -446,7 +509,7 @@ export default function MatchesPage() {
         {/* Match Rows */}
         <div className="mp-list">
           {loading ? (
-            <LoadingScreen message="Loading your matches..." fullScreen={false} />
+            <MatchesSkeleton />
           ) : shownMatches.length > 0 ? (
             <>
               {shownMatches.map(m => (

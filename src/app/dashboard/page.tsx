@@ -27,7 +27,7 @@ interface DashboardStats {
 interface ActivityEvent {
   type: 'view' | 'like' | 'join'
   name: string
-  time: Date | null
+  time: Date | string | null
   emoji: string
   cls: string
   text?: string
@@ -68,31 +68,98 @@ interface CheckedInUser {
   campus: string
 }
 
+interface CampusSpot {
+  id: string
+  name: string
+  category: 'inside' | 'outside'
+  icon: string | null
+  sort_order: number
+  liveCount: number
+}
+
 import { useModal } from '@/components/ModalContext'
+import { useAppCache } from '@/context/AppCacheContext'
+import { useNetwork } from '@/context/NetworkContext'
+import { DashboardSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
+
+const DEFAULT_CAMPUS_SPOTS: CampusSpot[] = [
+  { id: '1', name: 'Student Center', category: 'inside', icon: 'building', sort_order: 1, liveCount: 0 },
+  { id: '2', name: 'Mess', category: 'inside', icon: 'toolsKitchen2', sort_order: 2, liveCount: 0 },
+  { id: '3', name: 'Auditorium', category: 'inside', icon: 'theater', sort_order: 3, liveCount: 0 },
+  { id: '4', name: 'SMHS', category: 'inside', icon: 'stethoscope', sort_order: 4, liveCount: 0 },
+  { id: '5', name: 'School of Law', category: 'inside', icon: 'scale', sort_order: 5, liveCount: 0 },
+  { id: '6', name: 'Hostels', category: 'inside', icon: 'home2', sort_order: 6, liveCount: 0 },
+  { id: '7', name: 'Library', category: 'inside', icon: 'books', sort_order: 7, liveCount: 0 },
+  { id: '8', name: 'Cheche', category: 'outside', icon: 'mapPin', sort_order: 1, liveCount: 0 },
+  { id: '9', name: 'Whitehouse', category: 'outside', icon: 'mapPin', sort_order: 2, liveCount: 0 },
+  { id: '10', name: 'Lexy', category: 'outside', icon: 'mapPin', sort_order: 3, liveCount: 0 },
+  { id: '11', name: 'Elevate', category: 'outside', icon: 'mapPin', sort_order: 4, liveCount: 0 },
+  { id: '12', name: 'Belajio', category: 'outside', icon: 'mapPin', sort_order: 5, liveCount: 0 },
+  { id: '13', name: 'Carrots', category: 'outside', icon: 'mapPin', sort_order: 6, liveCount: 0 },
+]
 
 export default function DashboardPage() {
   const router = useRouter()
   const supabase = createClient()
   const modal = useModal()
+  const { getCache, setCache } = useAppCache()
+  const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
   const currentIcebreaker = ICEBREAKERS[Math.floor(Date.now() / 86400000) % ICEBREAKERS.length]
 
+  const cachedDash = getCache('dashboard')
+
   // User Profile States
   const [uid, setUid] = useState<string | null>(null)
-  const [profileName, setProfileName] = useState('Student')
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState(DEFAULT_AVATAR)
-  const [profileSummary, setProfileSummary] = useState('Loading your profile...')
-  const [completionPct, setCompletionPct] = useState(0)
+  const [profileName, setProfileName] = useState(() => cachedDash?.profileName || 'Student')
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState(() => cachedDash?.profilePhotoUrl || DEFAULT_AVATAR)
+  const [profileSummary, setProfileSummary] = useState(() => cachedDash?.profileSummary || 'Loading your profile...')
+  const [completionPct, setCompletionPct] = useState(() => cachedDash?.completionPct || 0)
+  const [profileComplete, setProfileComplete] = useState<boolean>(() => cachedDash?.profileComplete || false)
+  const [isVerified, setIsVerified] = useState<boolean>(() => cachedDash?.isVerified || false)
   const [greeting, setGreeting] = useState('Good morning')
 
   // UI / App States
-  const [stats, setStats] = useState<DashboardStats>({ views: 0, likes: 0, matches: 0, unreadMessages: 0 })
-  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
-  const [recentChatsList, setRecentChatsList] = useState<MatchChat[]>([])
-  const [discoverPreview, setDiscoverPreview] = useState<DiscoverPreview | null>(null)
-  const [todaysPick, setTodaysPick] = useState<DiscoverPreview & { compat: number } | null>(null)
+  const [stats, setStats] = useState<DashboardStats>(() => cachedDash?.stats || { views: 0, likes: 0, matches: 0, unreadMessages: 0 })
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>(() => cachedDash?.activityEvents || [])
+  const [recentChatsList, setRecentChatsList] = useState<MatchChat[]>(() => cachedDash?.recentChatsList || [])
+  const [discoverPreview, setDiscoverPreview] = useState<DiscoverPreview | null>(() => cachedDash?.discoverPreview || null)
+  const [todaysPick, setTodaysPick] = useState<(DiscoverPreview & { compat: number }) | null>(() => cachedDash?.todaysPick || null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !cachedDash)
+
+  // Campus Spots & Presence States
+  const [campusSpots, setCampusSpots] = useState<CampusSpot[]>(() => cachedDash?.campusSpots || DEFAULT_CAMPUS_SPOTS)
+  const [spotCategoryTab, setSpotCategoryTab] = useState<'inside' | 'outside' | null>(null)
+  const [presenceSearch, setPresenceSearch] = useState('')
+  const [presenceResults, setPresenceResults] = useState<any[]>([])
+  const [presenceSearchLoading, setPresenceSearchLoading] = useState(false)
+  const [activeWhoIsHereSpot, setActiveWhoIsHereSpot] = useState<string | null>(null)
+  const [whoIsHereUsers, setWhoIsHereUsers] = useState<CheckedInUser[]>(() => cachedDash?.checkedUsers || [])
+  const [whoIsHereLoading, setWhoIsHereLoading] = useState(false)
+  const [showWhoIsHereModal, setShowWhoIsHereModal] = useState(false)
+
+  // Load from cache immediately if available
+  useEffect(() => {
+    const cached = getCache('dashboard')
+    if (cached) {
+      if (cached.profileName) setProfileName(cached.profileName)
+      if (cached.profilePhotoUrl) setProfilePhotoUrl(cached.profilePhotoUrl)
+      if (cached.profileSummary) setProfileSummary(cached.profileSummary)
+      if (cached.completionPct !== undefined) setCompletionPct(cached.completionPct)
+      if (cached.profileComplete !== undefined) setProfileComplete(cached.profileComplete)
+      if (cached.isVerified !== undefined) setIsVerified(cached.isVerified)
+      if (cached.stats) setStats(cached.stats)
+      if (cached.activityEvents) setActivityEvents(cached.activityEvents)
+      if (cached.recentChatsList) setRecentChatsList(cached.recentChatsList)
+      if (cached.discoverPreview) setDiscoverPreview(cached.discoverPreview)
+      if (cached.todaysPick) setTodaysPick(cached.todaysPick)
+      if (cached.spotCounts) setSpotCounts(cached.spotCounts)
+      if (cached.checkedUsers) setCheckedUsers(cached.checkedUsers)
+      setLoading(false)
+    }
+  }, [getCache])
 
   // Dropdown DOM Refs
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -102,7 +169,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isDropdownOpen) return
 
-    const handleOutsideClick = (event: MouseEvent) => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node
       if (
         dropdownRef.current && !dropdownRef.current.contains(target) &&
@@ -113,10 +180,66 @@ export default function DashboardPage() {
     }
 
     document.addEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true })
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
     }
   }, [isDropdownOpen])
+
+  // Presence Search Effect
+  useEffect(() => {
+    if (!presenceSearch.trim()) {
+      setPresenceResults([])
+      setPresenceSearchLoading(false)
+      return
+    }
+    setPresenceSearchLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, name, photo_url, course, campus, location_name, presence(online, location_name)')
+          .ilike('name', `%${presenceSearch.trim()}%`)
+          .limit(10) as any
+
+        const results = (data || []).map((p: any) => {
+          const isOnline = p.presence?.online || false
+          const spot = isOnline ? (p.presence?.location_name || p.location_name) : null
+          return {
+            id: p.id,
+            name: p.name || 'Student',
+            photo_url: p.photo_url || DEFAULT_AVATAR,
+            course: p.course || '',
+            campus: p.campus || '',
+            spot,
+            online: isOnline
+          }
+        })
+        setPresenceResults(results)
+      } catch (e) {
+        console.warn("Presence search error:", e)
+      } finally {
+        setPresenceSearchLoading(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [presenceSearch])
+
+  const renderSpotIcon = (iconName: string | null) => {
+    switch (iconName) {
+      case 'building': return '🏢'
+      case 'toolsKitchen2': return '🍲'
+      case 'theater': return '🎭'
+      case 'stethoscope': return '🩺'
+      case 'scale': return '⚖️'
+      case 'home2': return '🏠'
+      case 'books': return '📚'
+      case 'mapPin': return '📍'
+      default: return '📍'
+    }
+  }
 
   // Spots / Check-in States
   const [activeTab, setActiveTab] = useState<'spots' | 'radar'>('spots')
@@ -182,6 +305,8 @@ export default function DashboardPage() {
         setProfileName(name)
         setProfileSummary([profile.course, profile.campus].filter(Boolean).join(' • ') || 'Complete your profile')
         if (profile.photo_url) setProfilePhotoUrl(profile.photo_url)
+        setProfileComplete(!!profile.profile_complete)
+        setIsVerified(!!profile.verified)
 
         // Completion percentage
         const fields = ["name", "bio", "course", "campus", "photo_url", "age", "gender", "interests"]
@@ -189,24 +314,49 @@ export default function DashboardPage() {
           const val = (profile as any)[f]
           return val && (Array.isArray(val) ? val.length > 0 : String(val).trim() !== "")
         }).length
-        setCompletionPct(Math.round((filled / fields.length) * 100))
+        const calcPct = Math.round((filled / fields.length) * 100)
+        setCompletionPct(calcPct)
 
         // Initial Data Fetchers
-        await Promise.all([
-          fetchStats(user.id),
-          fetchChats(user.id),
-          fetchActivity(user.id),
-          fetchDiscoverPreview(user.id),
-          fetchTodaysPick(user.id, profile.interests || []),
-          fetchSpots(user.id),
-          initLocation(user.id)
-        ])
+        try {
+          await Promise.all([
+            fetchStats(user.id),
+            fetchChats(user.id),
+            fetchActivity(user.id),
+            fetchDiscoverPreview(user.id),
+            fetchTodaysPick(user.id, profile.interests || []),
+            fetchSpots(user.id),
+            initLocation(user.id)
+          ])
+
+          setCache('dashboard', {
+            profileName: name,
+            profilePhotoUrl: profile.photo_url || DEFAULT_AVATAR,
+            profileSummary: [profile.course, profile.campus].filter(Boolean).join(' • ') || 'Complete your profile',
+            completionPct: calcPct,
+            profileComplete: !!profile.profile_complete,
+            isVerified: !!profile.verified,
+            stats,
+            activityEvents,
+            recentChatsList,
+            discoverPreview,
+            todaysPick,
+            spotCounts,
+            checkedUsers
+          })
+          clearNetworkError()
+        } catch (e: any) {
+          console.error('Error loading dashboard data:', e)
+          if (!navigator.onLine || e.message?.includes('fetch')) {
+            reportNetworkError()
+          }
+        }
       }
       setLoading(false)
     }
 
     initDashboard()
-  }, [supabase, router])
+  }, [supabase, router, setCache, clearNetworkError, reportNetworkError])
 
   // Realtime Subscriptions (cleanup on unmount)
   useEffect(() => {
@@ -492,10 +642,17 @@ export default function DashboardPage() {
     }
   }
 
-  // Spots count query
+  // Spots count & campus_spots query
   const fetchSpots = async (userId: string) => {
     try {
-      const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+      // 1. Query campus_spots table
+      const { data: spotsData } = await supabase
+        .from('campus_spots')
+        .select('*')
+        .order('sort_order', { ascending: true })
+
+      // 2. Query online presence counts
+      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
       const { data } = await supabase
         .from('presence' as any)
         .select('location_name, user_id')
@@ -521,13 +678,40 @@ export default function DashboardPage() {
       }
       setSpotCounts(counts)
 
-      if (activeSpot) {
-        fetchCheckedInUsers(userId, activeSpot)
-      } else {
-        setCheckedUsers([])
-      }
+      const sourceSpots = (spotsData && spotsData.length > 0) ? spotsData : DEFAULT_CAMPUS_SPOTS
+
+      const formatted: CampusSpot[] = sourceSpots.map((s: any) => ({
+        id: s.id || s.name,
+        name: s.name,
+        category: s.category as 'inside' | 'outside',
+        icon: s.icon,
+        sort_order: s.sort_order || 0,
+        liveCount: counts[s.name] || 0
+      }))
+
+      setCampusSpots(formatted)
+
+      const targetSpot = activeSpot || (formatted.length > 0 ? formatted.reduce((max, spot) => spot.liveCount > max.liveCount ? spot : max, formatted[0]).name : 'Student Center')
+      setActiveWhoIsHereSpot(targetSpot)
+      fetchCheckedInUsers(userId, targetSpot)
     } catch (e) {
       console.warn("Spots loading error:", e)
+    }
+  }
+
+  // Handle Category Tab Change (Inside vs Outside)
+  const handleCategoryTabChange = (cat: 'inside' | 'outside') => {
+    if (spotCategoryTab === cat) {
+      setSpotCategoryTab(null)
+      return
+    }
+    setSpotCategoryTab(cat)
+    const filtered = campusSpots.filter(s => s.category === cat)
+    if (filtered.length > 0) {
+      const userSpotInCat = filtered.find(s => s.name === myCurrentSpot)
+      const targetSpot = userSpotInCat ? userSpotInCat.name : filtered[0].name
+      setActiveWhoIsHereSpot(targetSpot)
+      if (uid) fetchCheckedInUsers(uid, targetSpot)
     }
   }
 
@@ -556,14 +740,14 @@ export default function DashboardPage() {
   // Checked-in users list
   const fetchCheckedInUsers = async (userId: string, spotName: string) => {
     setSpotLoading(true)
+    setWhoIsHereLoading(true)
     try {
-      const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
       const { data } = await supabase
         .from('presence' as any)
         .select('user_id, profiles!presence_user_id_fkey(name, photo_url, course, campus)')
         .eq('location_name', spotName)
         .eq('online', true)
-        .neq('user_id', userId)
         .gte('updated_at', cutoff) as any
 
       if (data) {
@@ -578,11 +762,16 @@ export default function DashboardPage() {
           }
         })
         setCheckedUsers(users)
+        setWhoIsHereUsers(users)
+      } else {
+        setCheckedUsers([])
+        setWhoIsHereUsers([])
       }
     } catch (e) {
       console.warn("Checked users query error:", e)
     } finally {
       setSpotLoading(false)
+      setWhoIsHereLoading(false)
     }
   }
 
@@ -782,9 +971,12 @@ export default function DashboardPage() {
     }
 
     list.sort((a, b) => {
+      if (!a.time && !b.time) return 0
       if (!a.time) return 1
       if (!b.time) return -1
-      return b.time.getTime() - a.time.getTime()
+      const timeA = typeof a.time === 'string' ? new Date(a.time).getTime() : a.time.getTime()
+      const timeB = typeof b.time === 'string' ? new Date(b.time).getTime() : b.time.getTime()
+      return timeB - timeA
     })
 
     setActivityEvents(list.slice(0, 5))
@@ -960,7 +1152,10 @@ export default function DashboardPage() {
     })
   }
 
-  const relativeTime = (date: Date) => {
+  const relativeTime = (dateInput: Date | string | null) => {
+    if (!dateInput) return "Just now"
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+    if (isNaN(date.getTime())) return "Just now"
     const diff = (Date.now() - date.getTime()) / 1000
     if (diff < 60) return "Just now"
     if (diff < 3600) return Math.floor(diff / 60) + "m ago"
@@ -978,16 +1173,28 @@ export default function DashboardPage() {
     }
   }
 
+  if (isNetworkError && !getCache('dashboard')) {
+    return (
+      <div className="dashboard-page">
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <BottomNav activeTab="home" />
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', background: '#0f0e17' }}>
-        <h3>Loading your dashboard...</h3>
+      <div className="dashboard-page">
+        {!isOnline && <OfflineBanner />}
+        <DashboardSkeleton />
+        <BottomNav activeTab="home" />
       </div>
     )
   }
 
   return (
     <div className="dashboard-page">
+      {!isOnline && <OfflineBanner />}
       {/* Top Navbar */}
       <nav className="app-topnav" id="appTopnav">
         <div className="topnav-logo">
@@ -1073,19 +1280,45 @@ export default function DashboardPage() {
             </div>
 
             <div className="hero-info">
-              <h2 className="hero-name">{profileName}</h2>
-              <p className="hero-meta">{profileSummary}</p>
-              <div className="hero-completion">
-                <div className="completion-bar-wrap">
-                  <div className="completion-bar" style={{ width: `${completionPct}%` }}></div>
-                </div>
-                <span className="completion-pct">{completionPct}% Complete</span>
+              <div className="hero-name-row">
+                <h2 className="hero-name">{profileName}</h2>
+                {isVerified && (
+                  <span className="hero-verified-badge" title="Verified Student">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#3b82f6">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                  </span>
+                )}
               </div>
+              <p className="hero-meta">{profileSummary}</p>
+
+              {!profileComplete ? (
+                <div className="hero-completion">
+                  <div className="completion-bar-wrap">
+                    <div className="completion-bar" style={{ width: `${completionPct}%` }}></div>
+                  </div>
+                  <span className="completion-pct">{completionPct}% Complete</span>
+                </div>
+              ) : !isVerified ? (
+                <div className="hero-trust-sub">
+                  ✨ Profile 100% Complete • Build trust on campus
+                </div>
+              ) : (
+                <div className="hero-weekly-views">
+                  👀 {stats.views} {stats.views === 1 ? 'person' : 'people'} viewed your profile this week
+                </div>
+              )}
             </div>
 
-            <Link href="/profile?edit=true" className="btn-hero-cta">
-              Complete Profile
-            </Link>
+            {!profileComplete ? (
+              <Link href="/profile?edit=true" className="btn-hero-cta">
+                Complete Profile
+              </Link>
+            ) : !isVerified ? (
+              <Link href="/verify" className="btn-hero-cta btn-verify-cta">
+                🛡️ Get Verified
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -1150,13 +1383,21 @@ export default function DashboardPage() {
             <Link href="/notifications" className="section-link">View all →</Link>
           </div>
           <div className="activity-feed glass-card">
-            {activityEvents.map((ev, i) => (
-              <div key={i} className="activity-item">
-                <div className={`activity-dot ${ev.cls}`}>{ev.emoji}</div>
-                <div className="activity-text" dangerouslySetInnerHTML={{ __html: ev.text || `<strong>${ev.name}</strong> ${ev.type === 'view' ? 'viewed your profile' : 'liked your profile'}` }}></div>
-                <div className="activity-time">{ev.time ? relativeTime(ev.time) : 'Just now'}</div>
+            {activityEvents.length > 0 ? (
+              activityEvents.map((ev, i) => (
+                <div key={i} className="activity-item">
+                  <div className={`activity-dot ${ev.cls}`}>{ev.emoji}</div>
+                  <div className="activity-text" dangerouslySetInnerHTML={{ __html: ev.text || `<strong>${ev.name}</strong> ${ev.type === 'view' ? 'viewed your profile' : 'liked your profile'}` }}></div>
+                  <div className="activity-time">{ev.time ? relativeTime(ev.time) : 'Just now'}</div>
+                </div>
+              ))
+            ) : (
+              <div className="activity-item">
+                <div className="activity-dot activity-dot--join">🎉</div>
+                <div className="activity-text"><strong>Welcome to UniMatch!</strong> Start swiping to find matches</div>
+                <div className="activity-time">Just now</div>
               </div>
-            ))}
+            )}
           </div>
         </section>
 
@@ -1178,47 +1419,170 @@ export default function DashboardPage() {
 
           {activeTab === 'spots' ? (
             <div className="campus-pulse-card glass-card">
-              <p className="spots-intro">Check-in to your current campus spot to see who else is hanging out there right now!</p>
-              <div className="spots-list">
-                {CAMPUS_SPOTS.map(spot => {
-                  const isHere = myCurrentSpot === spot.name
-                  const activeClass = isHere ? "active" : ""
-                  const count = spotCounts[spot.name] || 0
-                  return (
-                    <div key={spot.id} className={`spot-card ${activeClass}`} onClick={() => toggleSpotCheckin(spot.name)}>
-                      <span className="spot-emoji">{spot.emoji}</span>
-                      <div className="spot-info">
-                        <div className="spot-name">{spot.name}</div>
-                        <div className="spot-count">{count === 1 ? "1 student here" : `${count} students here`}</div>
-                      </div>
-                      <button className="spot-btn" onClick={(e) => { e.stopPropagation(); toggleSpotCheckin(spot.name); }}>
-                        {isHere ? "Check-out ✕" : "Check-in 📍"}
-                      </button>
-                    </div>
-                  )
-                })}
+              {/* 1. Global Presence Search */}
+              <div className="pulse-search-wrap">
+                <div className="pulse-search-box">
+                  <svg className="pulse-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <input
+                    type="text"
+                    className="pulse-search-input"
+                    placeholder="Search a name to find where they are..."
+                    value={presenceSearch}
+                    onChange={(e) => setPresenceSearch(e.target.value)}
+                  />
+                  {presenceSearch && (
+                    <button className="pulse-search-clear" onClick={() => setPresenceSearch('')}>✕</button>
+                  )}
+                </div>
+
+                {presenceSearch.trim() !== '' && (
+                  <div className="pulse-search-results">
+                    {presenceSearchLoading ? (
+                      <div className="pulse-search-loading">Searching students...</div>
+                    ) : presenceResults.length > 0 ? (
+                      presenceResults.map(res => (
+                        <div key={res.id} className="pulse-search-row">
+                          <img src={res.photo_url} alt={res.name} className="psr-avatar" />
+                          <div className="psr-info">
+                            <div className="psr-name">{res.name}</div>
+                            <div className="psr-sub">{[res.course, res.campus].filter(Boolean).join(' · ')}</div>
+                            <div className="psr-spot-badge">
+                              {res.spot ? `📍 Checked into ${res.spot}` : 'Not checked into any spot'}
+                            </div>
+                          </div>
+                          <div className="psr-actions">
+                            <Link href={`/profile?id=${res.id}`} className="psr-btn">Profile</Link>
+                            <Link href={`/chat?userId=${res.id}`} className="psr-btn psr-btn-primary">Chat 👋</Link>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="pulse-search-empty">No students found matching "{presenceSearch}"</div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {myCurrentSpot && (
-                <div className="spot-checked-users" style={{ display: 'block' }}>
-                  <h4 className="sc-title">Students at the {myCurrentSpot} right now</h4>
-                  {spotLoading ? (
-                    <div className="spot-loading">Checking who's here...</div>
-                  ) : checkedUsers.length > 0 ? (
-                    <div className="sc-grid">
-                      {checkedUsers.map(user => (
-                        <Link href="/discover" key={user.id} className="sc-user-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-                          <img className="sc-user-avatar" src={user.photo_url} alt={user.name} />
-                          <div className="sc-user-info">
-                            <div className="sc-user-name">{user.name}</div>
-                            <div className="sc-user-sub">{[user.course, user.campus].filter(Boolean).join(' · ')}</div>
-                          </div>
-                          <div className="sc-user-chat-btn">Say Hi 👋</div>
-                        </Link>
-                      ))}
+              {/* 2. Space-Saving Category Preview Cards (when collapsed) */}
+              {spotCategoryTab === null ? (
+                <div className="spot-category-preview-grid">
+                  <div
+                    className="spot-category-card"
+                    onClick={() => handleCategoryTabChange('inside')}
+                  >
+                    <div className="scc-icon">🏛️</div>
+                    <div className="scc-content">
+                      <div className="scc-title">Inside Campus</div>
+                      <div className="scc-desc">Student Center, Library, Mess, Hostels &amp; more</div>
                     </div>
-                  ) : (
-                    <p className="sc-empty-msg">You're the only one checked-in here. Spread the word! 📣</p>
+                    <div className="scc-action">Explore Spots →</div>
+                  </div>
+
+                  <div
+                    className="spot-category-card"
+                    onClick={() => handleCategoryTabChange('outside')}
+                  >
+                    <div className="scc-icon">🌴</div>
+                    <div className="scc-content">
+                      <div className="scc-title">Outside Campus</div>
+                      <div className="scc-desc">Cheche, Whitehouse, Elevate, Lexy &amp; more</div>
+                    </div>
+                    <div className="scc-action">Explore Spots →</div>
+                  </div>
+                </div>
+              ) : (
+                /* 3. Expanded Category View */
+                <div className="spot-expanded-container anim-fade-in">
+                  <div className="spot-category-tabs-bar">
+                    <div className="spot-category-tabs">
+                      <button
+                        className={`spot-cat-pill ${spotCategoryTab === 'inside' ? 'active' : ''}`}
+                        onClick={() => handleCategoryTabChange('inside')}
+                      >
+                        🏛️ Inside Campus
+                      </button>
+                      <button
+                        className={`spot-cat-pill ${spotCategoryTab === 'outside' ? 'active' : ''}`}
+                        onClick={() => handleCategoryTabChange('outside')}
+                      >
+                        🌴 Outside Campus
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Spots Cards Grid */}
+                  <div className="spots-grid">
+                    {campusSpots
+                      .filter(s => s.category === spotCategoryTab)
+                      .map(spot => {
+                        const isHere = myCurrentSpot === spot.name
+                        const liveCount = spot.liveCount || spotCounts[spot.name] || 0
+                        return (
+                          <div
+                            key={spot.id}
+                            className={`spot-card-item ${isHere ? 'checked-in' : ''}`}
+                            onClick={() => {
+                              setActiveWhoIsHereSpot(spot.name)
+                              if (uid) fetchCheckedInUsers(uid, spot.name)
+                            }}
+                          >
+                            <div className="spot-card-top">
+                              <span className="spot-card-icon">{renderSpotIcon(spot.icon)}</span>
+                              <span className={`spot-count-pill ${liveCount > 0 ? 'active' : ''}`}>
+                                {liveCount} {liveCount === 1 ? 'student' : 'students'}
+                              </span>
+                            </div>
+                            <div className="spot-card-name">{spot.name}</div>
+                            <button
+                              className={`spot-toggle-btn ${isHere ? 'active' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleSpotCheckin(spot.name)
+                              }}
+                            >
+                              {isHere ? 'Checked In ✓' : 'Check In 📍'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                  </div>
+
+                  {/* "Who's Here" Avatar Section */}
+                  {activeWhoIsHereSpot && (
+                    <div className="whos-here-section">
+                      <div className="whos-here-header" onClick={() => setShowWhoIsHereModal(true)}>
+                        <div className="whos-here-title-wrap">
+                          <span className="whos-here-title">Who's at {activeWhoIsHereSpot} right now</span>
+                          <span className="whos-here-sub">{whoIsHereUsers.length} student{whoIsHereUsers.length === 1 ? '' : 's'} checked in</span>
+                        </div>
+                        <button className="whos-here-view-all" onClick={() => setShowWhoIsHereModal(true)}>See all →</button>
+                      </div>
+
+                      {whoIsHereUsers.length > 0 ? (
+                        <div className="whos-here-avatars-row" onClick={() => setShowWhoIsHereModal(true)}>
+                          <div className="whos-here-stack">
+                            {whoIsHereUsers.slice(0, 5).map((u, i) => (
+                              <img
+                                key={u.id || i}
+                                src={u.photo_url || DEFAULT_AVATAR}
+                                alt={u.name}
+                                className="whos-here-stack-img"
+                                style={{ zIndex: 10 - i }}
+                                title={u.name}
+                              />
+                            ))}
+                          </div>
+                          {whoIsHereUsers.length > 5 && (
+                            <div className="whos-here-more-badge">+{whoIsHereUsers.length - 5} more</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="whos-here-empty">Be the first to check in at {activeWhoIsHereSpot}! 🌟</div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -1391,6 +1755,39 @@ export default function DashboardPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Who's Here Full List Modal */}
+      {showWhoIsHereModal && activeWhoIsHereSpot && (
+        <div className="modal-backdrop" onClick={() => setShowWhoIsHereModal(false)}>
+          <div className="modal-card whos-here-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📍 Who's at {activeWhoIsHereSpot}</h3>
+              <button className="modal-close" onClick={() => setShowWhoIsHereModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {whoIsHereUsers.length > 0 ? (
+                <div className="whos-here-list">
+                  {whoIsHereUsers.map(u => (
+                    <div key={u.id} className="whos-here-item">
+                      <img src={u.photo_url || DEFAULT_AVATAR} alt={u.name} className="whos-here-item-avatar" />
+                      <div className="whos-here-item-info">
+                        <div className="whos-here-item-name">{u.name}</div>
+                        <div className="whos-here-item-sub">{[u.course, u.campus].filter(Boolean).join(' · ')}</div>
+                      </div>
+                      <div className="whos-here-item-actions">
+                        <Link href={`/profile?id=${u.id}`} className="whos-here-act-btn" onClick={() => setShowWhoIsHereModal(false)}>Profile</Link>
+                        <Link href={`/chat?userId=${u.id}`} className="whos-here-act-btn primary" onClick={() => setShowWhoIsHereModal(false)}>Chat 👋</Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="whos-here-empty-modal">No students currently checked in here.</div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Slanted Nav / Bottom Navigation */}

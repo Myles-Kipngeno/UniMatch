@@ -171,6 +171,8 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications (user_id, created_at DESC);
+
 -- ── 13. VIEWS TABLE ──
 CREATE TABLE IF NOT EXISTS public.views (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -560,3 +562,66 @@ ALTER TABLE public.presence ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
 DROP POLICY IF EXISTS "Presence viewable by all" ON public.presence;
 CREATE POLICY "Presence viewable by all" ON public.presence
   FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Ensure messages table supports both text and content columns seamlessly
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS text TEXT;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS content TEXT;
+
+-- ============================================================
+-- CAMPUS SPOTS TABLE & SEED DATA MIGRATION
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.campus_spots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('inside', 'outside')),
+  icon TEXT,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.campus_spots ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone authenticated can view spots" ON public.campus_spots;
+CREATE POLICY "Anyone authenticated can view spots"
+ON public.campus_spots FOR SELECT
+USING (auth.role() = 'authenticated');
+
+INSERT INTO public.campus_spots (name, category, icon, sort_order) VALUES
+  ('Student Center', 'inside', 'building', 1),
+  ('Mess', 'inside', 'toolsKitchen2', 2),
+  ('Auditorium', 'inside', 'theater', 3),
+  ('SMHS', 'inside', 'stethoscope', 4),
+  ('School of Law', 'inside', 'scale', 5),
+  ('Hostels', 'inside', 'home2', 6),
+  ('Library', 'inside', 'books', 7),
+  ('Cheche', 'outside', 'mapPin', 1),
+  ('Whitehouse', 'outside', 'mapPin', 2),
+  ('Lexy', 'outside', 'mapPin', 3),
+  ('Elevate', 'outside', 'mapPin', 4),
+  ('Belajio', 'outside', 'mapPin', 5),
+  ('Carrots', 'outside', 'mapPin', 6)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- VERIFICATION REQUESTS TABLE & RLS MIGRATION
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.verification_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.verification_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own verification requests" ON public.verification_requests;
+CREATE POLICY "Users can view their own verification requests"
+  ON public.verification_requests FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own verification request" ON public.verification_requests;
+CREATE POLICY "Users can insert their own verification request"
+  ON public.verification_requests FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+
