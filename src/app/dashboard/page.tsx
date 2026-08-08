@@ -83,6 +83,7 @@ import { useAppCache } from '@/context/AppCacheContext'
 import { useNetwork } from '@/context/NetworkContext'
 import { DashboardSkeleton } from '@/components/skeletons/Skeletons'
 import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
+import InstallPrompt from '@/components/InstallPrompt'
 
 const DEFAULT_CAMPUS_SPOTS: CampusSpot[] = [
   { id: '1', name: 'Student Center', category: 'inside', icon: 'building', sort_order: 1, liveCount: 0 },
@@ -1817,6 +1818,9 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
 
       {/* Slanted Nav / Bottom Navigation */}
       <BottomNav activeTab="home" matchesBadge={stats.matches} unreadBadge={stats.unreadMessages} />
