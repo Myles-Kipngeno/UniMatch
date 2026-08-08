@@ -1,6 +1,85 @@
 'use client'
 
 import React from 'react'
+import { useNetwork } from '@/context/NetworkContext'
+
+/** Global offline/reconnected banner — rendered once in Providers */
+export function GlobalOfflineBanner() {
+  const { isOnline, showReconnected } = useNetwork()
+
+  if (isOnline && !showReconnected) return null
+
+  if (showReconnected) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          width: '100%',
+          backgroundColor: '#22c55e',
+          color: '#ffffff',
+          padding: '8px 16px',
+          fontSize: '13px',
+          fontWeight: 600,
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          zIndex: 99999,
+          boxShadow: '0 2px 10px rgba(34, 197, 94, 0.3)',
+          animation: 'slideDownBanner 0.3s ease-out',
+          fontFamily: "'Outfit', sans-serif",
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+        <span>Back online ✓</span>
+      </div>
+    )
+  }
+
+  // Offline banner
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        backgroundColor: '#ef4444',
+        color: '#ffffff',
+        padding: '8px 16px',
+        fontSize: '13px',
+        fontWeight: 600,
+        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        zIndex: 99999,
+        boxShadow: '0 2px 10px rgba(239, 68, 68, 0.3)',
+        animation: 'slideDownBanner 0.3s ease-out',
+        fontFamily: "'Outfit', sans-serif",
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23" />
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+        <line x1="12" y1="20" x2="12.01" y2="20" />
+      </svg>
+      <span>You&apos;re offline — showing your last saved data</span>
+    </div>
+  )
+}
 
 interface OfflineNoticeProps {
   onRetry?: () => void
@@ -8,6 +87,7 @@ interface OfflineNoticeProps {
   message?: string
 }
 
+/** Standalone banner (for per-page usage — kept for backward compat) */
 export function OfflineBanner() {
   return (
     <div
@@ -43,6 +123,7 @@ export function OfflineBanner() {
   )
 }
 
+/** Full-page offline notice (for pages with no cached data at all) */
 export default function OfflineNotice({ onRetry, isBannerOnly = false, message }: OfflineNoticeProps) {
   if (isBannerOnly) {
     return <OfflineBanner />

@@ -193,7 +193,10 @@ button {
   overflow-x: auto;
   padding-bottom: 16px;
   scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  flex-wrap: nowrap;
 }
 
 .notif-tabs::-webkit-scrollbar {
@@ -201,6 +204,7 @@ button {
 }
 
 .notif-tab {
+  flex-shrink: 0;
   padding: 10px 20px;
   border-radius: var(--r-full);
   background: rgba(23, 20, 42, 0.6);
@@ -365,6 +369,9 @@ button {
   font-weight: 800;
   color: #ffffff;
   letter-spacing: -0.3px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .header-right-meta,
@@ -372,6 +379,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .notif-time-badge {
@@ -418,6 +426,9 @@ button {
   color: #f1f5f9;
   margin-top: 2px;
   line-height: 1.35;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .notif-body-text {
@@ -426,6 +437,9 @@ button {
   color: #cbd5e1;
   line-height: 1.4;
   margin-top: 3px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
 }
 
 /* Stack Indicator Footer */
@@ -535,17 +549,63 @@ button {
   font-size: 13.5px;
   font-weight: 700;
   color: #ffffff;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .subcard-time {
   font-size: 11.5px;
   color: #94a3b8;
+  white-space: nowrap;
 }
 
 .subcard-text {
   font-size: 12.5px;
   color: #cbd5e1;
   line-height: 1.35;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* SWIPE-TO-CLEAR STYLES */
+.notif-swipe-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  touch-action: pan-y;
+}
+
+.notif-swipe-action-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 24px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  gap: 8px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.notif-swipe-container.swiping .notif-swipe-action-bg {
+  opacity: 1;
+}
+
+.notif-swipe-card-surface {
+  position: relative;
+  z-index: 10;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .btn-collapse-stack {

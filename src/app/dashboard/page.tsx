@@ -380,9 +380,19 @@ export default function DashboardPage() {
       })
       .subscribe()
 
+    // Reconnect handler: refetch data missed while offline
+    const handleReconnect = () => {
+      fetchStats(uid)
+      fetchChats(uid)
+      fetchActivity(uid)
+      fetchSpots(uid)
+    }
+    window.addEventListener('unimatch:reconnect', handleReconnect)
+
     return () => {
       supabase.removeChannel(statsChannel)
       supabase.removeChannel(presenceChannel)
+      window.removeEventListener('unimatch:reconnect', handleReconnect)
     }
   }, [uid, gpsLat, gpsLng, radarRange])
 
@@ -718,6 +728,10 @@ export default function DashboardPage() {
 
   // Spots check-in toggle check-in
   const toggleSpotCheckin = async (spotName: string) => {
+    if (!isOnline) {
+      modal.toast("You're offline — check-in requires a live connection", "warning")
+      return
+    }
     if (!uid) return
     const isCheckingOut = myCurrentSpotRef.current === spotName
     const nextSpot = isCheckingOut ? null : spotName
@@ -1551,6 +1565,7 @@ export default function DashboardPage() {
                             <div className="spot-card-name">{spot.name}</div>
                             <button
                               className={`spot-toggle-btn ${isHere ? 'active' : ''}`}
+                              disabled={!isOnline}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 toggleSpotCheckin(spot.name)

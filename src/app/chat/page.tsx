@@ -492,8 +492,15 @@ function ChatPageContent() {
       )
       .subscribe()
 
+    // Reconnect handler: refetch conversations missed while offline
+    const handleReconnect = () => {
+      fetchConversations(currentUser.id)
+    }
+    window.addEventListener('unimatch:reconnect', handleReconnect)
+
     return () => {
       supabase.removeChannel(channel)
+      window.removeEventListener('unimatch:reconnect', handleReconnect)
     }
   }, [currentUser?.id])
 
@@ -1978,7 +1985,18 @@ function ChatPageContent() {
               )}
 
               {!isSelectMode && (
-                isRecording ? (
+                !isOnline ? (
+                  <div className="chat-input-area" style={{ justifyContent: 'center', padding: '14px 16px', opacity: 0.6, pointerEvents: 'none' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: '#9ca3af' }}>
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                      <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+                      <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+                      <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                      <line x1="12" y1="20" x2="12.01" y2="20" />
+                    </svg>
+                    <span style={{ color: '#9ca3af', fontSize: '13px', fontWeight: 500, marginLeft: '8px' }}>You&apos;re offline — messages can&apos;t be sent right now</span>
+                  </div>
+                ) : isRecording ? (
                   <div className="voice-recording-bar">
                     <div className="recording-indicator">
                       <span className="recording-dot"></span>

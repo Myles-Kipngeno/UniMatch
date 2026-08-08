@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0e17" />
+  <title>UniMatch — Offline</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;width:100%;overflow:hidden}
+    body{
+      font-family:'Outfit',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:#0f0e17;
+      color:#ffffff;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      text-align:center;
+      -webkit-font-smoothing:antialiased;
+    }
+    .offline-icon{
+      width:80px;height:80px;border-radius:50%;
+      background:rgba(239,68,68,0.12);
+      border:1px solid rgba(239,68,68,0.25);
+      display:flex;align-items:center;justify-content:center;
+      margin-bottom:24px;
+    }
+    .offline-icon svg{color:#f87171;width:40px;height:40px}
+    h1{font-size:22px;font-weight:700;margin-bottom:8px;color:#fff}
+    p{font-size:14px;color:#9ca3af;max-width:340px;line-height:1.6;margin-bottom:28px}
+    .btn-back{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:12px 28px;border-radius:12px;border:none;cursor:pointer;
+      background:linear-gradient(135deg,#6c47ff 0%,#a855f7 100%);
+      color:#fff;font-weight:600;font-size:14px;
+      box-shadow:0 4px 14px rgba(108,71,255,0.4);
+      transition:transform 0.15s ease,opacity 0.15s ease;
+    }
+    .btn-back:active{transform:scale(0.96)}
+    .btn-retry{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:10px 22px;border-radius:10px;border:1px solid rgba(255,255,255,0.12);
+      cursor:pointer;background:transparent;color:#d1d5db;
+      font-weight:500;font-size:13px;margin-top:12px;
+      transition:background 0.15s ease;
+    }
+    .btn-retry:hover{background:rgba(255,255,255,0.06)}
+  </style>
+</head>
+<body>
+  <div class="offline-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="1" y1="1" x2="23" y2="23"/>
+      <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+      <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+      <path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+      <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+      <line x1="12" y1="20" x2="12.01" y2="20"/>
+    </svg>
+  </div>
+  <h1>You&rsquo;re Offline</h1>
+  <p>This page hasn&rsquo;t been cached yet. Please check your connection and try again, or go back to a page you&rsquo;ve already visited.</p>
+  <button class="btn-back" onclick="history.back()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Go Back
+  </button>
+  <button class="btn-retry" onclick="location.reload()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+    Try Again
+  </button>
+</body>
+</html>

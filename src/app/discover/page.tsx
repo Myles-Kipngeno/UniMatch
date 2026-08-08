@@ -325,6 +325,7 @@ export default function DiscoverPage() {
 
   // Programmatic Button Swiping
   const triggerSwipe = (direction: 'left' | 'right' | 'up') => {
+    if (!isOnline) return
     const card = activeCardRef.current
     const activeCandidate = candidates[0]
     if (!card || !activeCandidate) return
@@ -372,6 +373,7 @@ export default function DiscoverPage() {
     const stampSuper = card.querySelector(".stamp-super") as HTMLDivElement
 
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      if (!isOnline) return
       const targetEl = e.target as HTMLElement
       if (targetEl.closest('button') || targetEl.closest('a')) return
 
@@ -633,21 +635,26 @@ export default function DiscoverPage() {
         {/* Action Buttons Row */}
         {!loading && candidates.length > 0 && (
           <div className="action-row" id="actionRow">
-            <button className="action-btn action-pass" id="btnPass" title="Pass" onClick={() => triggerSwipe("left")}>
+            <button className="action-btn action-pass" id="btnPass" title="Pass" disabled={!isOnline} style={!isOnline ? { opacity: 0.5, cursor: 'not-allowed' } : undefined} onClick={() => triggerSwipe("left")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
             </button>
-            <button className="action-btn action-super" id="btnSuper" title="Super Like" onClick={() => triggerSwipe("up")}>
+            <button className="action-btn action-super" id="btnSuper" title="Super Like" disabled={!isOnline} style={!isOnline ? { opacity: 0.5, cursor: 'not-allowed' } : undefined} onClick={() => triggerSwipe("up")}>
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
               </svg>
             </button>
-            <button className="action-btn action-like" id="btnLike" title="Like" onClick={() => triggerSwipe("right")}>
+            <button className="action-btn action-like" id="btnLike" title="Like" disabled={!isOnline} style={!isOnline ? { opacity: 0.5, cursor: 'not-allowed' } : undefined} onClick={() => triggerSwipe("right")}>
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
             </button>
+            {!isOnline && (
+              <div style={{ width: '100%', textAlign: 'center', fontSize: '13px', color: '#9ca3af', marginTop: '6px' }}>
+                Go online to swipe
+              </div>
+            )}
           </div>
         )}
       </main>

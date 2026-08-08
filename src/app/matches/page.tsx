@@ -189,7 +189,17 @@ export default function MatchesPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `user1_id=eq.${uid}` }, () => fetchMatches(uid))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `user2_id=eq.${uid}` }, () => fetchMatches(uid))
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    // Reconnect handler: refetch matches missed while offline
+    const handleReconnect = () => {
+      fetchMatches(uid)
+    }
+    window.addEventListener('unimatch:reconnect', handleReconnect)
+
+    return () => {
+      supabase.removeChannel(channel)
+      window.removeEventListener('unimatch:reconnect', handleReconnect)
+    }
   }, [uid, supabase])
 
   const filteredMatches = matches.filter(m => {

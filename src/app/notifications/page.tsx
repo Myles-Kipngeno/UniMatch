@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -40,6 +40,121 @@ interface NotificationGroup {
   senderPhoto?: string
   senderName?: string
   items: NotificationItem[]
+}
+
+interface SwipeableNotifCardProps {
+  onDismiss: () => void
+  onClick: () => void
+  children: React.ReactNode
+  className?: string
+}
+
+function SwipeableNotifCard({ onDismiss, onClick, children, className = '' }: SwipeableNotifCardProps) {
+  const [startX, setStartX] = useState<number | null>(null)
+  const [startY, setStartY] = useState<number | null>(null)
+  const [translateX, setTranslateX] = useState(0)
+  const [isSwiping, setIsSwiping] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const isDraggingRef = useRef(false)
+  const hasMovedRef = useRef(false)
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement
+    if (
+      target.closest('button') ||
+      target.closest('.btn-dismiss-item') ||
+      target.closest('.btn-dismiss-subitem') ||
+      target.closest('.notif-stack-footer')
+    ) {
+      return
+    }
+
+    setStartX(e.clientX)
+    setStartY(e.clientY)
+    isDraggingRef.current = true
+    hasMovedRef.current = false
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch (_) {}
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current || startX === null || startY === null || isDeleting) return
+
+    const diffX = e.clientX - startX
+    const diffY = e.clientY - startY
+
+    if (!hasMovedRef.current) {
+      if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 6) {
+        isDraggingRef.current = false
+        setStartX(null)
+        setStartY(null)
+        return
+      }
+    }
+
+    if (diffX > 0) {
+      hasMovedRef.current = true
+      setIsSwiping(true)
+      setTranslateX(diffX)
+    }
+  }
+
+  const handlePointerUpOrCancel = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current && !hasMovedRef.current) return
+    isDraggingRef.current = false
+    setStartX(null)
+    setStartY(null)
+    setIsSwiping(false)
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch (_) {}
+
+    const SWIPE_THRESHOLD = 110
+    if (translateX >= SWIPE_THRESHOLD) {
+      setIsDeleting(true)
+      setTranslateX(400)
+      setTimeout(() => {
+        onDismiss()
+      }, 200)
+    } else {
+      setTranslateX(0)
+    }
+  }
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (hasMovedRef.current || translateX > 10) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    onClick()
+  }
+
+  return (
+    <div className={`notif-swipe-container ${isSwiping || translateX > 0 ? 'swiping' : ''}`}>
+      <div className="notif-swipe-action-bg">
+        <span>🗑️</span>
+        <span>Delete</span>
+      </div>
+      <div
+        className={`notif-swipe-card-surface ${className}`}
+        style={{
+          transform: `translateX(${translateX}px)`,
+          opacity: isDeleting ? 0 : 1,
+          transition: isSwiping ? 'none' : 'transform 0.22s var(--spring), opacity 0.2s ease'
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUpOrCancel}
+        onPointerCancel={handlePointerUpOrCancel}
+        onClick={handleCardClick}
+      >
+        {children}
+      </div>
+    </div>
+  )
 }
 
 const DEMO_NOTIFICATIONS: NotificationItem[] = [
@@ -335,8 +450,15 @@ export default function NotificationsPage() {
   }
 
   // Delete individual notification
-  const handleDeleteItem = async (e: React.MouseEvent, itemId: string) => {
-    e.stopPropagation()
+  const handleDeleteItem = async (eOrId?: React.MouseEvent | string, possibleId?: string) => {
+    let itemId = possibleId
+    if (typeof eOrId === 'string') {
+      itemId = eOrId
+    } else if (eOrId && typeof eOrId === 'object' && 'stopPropagation' in eOrId) {
+      (eOrId as React.MouseEvent).stopPropagation()
+    }
+    if (!itemId) return
+
     setNotifications(prev => {
       const updated = prev.filter(n => n.id !== itemId)
       setCache('notifications', updated)
@@ -356,8 +478,15 @@ export default function NotificationsPage() {
   }
 
   // Delete notification stack
-  const handleDeleteGroup = async (e: React.MouseEvent, group: NotificationGroup) => {
-    e.stopPropagation()
+  const handleDeleteGroup = async (eOrGroup?: React.MouseEvent | NotificationGroup, possibleGroup?: NotificationGroup) => {
+    let group = possibleGroup
+    if (eOrGroup && typeof eOrGroup === 'object' && 'items' in eOrGroup) {
+      group = eOrGroup as NotificationGroup
+    } else if (eOrGroup && typeof eOrGroup === 'object' && 'stopPropagation' in eOrGroup) {
+      (eOrGroup as React.MouseEvent).stopPropagation()
+    }
+    if (!group) return
+
     const itemIds = group.items.map(i => i.id)
     setNotifications(prev => {
       const updated = prev.filter(n => !itemIds.includes(n.id))
@@ -408,8 +537,15 @@ export default function NotificationsPage() {
       )
       .subscribe()
 
+    // Reconnect handler: refetch notifications missed while offline
+    const handleReconnect = () => {
+      fetchNotifications(uid)
+    }
+    window.addEventListener('unimatch:reconnect', handleReconnect)
+
     return () => {
       supabase.removeChannel(channel)
+      window.removeEventListener('unimatch:reconnect', handleReconnect)
     }
   }, [uid])
 
@@ -563,8 +699,9 @@ export default function NotificationsPage() {
                   )}
 
                   {/* Top Primary Notification Card */}
-                  <div
+                  <SwipeableNotifCard
                     className={`notif-card-stacked ${topItem.unread ? 'unread' : ''}`}
+                    onDismiss={() => (isStacked ? handleDeleteGroup(group) : handleDeleteItem(topItem.id))}
                     onClick={() => {
                       if (isStacked && !isExpanded) {
                         toggleExpandGroup(group.groupId)
@@ -622,15 +759,16 @@ export default function NotificationsPage() {
                     </div>
 
                     {group.unreadCount > 0 && <div className="notif-unread-dot" />}
-                  </div>
+                  </SwipeableNotifCard>
 
                   {/* Expanded Accordion Sub-cards */}
                   {isStacked && isExpanded && (
                     <div className="notif-expanded-container">
                       {group.items.slice(1).map(item => (
-                        <div
+                        <SwipeableNotifCard
                           key={item.id}
                           className={`notif-subcard ${item.unread ? 'unread' : ''}`}
+                          onDismiss={() => handleDeleteItem(item.id)}
                           onClick={() => handleNotificationClick(item)}
                         >
                           <div className="subcard-icon">{item.icon}</div>
@@ -650,7 +788,7 @@ export default function NotificationsPage() {
                             </div>
                             <div className="subcard-text">{item.text}</div>
                           </div>
-                        </div>
+                        </SwipeableNotifCard>
                       ))}
                       <button className="btn-collapse-stack" onClick={() => toggleExpandGroup(group.groupId)}>
                         Collapse stack ∧
