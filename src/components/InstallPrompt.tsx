@@ -8,9 +8,14 @@ export default function InstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false)
   const [platform, setPlatform] = useState<'chromium' | 'ios' | null>(null)
   const [isInstalling, setIsInstalling] = useState(false)
+  const [domain, setDomain] = useState('uni-match-one.vercel.app')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+
+    if (window.location.host) {
+      setDomain(window.location.host)
+    }
 
     // 1. Guard: Never show if already running in standalone/installed mode
     const isStandalone =
@@ -27,7 +32,6 @@ export default function InstallPrompt() {
     // 3. Detect iOS Safari
     const ua = window.navigator.userAgent
     const isIOS = /iPhone|iPad|iPod/i.test(ua)
-    const isIOSWebkit = isIOS && /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS/i.test(ua)
 
     if (isIOS) {
       setPlatform('ios')
@@ -80,7 +84,7 @@ export default function InstallPrompt() {
         handleDismiss()
       }
     } else if (platform === 'ios') {
-      // Dismiss iOS instruction card once acknowledged
+      alert('To install UniMatch: tap the Share icon in Safari, then select "Add to Home Screen".')
       handleDismiss()
     }
   }
@@ -90,196 +94,139 @@ export default function InstallPrompt() {
   return (
     <>
       <style>{`
-        @keyframes installSlideUp {
+        @keyframes installSlideDown {
           from {
-            transform: translateY(100%);
+            transform: translate(-50%, -100%);
             opacity: 0;
           }
           to {
-            transform: translateY(0);
+            transform: translate(-50%, 0);
             opacity: 1;
           }
         }
         .install-prompt-overlay {
           position: fixed;
-          bottom: 24px;
+          top: calc(14px + env(safe-area-inset-top, 0px));
           left: 50%;
           transform: translateX(-50%);
-          width: calc(100% - 32px);
-          max-width: 480px;
+          width: calc(100% - 24px);
+          max-width: 440px;
           z-index: 9999;
-          animation: installSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          animation: installSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .install-prompt-card {
-          background: rgba(19, 14, 34, 0.92);
+          background: rgba(33, 37, 47, 0.96);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(225, 29, 72, 0.2);
-          border-radius: 20px;
-          padding: 18px 20px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+          border-radius: 16px;
+          padding: 12px 16px;
           color: #ffffff;
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-        .install-prompt-header {
           display: flex;
           align-items: center;
           gap: 14px;
         }
         .install-prompt-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 14px;
+          width: 42px;
+          height: 42px;
+          border-radius: 10px;
           object-fit: cover;
           flex-shrink: 0;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .install-prompt-titles {
+        .install-prompt-text {
           flex: 1;
           min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
         }
         .install-prompt-title {
           font-size: 16px;
-          font-weight: 800;
-          margin: 0 0 2px 0;
-          color: #ffffff;
+          font-weight: 500;
+          color: #f1f3f4;
           letter-spacing: -0.2px;
+          margin: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .install-prompt-subtitle {
-          font-size: 12.5px;
-          color: #b0a4cb;
+          font-size: 13.5px;
+          color: #9aa0a6;
           margin: 0;
-          line-height: 1.35;
-        }
-        .install-ios-steps {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 12px;
-          padding: 10px 12px;
-          font-size: 12.5px;
-          color: #d1c7e6;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          line-height: 1.4;
-        }
-        .install-ios-icon {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 26px;
-          height: 26px;
-          background: rgba(56, 189, 248, 0.15);
-          color: #38bdf8;
-          border-radius: 6px;
-          flex-shrink: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .install-prompt-actions {
           display: flex;
           align-items: center;
           gap: 10px;
+          flex-shrink: 0;
         }
-        .install-btn-primary {
-          flex: 1;
-          background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
-          color: #ffffff;
+        .install-btn-text {
+          background: transparent;
+          color: #9bb2f4;
           border: none;
-          padding: 10px 16px;
-          border-radius: 12px;
-          font-size: 13.5px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: transform 0.15s ease, opacity 0.15s ease;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          box-shadow: 0 4px 14px rgba(225, 29, 72, 0.35);
-        }
-        .install-btn-primary:active {
-          transform: scale(0.97);
-        }
-        .install-btn-dismiss {
-          background: rgba(255, 255, 255, 0.08);
-          color: #9d91b8;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 10px 14px;
-          border-radius: 12px;
-          font-size: 13px;
+          font-size: 15px;
           font-weight: 600;
           cursor: pointer;
-          transition: background 0.15s ease;
+          padding: 4px 6px;
+          transition: opacity 0.15s ease;
         }
-        .install-btn-dismiss:hover {
-          background: rgba(255, 255, 255, 0.14);
-          color: #ffffff;
+        .install-btn-text:hover {
+          opacity: 0.85;
         }
-        @media (max-width: 480px) {
-          .install-prompt-overlay {
-            bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-            width: calc(100% - 24px);
-          }
+        .install-btn-text:disabled {
+          opacity: 0.5;
+        }
+        .install-btn-close {
+          background: transparent;
+          color: #80868b;
+          border: none;
+          font-size: 15px;
+          cursor: pointer;
+          padding: 2px 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.15s ease;
+        }
+        .install-btn-close:hover {
+          color: #f1f3f4;
         }
       `}</style>
 
       <div className="install-prompt-overlay" role="dialog" aria-label="Install UniMatch App">
         <div className="install-prompt-card">
-          <div className="install-prompt-header">
-            <img
-              src="/Unimatch_icon.png"
-              alt="UniMatch Icon"
-              className="install-prompt-icon"
-              onError={(e) => {
-                // Fallback to favicon if image fails
-                ;(e.target as HTMLElement).setAttribute('src', '/favicon.svg')
-              }}
-            />
-            <div className="install-prompt-titles">
-              <h3 className="install-prompt-title">Install UniMatch</h3>
-              <p className="install-prompt-subtitle">
-                Get faster access and a full-screen experience
-              </p>
-            </div>
+          <img
+            src="/Unimatch_icon.png"
+            alt="UniMatch"
+            className="install-prompt-icon"
+            onError={(e) => {
+              ;(e.target as HTMLElement).setAttribute('src', '/favicon.svg')
+            }}
+          />
+          <div className="install-prompt-text">
+            <h4 className="install-prompt-title">Install UniMatch</h4>
+            <p className="install-prompt-subtitle">{domain}</p>
           </div>
 
-          {platform === 'ios' && (
-            <div className="install-ios-steps">
-              <span className="install-ios-icon">
-                {/* iOS Share SVG Icon */}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                  <polyline points="16 6 12 2 8 6" />
-                  <line x1="12" y1="2" x2="12" y2="15" />
-                </svg>
-              </span>
-              <span>
-                Tap the <strong>Share</strong> icon below, then select <strong>&quot;Add to Home Screen&quot;</strong>.
-              </span>
-            </div>
-          )}
-
           <div className="install-prompt-actions">
-            {platform === 'chromium' && (
-              <button
-                className="install-btn-primary"
-                onClick={handleInstallClick}
-                disabled={isInstalling}
-              >
-                {isInstalling ? 'Installing...' : 'Install App ✨'}
-              </button>
-            )}
-
-            {platform === 'ios' && (
-              <button className="install-btn-primary" onClick={handleDismiss}>
-                Got it 👍
-              </button>
-            )}
-
-            <button className="install-btn-dismiss" onClick={handleDismiss}>
-              Not now
+            <button
+              className="install-btn-text"
+              onClick={handleInstallClick}
+              disabled={isInstalling}
+            >
+              {isInstalling ? 'Installing...' : 'Install'}
+            </button>
+            <button
+              className="install-btn-close"
+              onClick={handleDismiss}
+              aria-label="Close prompt"
+            >
+              ✕
             </button>
           </div>
         </div>
@@ -287,3 +234,5 @@ export default function InstallPrompt() {
     </>
   )
 }
+
+
