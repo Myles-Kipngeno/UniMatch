@@ -158,6 +158,12 @@ function ProfileFormContent() {
       const viewingOther = Boolean(viewUserIdParam && viewUserIdParam !== user.id)
       setIsOtherUser(viewingOther)
 
+      const targetKey = viewUserIdParam || 'self'
+      const cached = getCache('profile', targetKey)
+      if (cached) {
+        setLoading(false)
+      }
+
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -200,7 +206,7 @@ function ProfileFormContent() {
     }
 
     getProfile()
-  }, [supabase, router, viewUserIdParam, setCache, clearNetworkError, reportNetworkError])
+  }, [supabase, router, viewUserIdParam, setCache, clearNetworkError, reportNetworkError, getCache])
 
   // Sign out action
   const handleSignOut = () => {

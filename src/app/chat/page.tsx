@@ -424,7 +424,7 @@ function ChatPageContent() {
     try {
       const { data, error } = await supabase
         .from('matches')
-        .select('*, p1:profiles!matches_user1_id_fkey(*), p2:profiles!matches_user2_id_fkey(*)')
+        .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, match_pct, compatibility, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
         .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
         .order('last_message_at', { ascending: false, nullsFirst: false }) as any
 
@@ -534,24 +534,25 @@ function ChatPageContent() {
     async function loadThread() {
       let resolvedMatchId = targetMatchId || found?.id || null
 
-      // Fetch match detail & constructed conversation item
       try {
+        // Fetch match detail & constructed conversation item
         let mData: any = null
         if (targetMatchId) {
           const { data } = await supabase
             .from('matches')
-            .select('*, p1:profiles!matches_user1_id_fkey(*), p2:profiles!matches_user2_id_fkey(*)')
+            .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, match_pct, compatibility, muted_by_user1, muted_by_user2, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
             .eq('id', targetMatchId)
             .single() as any
           mData = data
         } else if (targetUserId) {
           const { data } = await supabase
             .from('matches')
-            .select('*, p1:profiles!matches_user1_id_fkey(*), p2:profiles!matches_user2_id_fkey(*)')
+            .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, match_pct, compatibility, muted_by_user1, muted_by_user2, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
             .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${targetUserId}),and(user2_id.eq.${currentUser.id},user1_id.eq.${targetUserId})`) as any
           mData = data && data[0]
         }
 
+        let updateUnreadPromise: Promise<any> = Promise.resolve()
         if (mData) {
           resolvedMatchId = mData.id
           const isUser1 = mData.user1_id === currentUser.id
@@ -578,22 +579,20 @@ function ChatPageContent() {
           }
           setActiveMatch(constructedMatch)
 
-          await (supabase.from('matches') as any)
-            .update(isUser1 ? { user1_unread: 0 } : { user2_unread: 0 })
-            .eq('id', mData.id)
+          if (unread > 0) {
+            updateUnreadPromise = (supabase.from('matches') as any)
+              .update(isUser1 ? { user1_unread: 0 } : { user2_unread: 0 })
+              .eq('id', mData.id)
+          }
         }
-      } catch (e) {
-        console.warn("Mark read error:", e)
-      }
 
-      const activeId = resolvedMatchId || activeMatch?.id
-      if (!activeId) {
-        setMessagesLoading(false)
-        return
-      }
+        const activeId = resolvedMatchId || activeMatch?.id
+        if (!activeId) {
+          setMessagesLoading(false)
+          return
+        }
 
-      // Fetch messages using activeId
-      try {
+        // Cache check
         const cachedMsgs = getCache('chat', activeId)
         if (cachedMsgs && cachedMsgs.length > 0) {
           setMessages(cachedMsgs)
@@ -602,12 +601,17 @@ function ChatPageContent() {
           setMessagesLoading(true)
         }
 
-        const { data: msgData } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('match_id', activeId)
-          .order('created_at', { ascending: true }) as any
+        // Parallelize fetching messages and updating unread status
+        const [msgResult] = await Promise.all([
+          supabase
+            .from('messages')
+            .select('*')
+            .eq('match_id', activeId)
+            .order('created_at', { ascending: true }) as any,
+          updateUnreadPromise
+        ])
 
+        const msgData = msgResult.data
         setMessages(msgData || [])
         setCache('chat', msgData || [], activeId)
         clearNetworkError()
