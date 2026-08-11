@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 
 const DEFAULT_TAGLINES = [
   "Finding your people...",
@@ -76,30 +77,17 @@ export default function LoadingScreen({ message, fullScreen = true }: LoadingScr
         }
       `}</style>
 
-      {/* Logo Container with Ring */}
+      {/* Logo Container */}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-        {/* Expanding Ring */}
-        <div
-          style={{
-            position: 'absolute',
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(244,114,182,0.4) 0%, rgba(108,71,255,0.2) 60%, transparent 100%)',
-            animation: 'ringExpand 2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite',
-            pointerEvents: 'none',
-          }}
-        />
-
         {/* Logo Image */}
-        <img
-          src="/Unimatch_icon.png"
+        <Image
+          src="/logo/unimatch-logo-transparent.png"
           alt="UniMatch"
+          width={52}
+          height={52}
+          priority
           style={{
-            width: '52px',
-            height: '52px',
             objectFit: 'contain',
-            borderRadius: '14px',
             animation: 'heartbeat 2s ease-in-out infinite',
             filter: 'drop-shadow(0 6px 20px rgba(108,71,255,0.45))',
           }}

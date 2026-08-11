@@ -35,7 +35,6 @@ if (workbox) {
     { url: '/Unimatch_icon.png', revision: '1' },
     { url: '/favicon.ico', revision: '1' },
     { url: '/favicon.svg', revision: '1' },
-    { url: '/favicon.png', revision: '1' },
   ]);
 
   // ─── Strategy: Static Assets (Images & Icons) — CacheFirst ───

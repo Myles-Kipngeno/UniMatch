@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
@@ -526,7 +527,7 @@ export default function DiscoverPage() {
       {/* ═══ TOP NAV ═══ */}
       <nav className="disc-topnav">
         <div className="disc-topnav-logo" onClick={() => router.push('/dashboard')}>
-          <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+          <Image src="/logo/unimatch-logo-192.png" alt="UniMatch" width={32} height={32} style={{ objectFit: 'contain' }} />
           <span className="disc-logo-text">UniMatch</span>
         </div>
         <h2 className="disc-topnav-title">Discover</h2>

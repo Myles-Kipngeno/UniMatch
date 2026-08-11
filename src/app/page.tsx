@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import './landing.css'
 
@@ -142,7 +143,7 @@ export default function LandingPage() {
       <nav className="navbar" id="navbar" ref={navRef}>
         <div className="nav-container">
           <Link href="#" className="logo">
-            <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+            <Image src="/logo/unimatch-logo-192.png" alt="UniMatch" width={32} height={32} style={{ objectFit: 'contain' }} />
             <span className="logo-text">UniMatch</span>
           </Link>
 
@@ -525,7 +526,7 @@ export default function LandingPage() {
           <div className="footer-top">
             <div className="footer-brand">
               <div className="logo">
-                <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+                <Image src="/logo/unimatch-logo-192.png" alt="UniMatch" width={32} height={32} style={{ objectFit: 'contain' }} />
                 <span className="logo-text">UniMatch</span>
               </div>
               <p className="footer-tagline">Your vibe. Your campus. Your match.</p>

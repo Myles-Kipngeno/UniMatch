@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import { ICEBREAKERS } from '@/lib/icebreakers'
@@ -1214,7 +1215,7 @@ export default function DashboardPage() {
       {/* Top Navbar */}
       <nav className="app-topnav" id="appTopnav">
         <div className="topnav-logo">
-          <img src="/favicon.svg" alt="UniMatch" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
+          <Image src="/logo/unimatch-logo-192.png" alt="UniMatch" width={32} height={32} style={{ objectFit: 'contain' }} />
           <span className="logo-text">UniMatch</span>
         </div>
 
