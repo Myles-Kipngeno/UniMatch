@@ -424,7 +424,7 @@ function ChatPageContent() {
     try {
       const { data, error } = await supabase
         .from('matches')
-        .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, match_pct, compatibility, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
+        .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
         .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
         .order('last_message_at', { ascending: false, nullsFirst: false }) as any
 
@@ -540,14 +540,14 @@ function ChatPageContent() {
         if (targetMatchId) {
           const { data } = await supabase
             .from('matches')
-            .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, match_pct, compatibility, muted_by_user1, muted_by_user2, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
+            .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, muted_by_user1, muted_by_user2, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
             .eq('id', targetMatchId)
             .single() as any
           mData = data
         } else if (targetUserId) {
           const { data } = await supabase
             .from('matches')
-            .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, match_pct, compatibility, muted_by_user1, muted_by_user2, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
+            .select('id, user1_id, user2_id, user1_unread, user2_unread, last_message, last_message_at, created_at, muted_by_user1, muted_by_user2, p1:profiles!matches_user1_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests), p2:profiles!matches_user2_id_fkey(id, name, photo_url, campus, course, age, online, bio, interests)')
             .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${targetUserId}),and(user2_id.eq.${currentUser.id},user1_id.eq.${targetUserId})`) as any
           mData = data && data[0]
         }
