@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -330,7 +331,7 @@ export default function MatchesPage() {
       <div className="mp-detail">
         {/* Photo */}
         <div className="mp-photo-wrap">
-          <img src={m.photoUrl} alt={m.name} className="mp-photo" />
+          <Image src={m.photoUrl || DEFAULT_AVATAR} alt={m.name} width={300} height={300} unoptimized className="mp-photo" />
           <span className="mp-match-pct">{m.matchPct}% Match</span>
           <button
             ref={isMenuOpen ? matchTriggerRef : null}
@@ -529,7 +530,7 @@ export default function MatchesPage() {
                   onClick={() => openDetail(m)}
                 >
                   <div className="mp-avatar-wrap">
-                    <img src={m.photoUrl} alt={m.name} className="mp-avatar" />
+                    <Image src={m.photoUrl || DEFAULT_AVATAR} alt={m.name} width={52} height={52} unoptimized className="mp-avatar" />
                     {m.online && <span className="mp-online-dot" />}
                   </div>
                   <div className="mp-row-info">

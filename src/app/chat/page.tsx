@@ -12,8 +12,10 @@ import { ChatSkeleton, ChatMessageSkeleton } from '@/components/skeletons/Skelet
 import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { compressImage } from '@/lib/imageCompression'
-import EmojiPicker from '@/components/EmojiPicker'
+import dynamic from 'next/dynamic'
 import './chat.css'
+
+const EmojiPicker = dynamic(() => import('@/components/EmojiPicker'), { ssr: false })
 
 const isVid = (url?: string) => {
   if (!url) return false
@@ -821,7 +823,7 @@ function ChatPageContent() {
       // If browser blocked getUserMedia because of HTTP IP origin, silently switch to localhost so voice recording works immediately
       if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.isSecureContext) {
         const currentPort = window.location.port || '3000'
-        window.location.href = `http://localhost:${currentPort}${window.location.pathname}${window.location.search}`
+        router.replace(`http://localhost:${currentPort}${window.location.pathname}${window.location.search}`)
         return
       }
     }

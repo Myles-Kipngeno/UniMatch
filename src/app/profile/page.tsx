@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -482,10 +483,13 @@ function ProfileFormContent() {
             <div className="view-profile-tab">
               <div className="preview-card">
                 <div className="preview-img-wrap">
-                  <img
+                  <Image
                     id="viewPhoto"
                     src={previewUrl || DEFAULT_AVATAR}
                     alt="Profile"
+                    width={400}
+                    height={400}
+                    unoptimized
                   />
                   <div className="preview-overlay">
                     <h3>{name || 'Student'}{age ? `, ${age}` : ''}</h3>
@@ -687,10 +691,13 @@ function ProfileFormContent() {
                       <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo</label>
                       <div className="photo-section" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
                         <div className="photo-container">
-                          <img
+                          <Image
                             id="profilePreview"
                             src={previewUrl || DEFAULT_AVATAR}
                             alt="Profile"
+                            width={140}
+                            height={140}
+                            unoptimized
                           />
                           <div className="photo-overlay">
                             <label className="upload-label">

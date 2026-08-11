@@ -1595,10 +1595,13 @@ export default function DashboardPage() {
                         <div className="whos-here-avatars-row" onClick={() => setShowWhoIsHereModal(true)}>
                           <div className="whos-here-stack">
                             {whoIsHereUsers.slice(0, 5).map((u, i) => (
-                              <img
+                              <Image
                                 key={u.id || i}
                                 src={u.photo_url || DEFAULT_AVATAR}
-                                alt={u.name}
+                                alt={u.name || 'User'}
+                                width={36}
+                                height={36}
+                                unoptimized
                                 className="whos-here-stack-img"
                                 style={{ zIndex: 10 - i }}
                                 title={u.name}
@@ -1661,7 +1664,7 @@ export default function DashboardPage() {
             <div className="pick-badge">Today's Best Match</div>
             <div className="pick-body">
               <div className="pick-photo-wrap">
-                <img src={todaysPick?.photo_url || DEFAULT_AVATAR} alt="Best match" className="pick-photo" />
+                <Image src={todaysPick?.photo_url || DEFAULT_AVATAR} alt="Best match" width={80} height={80} unoptimized className="pick-photo" />
                 <div className="pick-compat-ring">
                   <span className="pick-compat-pct">{todaysPick?.compat || 65}%</span>
                 </div>
@@ -1800,7 +1803,7 @@ export default function DashboardPage() {
                 <div className="whos-here-list">
                   {whoIsHereUsers.map(u => (
                     <div key={u.id} className="whos-here-item">
-                      <img src={u.photo_url || DEFAULT_AVATAR} alt={u.name} className="whos-here-item-avatar" />
+                      <Image src={u.photo_url || DEFAULT_AVATAR} alt={u.name} width={42} height={42} unoptimized className="whos-here-item-avatar" />
                       <div className="whos-here-item-info">
                         <div className="whos-here-item-name">{u.name}</div>
                         <div className="whos-here-item-sub">{[u.course, u.campus].filter(Boolean).join(' · ')}</div>

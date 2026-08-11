@@ -1,11 +1,5 @@
-import BottomNav from '@/components/BottomNav'
-import TopRouteProgress from '@/components/TopRouteProgress'
+import { ProfileSkeleton } from '@/components/skeletons/Skeletons'
 
-export default function Loading() {
-  return (
-    <div className="min-h-screen bg-[#0f0e17] text-white">
-      <TopRouteProgress />
-      <BottomNav activeTab="profile" />
-    </div>
-  )
+export default function UploadPhotosLoading() {
+  return <ProfileSkeleton />
 }

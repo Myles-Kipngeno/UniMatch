@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -713,7 +714,7 @@ export default function NotificationsPage() {
                     <div className="notif-card-left">
                       {group.senderPhoto ? (
                         <div className="notif-avatar-wrap">
-                          <img className="notif-avatar-img" src={group.senderPhoto} alt={group.senderName || 'User'} />
+                          <Image className="notif-avatar-img" src={group.senderPhoto} alt={group.senderName || 'User'} width={42} height={42} unoptimized />
                           <span className={`notif-avatar-badge ${group.iconCls}`}>{group.icon}</span>
                         </div>
                       ) : (
