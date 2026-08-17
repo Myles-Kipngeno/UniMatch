@@ -1,12 +1,15 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useModal } from './ModalContext'
+import './InstallPrompt.css'
 
-const STORAGE_KEY = 'unimatch_pwa_prompt_dismissed'
+const SESSION_DISMISSED_KEY = 'unimatch_pwa_prompt_dismissed'
 
 export default function InstallPrompt() {
+  const modal = useModal()
   const [showPrompt, setShowPrompt] = useState(false)
-  const [platform, setPlatform] = useState<'chromium' | 'ios' | null>(null)
+  const [devicePlatform, setDevicePlatform] = useState<'ios' | 'android' | 'desktop'>('android')
   const [isInstalling, setIsInstalling] = useState(false)
   const [domain, setDomain] = useState('uni-match-one.vercel.app')
 
@@ -25,32 +28,42 @@ export default function InstallPrompt() {
 
     if (isStandalone) return
 
-    // 2. Guard: Never show if user previously dismissed or installed
-    const alreadyDismissed = localStorage.getItem(STORAGE_KEY) === 'true'
-    if (alreadyDismissed) return
+    // 2. Clear any legacy permanent localStorage flag so users aren't permanently blocked
+    try {
+      localStorage.removeItem('unimatch_pwa_prompt_dismissed')
+    } catch (_) {}
 
-    // 3. Detect iOS Safari
+    // 3. Guard: Never show if user previously dismissed in this active session
+    try {
+      const alreadyDismissedInSession = sessionStorage.getItem(SESSION_DISMISSED_KEY) === 'true'
+      if (alreadyDismissedInSession) return
+    } catch (_) {}
+
+    // 4. Identify Device Platform
     const ua = window.navigator.userAgent
     const isIOS = /iPhone|iPad|iPod/i.test(ua)
+    const isAndroid = /Android/i.test(ua)
 
     if (isIOS) {
-      setPlatform('ios')
-      setShowPrompt(true)
-      return
-    }
-
-    // 4. Android / Chromium detection
-    const handleBeforeInstall = () => {
-      setPlatform('chromium')
-      setShowPrompt(true)
-    }
-
-    if ((window as any).deferredBeforeInstallPrompt) {
-      handleBeforeInstall()
+      setDevicePlatform('ios')
+    } else if (isAndroid) {
+      setDevicePlatform('android')
     } else {
-      window.addEventListener('unimatch:beforeinstallprompt', handleBeforeInstall)
-      window.addEventListener('beforeinstallprompt', handleBeforeInstall)
+      setDevicePlatform('desktop')
     }
+
+    // 5. Intercept beforeinstallprompt event whenever browser fires it
+    const handleBeforeInstall = (e?: any) => {
+      if (e) {
+        ;(window as any).deferredBeforeInstallPrompt = e
+      }
+    }
+
+    window.addEventListener('unimatch:beforeinstallprompt', handleBeforeInstall)
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall)
+
+    // 6. Proactively display the install banner for any browser session
+    setShowPrompt(true)
 
     return () => {
       window.removeEventListener('unimatch:beforeinstallprompt', handleBeforeInstall)
@@ -60,9 +73,9 @@ export default function InstallPrompt() {
 
   const handleDismiss = () => {
     try {
-      localStorage.setItem(STORAGE_KEY, 'true')
+      sessionStorage.setItem(SESSION_DISMISSED_KEY, 'true')
     } catch (e) {
-      console.warn('Failed to save install prompt dismissal to localStorage:', e)
+      console.warn('Failed to save install prompt dismissal to sessionStorage:', e)
     }
     setShowPrompt(false)
   }
@@ -70,12 +83,12 @@ export default function InstallPrompt() {
   const handleInstallClick = async () => {
     const deferredEvent = (window as any).deferredBeforeInstallPrompt
 
-    if (platform === 'chromium' && deferredEvent) {
+    if (deferredEvent) {
       setIsInstalling(true)
       try {
         await deferredEvent.prompt()
         const choiceResult = await deferredEvent.userChoice
-        console.log('[PWA] User choice:', choiceResult.outcome)
+        console.log('[PWA] User choice:', choiceResult?.outcome)
         ;(window as any).deferredBeforeInstallPrompt = null
       } catch (err) {
         console.warn('[PWA] Install prompt error:', err)
@@ -83,155 +96,68 @@ export default function InstallPrompt() {
         setIsInstalling(false)
         handleDismiss()
       }
-    } else if (platform === 'ios') {
-      alert('To install UniMatch: tap the Share icon in Safari, then select "Add to Home Screen".')
-      handleDismiss()
+      return
     }
+
+    // If native prompt was not triggered by browser (e.g. iOS, uninstalled earlier, desktop):
+    if (devicePlatform === 'ios') {
+      modal.alert({
+        title: 'Install UniMatch on iOS',
+        message: 'Tap the Share button in Safari (bottom bar) and select "Add to Home Screen" to install UniMatch.',
+        type: 'info'
+      })
+    } else if (devicePlatform === 'android') {
+      modal.alert({
+        title: 'Install UniMatch App',
+        message: 'Tap your browser menu (⋮) at the top right and select "Install app" or "Add to Home screen".',
+        type: 'info'
+      })
+    } else {
+      modal.alert({
+        title: 'Install UniMatch App',
+        message: 'Click the Install icon (⊕) in your browser address bar or menu (⋮) to install UniMatch.',
+        type: 'info'
+      })
+    }
+    handleDismiss()
   }
 
-  if (!showPrompt || !platform) return null
+  if (!showPrompt) return null
 
   return (
-    <>
-      <style>{`
-        @keyframes installSlideDown {
-          from {
-            transform: translate(-50%, -100%);
-            opacity: 0;
-          }
-          to {
-            transform: translate(-50%, 0);
-            opacity: 1;
-          }
-        }
-        .install-prompt-overlay {
-          position: fixed;
-          top: calc(14px + env(safe-area-inset-top, 0px));
-          left: 50%;
-          transform: translateX(-50%);
-          width: calc(100% - 24px);
-          max-width: 440px;
-          z-index: 9999;
-          animation: installSlideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .install-prompt-card {
-          background: rgba(33, 37, 47, 0.96);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-          border-radius: 16px;
-          padding: 12px 16px;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-        .install-prompt-icon {
-          width: 42px;
-          height: 42px;
-          border-radius: 10px;
-          object-fit: cover;
-          flex-shrink: 0;
-        }
-        .install-prompt-text {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .install-prompt-title {
-          font-size: 16px;
-          font-weight: 500;
-          color: #f1f3f4;
-          letter-spacing: -0.2px;
-          margin: 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .install-prompt-subtitle {
-          font-size: 13.5px;
-          color: #9aa0a6;
-          margin: 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .install-prompt-actions {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-shrink: 0;
-        }
-        .install-btn-text {
-          background: transparent;
-          color: #9bb2f4;
-          border: none;
-          font-size: 15px;
-          font-weight: 600;
-          cursor: pointer;
-          padding: 4px 6px;
-          transition: opacity 0.15s ease;
-        }
-        .install-btn-text:hover {
-          opacity: 0.85;
-        }
-        .install-btn-text:disabled {
-          opacity: 0.5;
-        }
-        .install-btn-close {
-          background: transparent;
-          color: #80868b;
-          border: none;
-          font-size: 15px;
-          cursor: pointer;
-          padding: 2px 4px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: color 0.15s ease;
-        }
-        .install-btn-close:hover {
-          color: #f1f3f4;
-        }
-      `}</style>
+    <div className="install-prompt-overlay" role="dialog" aria-label="Install UniMatch App">
+      <div className="install-prompt-card">
+        <img
+          src="/Unimatch_icon.png"
+          alt="UniMatch"
+          className="install-prompt-icon"
+          onError={(e) => {
+            ;(e.target as HTMLElement).setAttribute('src', '/favicon.svg')
+          }}
+        />
+        <div className="install-prompt-text">
+          <h4 className="install-prompt-title">Install UniMatch</h4>
+          <p className="install-prompt-subtitle">{domain}</p>
+        </div>
 
-      <div className="install-prompt-overlay" role="dialog" aria-label="Install UniMatch App">
-        <div className="install-prompt-card">
-          <img
-            src="/Unimatch_icon.png"
-            alt="UniMatch"
-            className="install-prompt-icon"
-            onError={(e) => {
-              ;(e.target as HTMLElement).setAttribute('src', '/favicon.svg')
-            }}
-          />
-          <div className="install-prompt-text">
-            <h4 className="install-prompt-title">Install UniMatch</h4>
-            <p className="install-prompt-subtitle">{domain}</p>
-          </div>
-
-          <div className="install-prompt-actions">
-            <button
-              className="install-btn-text"
-              onClick={handleInstallClick}
-              disabled={isInstalling}
-            >
-              {isInstalling ? 'Installing...' : 'Install'}
-            </button>
-            <button
-              className="install-btn-close"
-              onClick={handleDismiss}
-              aria-label="Close prompt"
-            >
-              ✕
-            </button>
-          </div>
+        <div className="install-prompt-actions">
+          <button
+            className="install-btn-text"
+            onClick={handleInstallClick}
+            disabled={isInstalling}
+          >
+            {isInstalling ? 'Installing...' : 'Install'}
+          </button>
+          <button
+            className="install-btn-close"
+            onClick={handleDismiss}
+            aria-label="Close prompt"
+          >
+            ✕
+          </button>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
