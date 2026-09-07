@@ -79,8 +79,10 @@ function ProfileFormContent() {
   // Wizard / Onboarding state
   const [currentStep, setCurrentStep] = useState(1)
   const [profileComplete, setProfileComplete] = useState(false)
-  const [activeTab, setActiveTab] = useState<'view' | 'edit'>('view')
+  const [activeTab, setActiveTab] = useState<'view' | 'edit'>(isEditModeParam ? 'edit' : 'view')
   const [menuOpen, setMenuOpen] = useState(false)
+  // Tracks whether the user has manually clicked a tab (prevents cache effect from overriding it)
+  const userChangedTabRef = useRef(false)
 
   const { getCache, setCache } = useAppCache()
   const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
@@ -91,6 +93,14 @@ function ProfileFormContent() {
   const [loading, setLoading] = useState(() => !getCache('profile', viewUserIdParam || 'self'))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Sync active tab with URL query parameter (only on initial mount, not after user clicks a tab)
+  useEffect(() => {
+    if (userChangedTabRef.current) return
+    if (isEditModeParam && !isOtherUser) {
+      setActiveTab('edit')
+    }
+  }, [isEditModeParam, isOtherUser])
 
   // Load from cache initially if present
   useEffect(() => {
@@ -112,11 +122,13 @@ function ProfileFormContent() {
       }
       if (cached.profile_complete || Boolean(viewUserIdParam)) {
         setProfileComplete(true)
-        setActiveTab('view')
+        if (!isEditModeParam && !Boolean(viewUserIdParam) && !userChangedTabRef.current) {
+          setActiveTab('view')
+        }
       }
       setLoading(false)
     }
-  }, [getCache, viewUserIdParam])
+  }, [getCache, viewUserIdParam, isEditModeParam])
 
   // Menu DOM Refs
   const menuRef = useRef<HTMLDivElement>(null)
@@ -189,7 +201,11 @@ function ProfileFormContent() {
 
           if (profile.profile_complete || viewingOther) {
             setProfileComplete(true)
-            setActiveTab('view')
+            // Fetches can run again when the cache updates. Do not let a
+            // background refresh switch a tab the user deliberately selected.
+            if (!isEditModeParam && !viewingOther && !userChangedTabRef.current) {
+              setActiveTab('view')
+            }
           }
 
           setCache('profile', profile, viewUserIdParam || 'self')
@@ -206,7 +222,7 @@ function ProfileFormContent() {
     }
 
     getProfile()
-  }, [supabase, router, viewUserIdParam, setCache, clearNetworkError, reportNetworkError, getCache])
+  }, [supabase, router, viewUserIdParam, setCache, clearNetworkError, reportNetworkError, getCache, isEditModeParam])
 
   // Sign out action
   const handleSignOut = () => {
@@ -318,6 +334,15 @@ function ProfileFormContent() {
           .getPublicUrl(filePath)
 
         finalPhotoUrl = publicUrlData.publicUrl
+
+        // Also add to profile_photos table
+        try {
+          await (supabase.from('profile_photos') as any).insert({
+            user_id: userId,
+            url: finalPhotoUrl,
+            type: 'image'
+          })
+        } catch (_) {}
       }
 
       const profilePayload = {
@@ -348,9 +373,21 @@ function ProfileFormContent() {
         if (upsertErr) throw upsertErr
       }
 
-      modal.toast('Profile saved successfully! 🎉', 'success')
+      // Update local state and app cache
+      setCurrentPhotoUrl(finalPhotoUrl)
+      setPreviewUrl(finalPhotoUrl)
+      setPhotoFile(null)
       setProfileComplete(true)
-      router.push('/dashboard')
+      setCache('profile', profilePayload, 'self')
+
+      if (showTabs) {
+        modal.toast('Profile updated successfully! 🎉', 'success')
+        setActiveTab('view')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } else {
+        modal.toast('Profile created! Welcome to UniMatch 🎉', 'success')
+        router.push('/dashboard')
+      }
     } catch (err: any) {
       console.error('Save profile error:', err)
       setError(err.message || 'Failed to save profile. Try again.')
@@ -456,21 +493,21 @@ function ProfileFormContent() {
               <button
                 type="button"
                 className={`tab-btn ${activeTab === 'view' ? 'active' : ''}`}
-                onClick={() => setActiveTab('view')}
+                onClick={() => { userChangedTabRef.current = true; setActiveTab('view') }}
               >
                 My Card
               </button>
               <button
                 type="button"
                 className={`tab-btn ${activeTab === 'edit' ? 'active' : ''}`}
-                onClick={() => setActiveTab('edit')}
+                onClick={() => { userChangedTabRef.current = true; setActiveTab('edit') }}
               >
                 Update Profile
               </button>
             </div>
           )}
 
-          {/* Onboarding Progress Bar (Only shown during self-onboarding) */}
+          {/* Onboarding Progress Bar (Only shown during initial onboarding wizard) */}
           {!showTabs && !isOtherUser && (
             <div className="onboarding-progress">
               <div className="progress-steps">
@@ -510,31 +547,39 @@ function ProfileFormContent() {
                 <div className="preview-interests-section">
                   <h4>My Hobbies & Interests</h4>
                   <div className="preview-interests-grid">
-                    {selectedInterests.map(i => {
-                      const item = CURATED_INTERESTS.find(ci => ci.name === i)
-                      return (
-                        <span key={i} className="preview-interest-tag">
-                          <span>{item ? item.emoji : '✨'}</span>
-                          <span>{i}</span>
-                        </span>
-                      )
-                    })}
+                    {selectedInterests.length > 0 ? (
+                      selectedInterests.map(i => {
+                        const item = CURATED_INTERESTS.find(ci => ci.name === i)
+                        return (
+                          <span key={i} className="preview-interest-tag">
+                            <span>{item ? item.emoji : '✨'}</span>
+                            <span>{i}</span>
+                          </span>
+                        )
+                      })
+                    ) : (
+                      <p style={{ fontSize: '13px', color: '#9e9bb8' }}>No interests selected yet.</p>
+                    )}
                   </div>
                 </div>
 
                 {/* Own Profile Photo Upload CTA */}
                 {!isOtherUser && (
-                  <div className="preview-media-cta" style={{ marginTop: '20px', padding: '16px', borderRadius: '16px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <div className="preview-media-cta">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #ff4b72, #ff758c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                        📸
+                      <div className="media-cta-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                          <circle cx="8.5" cy="8.5" r="1.5"/>
+                          <polyline points="21 15 16 10 5 21"/>
+                        </svg>
                       </div>
                       <div>
                         <h4 style={{ margin: 0, fontSize: '15px', color: '#fff', fontWeight: 600 }}>My Media & Photo Gallery</h4>
                         <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)' }}>Upload multiple photos & videos to your profile</p>
                       </div>
                     </div>
-                    <Link href="/upload-photos" className="save-btn" style={{ margin: 0, padding: '10px 18px', fontSize: '14px', borderRadius: '10px', textDecoration: 'none' }}>
+                    <Link href="/upload-photos" className="manage-gallery-link">
                       <span>Manage Gallery →</span>
                     </Link>
                   </div>
@@ -564,189 +609,411 @@ function ProfileFormContent() {
             </div>
           )}
 
-          {/* FORM STAGE (Wizard/Edit view) */}
+          {/* FORM STAGE (Wizard / Update Profile View) */}
           {isEditing && (
-            <form onSubmit={handleSaveProfile}>
+            <form onSubmit={handleSaveProfile} className="profile-edit-form">
               
-              {/* Wizard Step 1: Basics OR Edit Mode Basics */}
-              {(showTabs || currentStep === 1) && (
-                <div className="wizard-step active">
-                  <h3 className="step-title">Tell us about yourself</h3>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label className="form-label">Full Name</label>
-                      <input
-                        type="text"
-                        placeholder="Full name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        required
-                      />
+              {/* If in Edit Mode (Tabs active), show structured sections */}
+              {showTabs ? (
+                <div className="profile-edit-sections-wrap">
+                  
+                  {/* Section 1: Photo & Core Identity */}
+                  <div className="profile-edit-section">
+                    <div className="section-header">
+                      <span className="section-num">1</span>
+                      <div>
+                        <h3 className="section-title">Photo & Core Info</h3>
+                        <p className="section-desc">Avatar picture and basic student identity</p>
+                      </div>
                     </div>
 
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label className="form-label">Gender</label>
-                        <select value={gender} onChange={(e) => setGender(e.target.value)} required>
-                          <option value="">Select Gender</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="nonbinary">Non-Binary</option>
-                        </select>
+                    <div className="photo-edit-center">
+                      <div className="photo-container">
+                        <Image
+                          id="profilePreview"
+                          src={previewUrl || DEFAULT_AVATAR}
+                          alt="Profile"
+                          width={130}
+                          height={130}
+                          unoptimized
+                        />
+                        <div className="photo-overlay">
+                          <label className="upload-label" title="Upload new photo">
+                            <div className="camera-icon-wrap">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                                <circle cx="12" cy="13" r="4"/>
+                              </svg>
+                              <span>Change Photo</span>
+                            </div>
+                            <input type="file" accept="image/*" onChange={handlePhotoChange} hidden />
+                          </label>
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="form-grid">
                       <div className="form-group">
-                        <label className="form-label">Age</label>
+                        <label className="form-label">Full Name</label>
                         <input
-                          type="number"
-                          placeholder="Age"
-                          min="18"
-                          max="99"
-                          value={age}
-                          onChange={(e) => setAge(e.target.value)}
+                          type="text"
+                          placeholder="Your full name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
                           required
                         />
                       </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Wizard Step 2: Campus & Course OR Edit Mode */}
-              {(showTabs || currentStep === 2) && (
-                <div className="wizard-step active" style={{ marginTop: showTabs ? '2rem' : 0 }}>
-                  <h3 className="step-title">Education details</h3>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label className="form-label">University / Campus</label>
-                      <input
-                        type="text"
-                        placeholder="University / Campus"
-                        value={campus}
-                        onChange={(e) => setCampus(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Course / Major</label>
-                      <input
-                        type="text"
-                        placeholder="Course / Major"
-                        value={course}
-                        onChange={(e) => setCourse(e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Year of Study</label>
-                      <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} required>
-                        <option value="">Select Year</option>
-                        <option value="1">1st Year (Freshman)</option>
-                        <option value="2">2nd Year (Sophomore)</option>
-                        <option value="3">3rd Year (Junior)</option>
-                        <option value="4">4th Year (Senior)</option>
-                        <option value="5">Graduate / PG</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Wizard Step 3: Interests, Bio & Photo OR Edit Mode */}
-              {(showTabs || currentStep === 3) && (
-                <div className="wizard-step active" style={{ marginTop: showTabs ? '2rem' : 0 }}>
-                  <h3 className="step-title">Hobbies, Bio & Photo</h3>
-                  <p className="step-subtitle">Select at least 3 things you love</p>
-                  
-                  <div className="interests-grid" style={{ marginBottom: '2rem' }}>
-                    {CURATED_INTERESTS.map(interest => (
-                      <div
-                        key={interest.name}
-                        className={`interest-pill ${selectedInterests.includes(interest.name) ? 'active' : ''}`}
-                        onClick={() => toggleInterest(interest.name)}
-                      >
-                        <span className="emoji">{interest.emoji}</span>
-                        <span>{interest.name}</span>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Gender</label>
+                          <select value={gender} onChange={(e) => setGender(e.target.value)} required>
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="nonbinary">Non-Binary</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Age</label>
+                          <input
+                            type="number"
+                            placeholder="Age"
+                            min="18"
+                            max="99"
+                            value={age}
+                            onChange={(e) => setAge(e.target.value)}
+                            required
+                          />
+                        </div>
                       </div>
-                    ))}
+
+                      <div className="form-group">
+                        <label className="form-label">Interested In (Show Me)</label>
+                        <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
+                          <option value="all">Everyone</option>
+                          <option value="male">Men</option>
+                          <option value="female">Women</option>
+                          <option value="nonbinary">Non-Binary</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="form-grid">
+                  {/* Section 2: Education & Campus */}
+                  <div className="profile-edit-section">
+                    <div className="section-header">
+                      <span className="section-num">2</span>
+                      <div>
+                        <h3 className="section-title">Campus & Academics</h3>
+                        <p className="section-desc">Your university campus and current program</p>
+                      </div>
+                    </div>
+
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label className="form-label">University / Campus</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Main Campus / Town Campus"
+                          value={campus}
+                          onChange={(e) => setCampus(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Course / Major</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. BSc Computer Science, Law, Medicine"
+                          value={course}
+                          onChange={(e) => setCourse(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Year of Study</label>
+                        <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} required>
+                          <option value="">Select Year</option>
+                          <option value="1">1st Year (Freshman)</option>
+                          <option value="2">2nd Year (Sophomore)</option>
+                          <option value="3">3rd Year (Junior)</option>
+                          <option value="4">4th Year (Senior)</option>
+                          <option value="5">Graduate / PG</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: About Me / Bio */}
+                  <div className="profile-edit-section">
+                    <div className="section-header">
+                      <span className="section-num">3</span>
+                      <div>
+                        <h3 className="section-title">About Me</h3>
+                        <p className="section-desc">Introduce yourself to students and matches</p>
+                      </div>
+                    </div>
+
                     <div className="form-group">
-                      <label className="form-label">Bio</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label className="form-label" style={{ margin: 0 }}>Bio</label>
+                        <span style={{ fontSize: '11px', color: '#9e9bb8' }}>{bio.length}/300</span>
+                      </div>
                       <textarea
-                        placeholder="Write a short bio about yourself..."
+                        placeholder="Write a brief, interesting bio about your passions, campus life, or what you're looking for..."
                         rows={4}
+                        maxLength={300}
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
                       />
                     </div>
+                  </div>
 
-                    <div className="form-group">
-                      <label className="form-label">Show Me</label>
-                      <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
-                        <option value="all">Everyone</option>
-                        <option value="male">Men</option>
-                        <option value="female">Women</option>
-                        <option value="nonbinary">Non-Binary</option>
-                      </select>
+                  {/* Section 4: Hobbies & Interests */}
+                  <div className="profile-edit-section">
+                    <div className="section-header">
+                      <span className="section-num">4</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                          <h3 className="section-title">Hobbies & Interests</h3>
+                          <span className={`interest-badge ${selectedInterests.length >= 3 ? 'valid' : ''}`}>
+                            {selectedInterests.length >= 3 ? `✓ ${selectedInterests.length} selected` : `${selectedInterests.length}/3 minimum`}
+                          </span>
+                        </div>
+                        <p className="section-desc">Select at least 3 things you love</p>
+                      </div>
                     </div>
 
-                    <div className="form-group">
-                      <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo</label>
-                      <div className="photo-section" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
-                        <div className="photo-container">
-                          <Image
-                            id="profilePreview"
-                            src={previewUrl || DEFAULT_AVATAR}
-                            alt="Profile"
-                            width={140}
-                            height={140}
-                            unoptimized
+                    <div className="interests-grid">
+                      {CURATED_INTERESTS.map(interest => (
+                        <div
+                          key={interest.name}
+                          className={`interest-pill ${selectedInterests.includes(interest.name) ? 'active' : ''}`}
+                          onClick={() => toggleInterest(interest.name)}
+                        >
+                          <span className="emoji">{interest.emoji}</span>
+                          <span>{interest.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Section 5: Gallery CTA */}
+                  <div className="gallery-shortcut-card">
+                    <div className="gallery-shortcut-icon">📸</div>
+                    <div className="gallery-shortcut-text">
+                      <h4>Photo & Media Gallery</h4>
+                      <p>Add and reorder extra photos & videos on your profile</p>
+                    </div>
+                    <Link href="/upload-photos" className="gallery-shortcut-btn">
+                      Manage Gallery →
+                    </Link>
+                  </div>
+
+                  {error && <p className="error" style={{ display: 'block', marginTop: '1rem' }}>{error}</p>}
+
+                  {/* Edit Action Bar */}
+                  <div className="edit-action-bar">
+                    <button
+                      type="button"
+                      className="cancel-btn"
+                      onClick={() => setActiveTab('view')}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit" className="save-btn" disabled={saving}>
+                      {saving ? (
+                        <>
+                          <div className="spinner-mini"></div>
+                          <span>Saving updates...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Save Changes</span>
+                          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                            <path d="M7.5 15l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Initial Onboarding Wizard (Steps 1, 2, 3) */
+                <div className="onboarding-wizard-wrap">
+                  {currentStep === 1 && (
+                    <div className="wizard-step active">
+                      <h3 className="step-title">Tell us about yourself</h3>
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label className="form-label">Full Name</label>
+                          <input
+                            type="text"
+                            placeholder="Full name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            required
                           />
-                          <div className="photo-overlay">
-                            <label className="upload-label">
-                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" strokeWidth="2"/>
-                                <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2"/>
-                              </svg>
-                              <input type="file" accept="image/*" onChange={handlePhotoChange} hidden />
-                            </label>
+                        </div>
+
+                        <div className="form-row">
+                          <div className="form-group">
+                            <label className="form-label">Gender</label>
+                            <select value={gender} onChange={(e) => setGender(e.target.value)} required>
+                              <option value="">Select Gender</option>
+                              <option value="male">Male</option>
+                              <option value="female">Female</option>
+                              <option value="nonbinary">Non-Binary</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Age</label>
+                            <input
+                              type="number"
+                              placeholder="Age"
+                              min="18"
+                              max="99"
+                              value={age}
+                              onChange={(e) => setAge(e.target.value)}
+                              required
+                            />
                           </div>
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {currentStep === 2 && (
+                    <div className="wizard-step active">
+                      <h3 className="step-title">Education details</h3>
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label className="form-label">University / Campus</label>
+                          <input
+                            type="text"
+                            placeholder="University / Campus"
+                            value={campus}
+                            onChange={(e) => setCampus(e.target.value)}
+                            required
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Course / Major</label>
+                          <input
+                            type="text"
+                            placeholder="Course / Major"
+                            value={course}
+                            onChange={(e) => setCourse(e.target.value)}
+                            required
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Year of Study</label>
+                          <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} required>
+                            <option value="">Select Year</option>
+                            <option value="1">1st Year (Freshman)</option>
+                            <option value="2">2nd Year (Sophomore)</option>
+                            <option value="3">3rd Year (Junior)</option>
+                            <option value="4">4th Year (Senior)</option>
+                            <option value="5">Graduate / PG</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentStep === 3 && (
+                    <div className="wizard-step active">
+                      <h3 className="step-title">Hobbies, Bio & Photo</h3>
+                      <p className="step-subtitle">Select at least 3 things you love</p>
+                      
+                      <div className="interests-grid" style={{ marginBottom: '2rem' }}>
+                        {CURATED_INTERESTS.map(interest => (
+                          <div
+                            key={interest.name}
+                            className={`interest-pill ${selectedInterests.includes(interest.name) ? 'active' : ''}`}
+                            onClick={() => toggleInterest(interest.name)}
+                          >
+                            <span className="emoji">{interest.emoji}</span>
+                            <span>{interest.name}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="form-grid">
+                        <div className="form-group">
+                          <label className="form-label">Bio</label>
+                          <textarea
+                            placeholder="Write a short bio about yourself..."
+                            rows={4}
+                            value={bio}
+                            onChange={(e) => setBio(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Show Me</label>
+                          <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
+                            <option value="all">Everyone</option>
+                            <option value="male">Men</option>
+                            <option value="female">Women</option>
+                            <option value="nonbinary">Non-Binary</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo</label>
+                          <div className="photo-section" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
+                            <div className="photo-container">
+                              <Image
+                                id="profilePreview"
+                                src={previewUrl || DEFAULT_AVATAR}
+                                alt="Profile"
+                                width={140}
+                                height={140}
+                                unoptimized
+                              />
+                              <div className="photo-overlay">
+                                <label className="upload-label">
+                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" strokeWidth="2"/>
+                                    <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2"/>
+                                  </svg>
+                                  <input type="file" accept="image/*" onChange={handlePhotoChange} hidden />
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {error && <p className="error" style={{ display: 'block', marginTop: '1rem' }}>{error}</p>}
+
+                  {/* Navigation buttons */}
+                  <div className="wizard-buttons" style={{ marginTop: '2rem' }}>
+                    {currentStep > 1 && (
+                      <button type="button" className="wizard-btn btn-prev" onClick={handlePrev}>Back</button>
+                    )}
+                    {currentStep < 3 ? (
+                      <button type="button" className="wizard-btn btn-next" onClick={handleNext}>Continue</button>
+                    ) : (
+                      <button type="submit" className="save-btn" disabled={saving}>
+                        <span>{saving ? 'Saving...' : 'Finish & Save'}</span>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path d="M7.5 15l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
-
-              {error && <p className="error" style={{ display: 'block', marginTop: '1rem' }}>{error}</p>}
-
-              {/* Navigation buttons */}
-              {!showTabs ? (
-                <div className="wizard-buttons" style={{ marginTop: '2rem' }}>
-                  {currentStep > 1 && (
-                    <button type="button" className="wizard-btn btn-prev" onClick={handlePrev}>Back</button>
-                  )}
-                  {currentStep < 3 ? (
-                    <button type="button" className="wizard-btn btn-next" onClick={handleNext}>Continue</button>
-                  ) : (
-                    <button type="submit" className="save-btn" disabled={saving}>
-                      <span>{saving ? 'Saving...' : 'Finish & Save'}</span>
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M7.5 15l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button type="submit" className="save-btn" style={{ marginTop: '2rem' }} disabled={saving}>
-                  <span>{saving ? 'Saving updates...' : 'Save Updates'}</span>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M7.5 15l5-5-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
               )}
 
             </form>

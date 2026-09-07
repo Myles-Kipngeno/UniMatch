@@ -1,22 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import BottomNav from '@/components/BottomNav'
-import { ICEBREAKERS } from '@/lib/icebreakers'
 import { DEFAULT_AVATAR } from '@/lib/constants'
+import { useModal } from '@/components/ModalContext'
+import { useAppCache } from '@/context/AppCacheContext'
+import { useNetwork } from '@/context/NetworkContext'
+import { DashboardSkeleton } from '@/components/skeletons/Skeletons'
+import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import './dashboard.css'
-
-const CAMPUS_SPOTS = [
-  { id: "library", name: "Library", emoji: "📚" },
-  { id: "cafe", name: "Café", emoji: "☕" },
-  { id: "halls", name: "Lecture Halls", emoji: "🏛️" },
-  { id: "gym", name: "Campus Gym", emoji: "🏋️" },
-  { id: "hostels", name: "Student Hostels", emoji: "🏢" }
-]
 
 interface DashboardStats {
   views: number
@@ -26,9 +22,9 @@ interface DashboardStats {
 }
 
 interface ActivityEvent {
-  type: 'view' | 'like' | 'join'
+  type: 'view' | 'like' | 'match' | 'join'
   name: string
-  time: Date | string | null
+  time: Date | null
   emoji: string
   cls: string
   text?: string
@@ -50,16 +46,9 @@ interface ModalRow {
   name: string
   photo: string
   sub: string
-  time: string
-  badge: string | null
+  time?: string
+  badge?: string | null
   chatHref: string
-}
-
-interface DiscoverPreview {
-  name: string
-  photo_url: string
-  meta: string
-  interests: string[]
 }
 
 interface CheckedInUser {
@@ -79,12 +68,21 @@ interface CampusSpot {
   liveCount: number
 }
 
-import { useModal } from '@/components/ModalContext'
-import { useAppCache } from '@/context/AppCacheContext'
-import { useNetwork } from '@/context/NetworkContext'
-import { DashboardSkeleton } from '@/components/skeletons/Skeletons'
-import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
-import InstallPrompt from '@/components/InstallPrompt'
+interface ProfileCandidate {
+  id: string
+  name: string
+  age?: number | null
+  gender?: string | null
+  campus?: string | null
+  course?: string | null
+  university?: string | null
+  bio?: string | null
+  photo_url?: string | null
+  interests?: string[] | null
+  verified?: boolean
+  online?: boolean
+  location_name?: string | null
+}
 
 const DEFAULT_CAMPUS_SPOTS: CampusSpot[] = [
   { id: '1', name: 'Student Center', category: 'inside', icon: 'building', sort_order: 1, liveCount: 0 },
@@ -102,6 +100,8 @@ const DEFAULT_CAMPUS_SPOTS: CampusSpot[] = [
   { id: '13', name: 'Carrots', category: 'outside', icon: 'mapPin', sort_order: 6, liveCount: 0 },
 ]
 
+
+
 export default function DashboardPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -109,42 +109,86 @@ export default function DashboardPage() {
   const { getCache, setCache } = useAppCache()
   const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
-  const currentIcebreaker = ICEBREAKERS[Math.floor(Date.now() / 86400000) % ICEBREAKERS.length]
-
-  const cachedDash = getCache('dashboard')
+  const [mounted, setMounted] = useState(false)
 
   // User Profile States
   const [uid, setUid] = useState<string | null>(null)
-  const [profileName, setProfileName] = useState(() => cachedDash?.profileName || 'Student')
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState(() => cachedDash?.profilePhotoUrl || DEFAULT_AVATAR)
-  const [profileSummary, setProfileSummary] = useState(() => cachedDash?.profileSummary || 'Loading your profile...')
-  const [completionPct, setCompletionPct] = useState(() => cachedDash?.completionPct || 0)
-  const [profileComplete, setProfileComplete] = useState<boolean>(() => cachedDash?.profileComplete || false)
-  const [isVerified, setIsVerified] = useState<boolean>(() => cachedDash?.isVerified || false)
-  const [greeting, setGreeting] = useState('Good morning')
+  const [profileName, setProfileName] = useState('Student')
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState(DEFAULT_AVATAR)
+  const [profileSummary, setProfileSummary] = useState('Loading your profile...')
+  const [completionPct, setCompletionPct] = useState(0)
+  const [profileComplete, setProfileComplete] = useState<boolean>(false)
+  const [isVerified, setIsVerified] = useState<boolean>(false)
+  const [greeting, setGreeting] = useState('Good day')
 
   // UI / App States
-  const [stats, setStats] = useState<DashboardStats>(() => cachedDash?.stats || { views: 0, likes: 0, matches: 0, unreadMessages: 0 })
-  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>(() => cachedDash?.activityEvents || [])
-  const [recentChatsList, setRecentChatsList] = useState<MatchChat[]>(() => cachedDash?.recentChatsList || [])
-  const [discoverPreview, setDiscoverPreview] = useState<DiscoverPreview | null>(() => cachedDash?.discoverPreview || null)
-  const [todaysPick, setTodaysPick] = useState<(DiscoverPreview & { compat: number }) | null>(() => cachedDash?.todaysPick || null)
+  const [stats, setStats] = useState<DashboardStats>({ views: 0, likes: 0, matches: 0, unreadMessages: 0 })
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
+  const [recentChatsList, setRecentChatsList] = useState<MatchChat[]>([])
+  const [todaysPick, setTodaysPick] = useState<(ProfileCandidate & { compat: number; meta?: string }) | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [loading, setLoading] = useState(() => !cachedDash)
+  const [loading, setLoading] = useState(true)
+
+  // Discovery Pool States
+  const [discoveryPool, setDiscoveryPool] = useState<ProfileCandidate[]>([])
+  const [activeDiscoveryIndex, setActiveDiscoveryIndex] = useState(0)
+  const [isActing, setIsActing] = useState(false)
+  const [actionFeedback, setActionFeedback] = useState<'like' | 'pass' | null>(null)
+
+  // Full Profile View Modal State
+  const [selectedProfileModal, setSelectedProfileModal] = useState<ProfileCandidate | null>(null)
+  const [modalPhotos, setModalPhotos] = useState<string[]>([])
+  const [modalPhotosLoading, setModalPhotosLoading] = useState(false)
+  const [activeModalPhotoIdx, setActiveModalPhotoIdx] = useState(0)
 
   // Campus Spots & Presence States
-  const [campusSpots, setCampusSpots] = useState<CampusSpot[]>(() => cachedDash?.campusSpots || DEFAULT_CAMPUS_SPOTS)
-  const [spotCategoryTab, setSpotCategoryTab] = useState<'inside' | 'outside' | null>(null)
+  const [campusSpots, setCampusSpots] = useState<CampusSpot[]>(DEFAULT_CAMPUS_SPOTS)
+  const [spotCategoryTab, setSpotCategoryTab] = useState<'inside' | 'outside' | null>('inside')
   const [presenceSearch, setPresenceSearch] = useState('')
   const [presenceResults, setPresenceResults] = useState<any[]>([])
   const [presenceSearchLoading, setPresenceSearchLoading] = useState(false)
   const [activeWhoIsHereSpot, setActiveWhoIsHereSpot] = useState<string | null>(null)
-  const [whoIsHereUsers, setWhoIsHereUsers] = useState<CheckedInUser[]>(() => cachedDash?.checkedUsers || [])
-  const [whoIsHereLoading, setWhoIsHereLoading] = useState(false)
+  const [whoIsHereUsers, setWhoIsHereUsers] = useState<CheckedInUser[]>([])
   const [showWhoIsHereModal, setShowWhoIsHereModal] = useState(false)
+
+  // Spots / Check-in States
+  const [activeTab, setActiveTab] = useState<'spots' | 'radar'>('spots')
+  const [myCurrentSpot, setMyCurrentSpot] = useState<string | null>(null)
+  const myCurrentSpotRef = useRef<string | null>(null)
+  const checkinTimeRef = useRef<number | null>(null)
+  const [spotCounts, setSpotCounts] = useState<Record<string, number>>({})
+
+  // Radar / Geolocation States
+  const [radarRange, setRadarRange] = useState<number>(2000)
+  const [radarCount, setRadarCount] = useState<number | string>('—')
+  const [radarHint, setRadarHint] = useState('Initialising radar…')
+  const [gpsLat, setGpsLat] = useState<number | null>(null)
+  const [gpsLng, setGpsLng] = useState<number | null>(null)
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const dotsRef = useRef<any[]>([])
+
+  // Modal stats sheet
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalType, setModalType] = useState<'views' | 'likes' | 'matches'>('views')
+  const [modalLoading, setModalLoading] = useState(false)
+  const [modalRows, setModalRows] = useState<ModalRow[]>([])
+
+  // Touch Swipe-to-close state
+  const [touchStartY, setTouchStartY] = useState(0)
+
+  // Dropdown DOM Refs
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const dropdownTriggerRef = useRef<HTMLButtonElement>(null)
+
+  const updateCurrentSpot = (spotName: string | null) => {
+    myCurrentSpotRef.current = spotName
+    setMyCurrentSpot(spotName)
+  }
 
   // Load from cache immediately if available
   useEffect(() => {
+    setMounted(true)
     const cached = getCache('dashboard')
     if (cached) {
       if (cached.profileName) setProfileName(cached.profileName)
@@ -156,19 +200,14 @@ export default function DashboardPage() {
       if (cached.stats) setStats(cached.stats)
       if (cached.activityEvents) setActivityEvents(cached.activityEvents)
       if (cached.recentChatsList) setRecentChatsList(cached.recentChatsList)
-      if (cached.discoverPreview) setDiscoverPreview(cached.discoverPreview)
       if (cached.todaysPick) setTodaysPick(cached.todaysPick)
       if (cached.spotCounts) setSpotCounts(cached.spotCounts)
-      if (cached.checkedUsers) setCheckedUsers(cached.checkedUsers)
+      if (cached.checkedUsers) setWhoIsHereUsers(cached.checkedUsers)
       setLoading(false)
     }
   }, [getCache])
 
-  // Dropdown DOM Refs
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const dropdownTriggerRef = useRef<HTMLButtonElement>(null)
-
-  // Single outside-click dismiss listener pattern
+  // Single outside-click dismiss listener pattern for 3-dot dropdown
   useEffect(() => {
     if (!isDropdownOpen) return
 
@@ -207,8 +246,8 @@ export default function DashboardPage() {
           .limit(10) as any
 
         const results = (data || []).map((p: any) => {
-          const isOnline = p.presence?.online || false
-          const spot = isOnline ? (p.presence?.location_name || p.location_name) : null
+          const isOnlineNow = p.presence?.online || false
+          const spot = isOnlineNow ? (p.presence?.location_name || p.location_name) : null
           return {
             id: p.id,
             name: p.name || 'Student',
@@ -216,7 +255,7 @@ export default function DashboardPage() {
             course: p.course || '',
             campus: p.campus || '',
             spot,
-            online: isOnline
+            online: isOnlineNow
           }
         })
         setPresenceResults(results)
@@ -228,7 +267,7 @@ export default function DashboardPage() {
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [presenceSearch])
+  }, [presenceSearch, supabase])
 
   const renderSpotIcon = (iconName: string | null) => {
     switch (iconName) {
@@ -244,40 +283,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Spots / Check-in States
-  const [activeTab, setActiveTab] = useState<'spots' | 'radar'>('spots')
-  const [myCurrentSpot, setMyCurrentSpot] = useState<string | null>(null)
-  const myCurrentSpotRef = useRef<string | null>(null)
-  const checkinTimeRef = useRef<number | null>(null)
-  const [spotCounts, setSpotCounts] = useState<Record<string, number>>({})
-  const [checkedUsers, setCheckedUsers] = useState<CheckedInUser[]>([])
-  const [spotLoading, setSpotLoading] = useState(false)
-
-  const updateCurrentSpot = (spotName: string | null) => {
-    myCurrentSpotRef.current = spotName
-    setMyCurrentSpot(spotName)
-  }
-
-  // Radar / Geolocation States
-  const [radarRange, setRadarRange] = useState<number>(2000)
-  const [radarCount, setRadarCount] = useState<number | string>('—')
-  const [radarHint, setRadarHint] = useState('Initialising radar…')
-  const [gpsLat, setGpsLat] = useState<number | null>(null)
-  const [gpsLng, setGpsLng] = useState<number | null>(null)
-
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const sweepAngleRef = useRef(0)
-  const dotsRef = useRef<any[]>([])
-
-  // Modal stats sheet
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<'views' | 'likes' | 'matches'>('views')
-  const [modalLoading, setModalLoading] = useState(false)
-  const [modalRows, setModalRows] = useState<ModalRow[]>([])
-
-  // Touch Swipe-to-close state
-  const [touchStartY, setTouchStartY] = useState(0)
-
   // Bootstrapping auth & user profile
   useEffect(() => {
     async function initDashboard() {
@@ -292,8 +297,8 @@ export default function DashboardPage() {
       const hour = new Date().getHours()
       setGreeting(
         hour >= 5 && hour < 12 ? 'Good morning' :
-        hour >= 12 && hour < 17 ? 'Good afternoon' :
-        hour >= 17 && hour < 21 ? 'Good evening' : 'Good night'
+          hour >= 12 && hour < 17 ? 'Good afternoon' :
+            hour >= 17 && hour < 21 ? 'Good evening' : 'Good night'
       )
 
       // Fetch user profile
@@ -326,7 +331,7 @@ export default function DashboardPage() {
             fetchStats(user.id),
             fetchChats(user.id),
             fetchActivity(user.id),
-            fetchDiscoverPreview(user.id),
+            fetchDiscoverPool(user.id),
             fetchTodaysPick(user.id, profile.interests || []),
             fetchSpots(user.id),
             initLocation(user.id)
@@ -342,10 +347,9 @@ export default function DashboardPage() {
             stats,
             activityEvents,
             recentChatsList,
-            discoverPreview,
             todaysPick,
             spotCounts,
-            checkedUsers
+            checkedUsers: whoIsHereUsers
           })
           clearNetworkError()
         } catch (e: any) {
@@ -361,7 +365,7 @@ export default function DashboardPage() {
     initDashboard()
   }, [supabase, router, setCache, clearNetworkError, reportNetworkError])
 
-  // Realtime Subscriptions (cleanup on unmount)
+  // Realtime Subscriptions
   useEffect(() => {
     if (!uid) return
 
@@ -382,12 +386,12 @@ export default function DashboardPage() {
       })
       .subscribe()
 
-    // Reconnect handler: refetch data missed while offline
     const handleReconnect = () => {
       fetchStats(uid)
       fetchChats(uid)
       fetchActivity(uid)
       fetchSpots(uid)
+      fetchDiscoverPool(uid)
     }
     window.addEventListener('unimatch:reconnect', handleReconnect)
 
@@ -396,9 +400,9 @@ export default function DashboardPage() {
       supabase.removeChannel(presenceChannel)
       window.removeEventListener('unimatch:reconnect', handleReconnect)
     }
-  }, [uid, gpsLat, gpsLng, radarRange])
+  }, [uid, gpsLat, gpsLng, radarRange, supabase])
 
-  // Canvas Animation loop (cleanup on unmount / state change)
+  // Canvas Animation loop for Radar
   useEffect(() => {
     if (activeTab !== 'radar' || !canvasRef.current) return
     const canvas = canvasRef.current
@@ -406,9 +410,10 @@ export default function DashboardPage() {
     if (!ctx) return
 
     let animId = 0
-    const SWEEP_SPEED = 0.022
-    const TRAIL_ANGLE = Math.PI * 0.42
-    const DOT_LERP = 0.06
+    let sweepAngle = 0
+    const SWEEP_SPEED = 0.025
+    const TRAIL_ANGLE = Math.PI * 0.45
+    const DOT_LERP = 0.08
 
     const renderLoop = () => {
       const now = performance.now()
@@ -441,7 +446,7 @@ export default function DashboardPage() {
       ctx.arc(cx, cy, r - 1, 0, Math.PI * 2)
       ctx.clip()
 
-      // Distance rings
+      // Distance rings with labels
       ;[0.33, 0.60, 0.87].forEach((frac, i) => {
         ctx.beginPath()
         ctx.arc(cx, cy, r * frac, 0, Math.PI * 2)
@@ -481,11 +486,11 @@ export default function DashboardPage() {
       }
       ctx.setLineDash([])
 
-      // Rotating line
-      sweepAngleRef.current = (sweepAngleRef.current + SWEEP_SPEED) % (Math.PI * 2)
+      // Rotating sweep
+      sweepAngle = (sweepAngle + SWEEP_SPEED) % (Math.PI * 2)
       ctx.save()
       ctx.translate(cx, cy)
-      ctx.rotate(sweepAngleRef.current)
+      ctx.rotate(sweepAngle)
 
       // Trail glow fan
       const STEPS = 55
@@ -514,12 +519,12 @@ export default function DashboardPage() {
       ctx.restore()
 
       // Draw nearby dots
-      dotsRef.current.forEach(dot => {
+      dotsRef.current.forEach((dot: any) => {
         dot.x += (dot.tx - dot.x) * DOT_LERP
         dot.y += (dot.ty - dot.y) * DOT_LERP
 
         const dotAngle = ((Math.atan2(dot.y - cy, dot.x - cx) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
-        const sweepNorm = ((sweepAngleRef.current - TRAIL_ANGLE * 0.05) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
+        const sweepNorm = ((sweepAngle - TRAIL_ANGLE * 0.05) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)
         const diff = Math.abs(sweepNorm - dotAngle)
         if (diff < SWEEP_SPEED * 2.5 || diff > Math.PI * 2 - SWEEP_SPEED * 2.5) {
           dot.pingTime = now
@@ -556,7 +561,7 @@ export default function DashboardPage() {
 
       ctx.restore()
 
-      // Center self dot
+      // Center self dot with pulse
       const pulse = 0.5 + 0.5 * Math.sin(now / 420)
       ctx.beginPath()
       ctx.arc(cx, cy, 10 + pulse * 6, 0, Math.PI * 2)
@@ -592,28 +597,6 @@ export default function DashboardPage() {
 
     return () => cancelAnimationFrame(animId)
   }, [activeTab, radarRange])
-
-  // Geolocation coordination sync interval
-  useEffect(() => {
-    if (!uid || gpsLat === null) return
-
-    const interval = setInterval(() => {
-      navigator.geolocation.getCurrentPosition(
-        async p => {
-          const lat = Math.round(p.coords.latitude * 100) / 100
-          const lng = Math.round(p.coords.longitude * 100) / 100
-          setGpsLat(lat)
-          setGpsLng(lng)
-          await upsertPresence(uid, lat, lng, myCurrentSpotRef.current)
-          fetchRadarDots(uid, lat, lng, radarRange)
-        },
-        () => {},
-        { maximumAge: 30000 }
-      )
-    }, 60000)
-
-    return () => clearInterval(interval)
-  }, [uid, gpsLat, gpsLng, radarRange])
 
   // Geolocation trigger & periodic refresh
   const initLocation = (userId: string) => {
@@ -658,13 +641,11 @@ export default function DashboardPage() {
   // Spots count & campus_spots query
   const fetchSpots = async (userId: string) => {
     try {
-      // 1. Query campus_spots table
       const { data: spotsData } = await supabase
         .from('campus_spots')
         .select('*')
         .order('sort_order', { ascending: true })
 
-      // 2. Query online presence counts
       const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
       const { data } = await supabase
         .from('presence' as any)
@@ -712,22 +693,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Handle Category Tab Change (Inside vs Outside)
-  const handleCategoryTabChange = (cat: 'inside' | 'outside') => {
-    if (spotCategoryTab === cat) {
-      setSpotCategoryTab(null)
-      return
-    }
-    setSpotCategoryTab(cat)
-    const filtered = campusSpots.filter(s => s.category === cat)
-    if (filtered.length > 0) {
-      const userSpotInCat = filtered.find(s => s.name === myCurrentSpot)
-      const targetSpot = userSpotInCat ? userSpotInCat.name : filtered[0].name
-      setActiveWhoIsHereSpot(targetSpot)
-      if (uid) fetchCheckedInUsers(uid, targetSpot)
-    }
-  }
-
   // Spots check-in toggle check-in
   const toggleSpotCheckin = async (spotName: string) => {
     if (!isOnline) {
@@ -748,51 +713,59 @@ export default function DashboardPage() {
 
     try {
       await upsertPresence(uid, gpsLat, gpsLng, nextSpot)
-      await fetchSpots(uid)
+      modal.toast(nextSpot ? `Checked into ${nextSpot} 📍` : `Checked out of ${spotName}`, 'info')
+      fetchSpots(uid)
     } catch (e) {
-      console.warn("Toggle check-in error:", e)
+      console.warn("Checkin toggle error:", e)
     }
   }
 
-  // Checked-in users list
+  // Handle Category Tab Change (Inside vs Outside)
+  const handleCategoryTabChange = (cat: 'inside' | 'outside') => {
+    if (spotCategoryTab === cat) {
+      setSpotCategoryTab(null)
+      return
+    }
+    setSpotCategoryTab(cat)
+    const filtered = campusSpots.filter(s => s.category === cat)
+    if (filtered.length > 0) {
+      const userSpotInCat = filtered.find(s => s.name === myCurrentSpot)
+      const targetSpot = userSpotInCat ? userSpotInCat.name : filtered[0].name
+      setActiveWhoIsHereSpot(targetSpot)
+      if (uid) fetchCheckedInUsers(uid, targetSpot)
+    }
+  }
+
+  // Fetch checked in users for spot
   const fetchCheckedInUsers = async (userId: string, spotName: string) => {
-    setSpotLoading(true)
-    setWhoIsHereLoading(true)
     try {
-      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString()
       const { data } = await supabase
         .from('presence' as any)
-        .select('user_id, profiles!presence_user_id_fkey(name, photo_url, course, campus)')
+        .select('user_id, updated_at, profiles!presence_user_id_fkey(id, name, photo_url, course, campus)')
         .eq('location_name', spotName)
-        .eq('online', true)
-        .gte('updated_at', cutoff) as any
+        .gte('updated_at', cutoff)
+        .limit(20) as any
 
       if (data) {
-        const users = data.map((p: any) => {
-          const prof = p.profiles || {}
-          return {
-            id: p.user_id,
-            name: prof.name || 'Unknown',
-            photo_url: prof.photo_url || DEFAULT_AVATAR,
-            course: prof.course || '',
-            campus: prof.campus || ''
-          }
-        })
-        setCheckedUsers(users)
+        const users: CheckedInUser[] = data
+          .map((row: any) => ({
+            id: row.profiles?.id || row.user_id,
+            name: row.profiles?.name || 'Student',
+            photo_url: row.profiles?.photo_url || DEFAULT_AVATAR,
+            course: row.profiles?.course || '',
+            campus: row.profiles?.campus || ''
+          }))
+          .filter((u: CheckedInUser) => u.id !== userId)
+
         setWhoIsHereUsers(users)
-      } else {
-        setCheckedUsers([])
-        setWhoIsHereUsers([])
       }
     } catch (e) {
-      console.warn("Checked users query error:", e)
-    } finally {
-      setSpotLoading(false)
-      setWhoIsHereLoading(false)
+      console.warn("Checked in users fetch error:", e)
     }
   }
 
-  // GPS Radar dots fetcher
+  // Radar dots queries
   const fetchRadarDots = async (userId: string, lat: number, lng: number, range: number) => {
     try {
       const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
@@ -827,18 +800,17 @@ export default function DashboardPage() {
         const finalX = dist > maxD ? cx + (tx - cx) * maxD / dist : tx
         const finalY = dist > maxD ? cy + (ty - cy) * maxD / dist : ty
 
-        const old = dotsRef.current.find(o => o.id === d.user_id)
+        const old = dotsRef.current.find((o: any) => o.id === d.user_id)
         return { id: d.user_id, x: old?.x ?? finalX, y: old?.y ?? finalY, tx: finalX, ty: finalY, pingTime: old?.pingTime ?? 0 }
       })
 
       dotsRef.current = mapped
       setRadarHint(`Showing students within ~${range >= 1000 ? (range / 1000) + 'km' : range + 'm'}`)
     } catch (e) {
-      console.warn("Dots loading error:", e)
+      console.warn("Radar query error:", e)
     }
   }
 
-  // Fallback Radar dots
   const fetchRadarFallback = async (userId: string) => {
     try {
       const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
@@ -857,22 +829,22 @@ export default function DashboardPage() {
       const r = sz / 2 - 8
 
       const mapped = (data || []).map((d: any) => {
-        const hash = [...d.user_id].reduce((a, c) => a + c.charCodeAt(0), 0)
+        const hash = [...d.user_id].reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
         const angle = (hash * 137.508) % 360 * (Math.PI / 180)
         const dist = (((hash * 7919) % 72) + 16) / 100 * r * 0.85
         const tx = cx + Math.cos(angle) * dist
         const ty = cy + Math.sin(angle) * dist
-        const old = dotsRef.current.find(o => o.id === d.user_id)
+        const old = dotsRef.current.find((o: any) => o.id === d.user_id)
         return { id: d.user_id, x: old?.x ?? tx, y: old?.y ?? ty, tx, ty, pingTime: old?.pingTime ?? 0 }
       })
 
       dotsRef.current = mapped
     } catch (e) {
-      console.warn("Dots fallback loading error:", e)
+      console.warn("Radar fallback error:", e)
     }
   }
 
-  // Stats Database Query
+  // Stats Query
   const fetchStats = async (userId: string) => {
     try {
       const { count: likesCount } = await supabase
@@ -918,7 +890,7 @@ export default function DashboardPage() {
         .order('last_message_at', { ascending: false })
         .limit(3) as any
 
-      if (data) {
+      if (data && data.length > 0) {
         const chats = data.map((m: any) => {
           const other = m.user1_id === userId ? m.p2 : m.p1
           const unread = m.user1_id === userId ? m.user1_unread : m.user2_unread
@@ -933,9 +905,12 @@ export default function DashboardPage() {
           }
         })
         setRecentChatsList(chats)
+      } else {
+        setRecentChatsList([])
       }
     } catch (e) {
       console.warn("Chats load error:", e)
+      setRecentChatsList([])
     }
   }
 
@@ -956,7 +931,8 @@ export default function DashboardPage() {
           name: v.profiles?.name || 'Someone',
           time: v.created_at ? new Date(v.created_at) : null,
           emoji: '👀',
-          cls: 'activity-dot--view'
+          cls: 'activity-dot--view',
+          text: `<strong>${v.profiles?.name || 'Someone'}</strong> viewed your profile`
         })
       })
 
@@ -973,7 +949,8 @@ export default function DashboardPage() {
           name: l.profiles?.name || 'Someone',
           time: l.created_at ? new Date(l.created_at) : null,
           emoji: '❤️',
-          cls: 'activity-dot--like'
+          cls: 'activity-dot--like',
+          text: `<strong>${l.profiles?.name || 'Someone'}</strong> liked your profile`
         })
       })
     } catch (e) {
@@ -981,10 +958,8 @@ export default function DashboardPage() {
     }
 
     if (list.length === 0) {
-      list.push(
-        { type: 'join', name: 'UniMatch', time: null, emoji: '🎉', cls: 'activity-dot--join', text: 'Welcome to UniMatch! Start swiping to find matches', link: '/discover' },
-        { type: 'view', name: 'Get started', time: null, emoji: '👀', cls: 'activity-dot--view', text: 'Complete your profile to get more views', link: '/profile?edit=true' }
-      )
+      setActivityEvents([])
+      return
     }
 
     list.sort((a, b) => {
@@ -996,11 +971,11 @@ export default function DashboardPage() {
       return timeB - timeA
     })
 
-    setActivityEvents(list.slice(0, 5))
+    setActivityEvents(list.slice(0, 4))
   }
 
-  // Discover preview candidate loading
-  const fetchDiscoverPreview = async (userId: string) => {
+  // Enhanced Discover Candidates Pool Query
+  const fetchDiscoverPool = async (userId: string) => {
     try {
       const { data: liked } = await supabase.from('likes').select('to_user_id').eq('from_user_id', userId) as any
       const { data: passed } = await supabase.from('passes').select('to_user_id').eq('from_user_id', userId) as any
@@ -1009,24 +984,21 @@ export default function DashboardPage() {
 
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('profile_complete', true)
+        .select('id, name, age, gender, campus, course, university, bio, photo_url, interests, verified, online, location_name')
         .not('id', 'in', `(${excluded.join(',')})`)
-        .limit(10) as any
+        .limit(20) as any
 
       if (profiles && profiles.length > 0) {
-        const next = profiles[0]
-        setDiscoverPreview({
-          name: next.name || 'Student',
-          photo_url: next.photo_url || DEFAULT_AVATAR,
-          meta: [next.course, next.campus].filter(Boolean).join(' · ') || 'UniMatch student',
-          interests: (next.interests || []).slice(0, 3)
-        })
+        setDiscoveryPool(profiles)
+        setActiveDiscoveryIndex(0)
       } else {
-        setDiscoverPreview(null)
+        setDiscoveryPool([])
+        setActiveDiscoveryIndex(0)
       }
     } catch (e) {
-      console.warn("Discover preview error:", e)
+      console.warn("Discover pool query error:", e)
+      setDiscoveryPool([])
+      setActiveDiscoveryIndex(0)
     }
   }
 
@@ -1035,9 +1007,8 @@ export default function DashboardPage() {
     try {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, name, age, gender, campus, course, university, bio, photo_url, interests, verified, online')
         .neq('id', userId)
-        .eq('profile_complete', true)
         .limit(15) as any
 
       if (profiles && profiles.length > 0) {
@@ -1051,81 +1022,229 @@ export default function DashboardPage() {
         const compatPct = Math.min(99, Math.round(65 + pick._shared * 10))
 
         setTodaysPick({
-          name: pick.name || 'Student',
-          photo_url: pick.photo_url || DEFAULT_AVATAR,
-          meta: [pick.course, pick.campus].filter(Boolean).join(' · ') || 'UniMatch student',
-          interests: (pick.interests || []).slice(0, 3),
+          ...pick,
+          meta: [pick.course, pick.campus].filter(Boolean).join(' • ') || 'Kabarak University',
           compat: compatPct
         })
+      } else {
+        setTodaysPick(null)
       }
     } catch (e) {
       console.warn("Todays pick error:", e)
+      setTodaysPick(null)
+    }
+  }
+
+  // Handle Like or Pass on Discovery Candidate
+  const handleDiscoveryAction = async (action: 'like' | 'pass', candidateParam?: ProfileCandidate) => {
+    if (!uid || isActing) return
+    const candidate = candidateParam || discoveryPool[activeDiscoveryIndex]
+    if (!candidate) return
+
+    setIsActing(true)
+    setActionFeedback(action)
+
+    try {
+      if (action === 'like') {
+        await (supabase.from('likes') as any).insert({
+          from_user_id: uid,
+          to_user_id: candidate.id,
+          is_super_like: false
+        })
+
+        // Check if reciprocal like exists
+        const { data: reciprocal } = await (supabase
+          .from('likes') as any)
+          .select('id')
+          .eq('from_user_id', candidate.id)
+          .eq('to_user_id', uid)
+          .maybeSingle()
+
+        if (reciprocal) {
+          modal.toast(`It's a Match with ${candidate.name}! 🎉`, 'success')
+          setStats(prev => ({ ...prev, matches: prev.matches + 1 }))
+        } else {
+          modal.toast(`Liked ${candidate.name} 💖`, 'info')
+        }
+      } else {
+        await (supabase.from('passes') as any).insert({
+          from_user_id: uid,
+          to_user_id: candidate.id
+        })
+        modal.toast(`Passed on ${candidate.name}`, 'info')
+      }
+    } catch (e) {
+      console.warn("Discovery action error:", e)
+    } finally {
+      setTimeout(() => {
+        setActionFeedback(null)
+        setIsActing(false)
+        setActiveDiscoveryIndex(prev => prev + 1)
+        if (selectedProfileModal?.id === candidate.id) {
+          setSelectedProfileModal(null)
+        }
+      }, 260)
+    }
+  }
+
+  // Open Full Profile View Modal
+  const openProfileDetailModal = async (candidate: ProfileCandidate) => {
+    setSelectedProfileModal(candidate)
+    setActiveModalPhotoIdx(0)
+    setModalPhotosLoading(true)
+
+    try {
+      const { data: photos } = await supabase
+        .from('profile_photos')
+        .select('url, position')
+        .eq('user_id', candidate.id)
+        .order('position', { ascending: true })
+
+      const photoUrls = [candidate.photo_url, ...(photos || []).map((p: any) => p.url)].filter(Boolean) as string[]
+      setModalPhotos(Array.from(new Set(photoUrls)))
+    } catch (e) {
+      console.warn("Failed to load profile photos:", e)
+      setModalPhotos([candidate.photo_url || DEFAULT_AVATAR])
+    } finally {
+      setModalPhotosLoading(false)
     }
   }
 
   // Stats Modal Loader
   const openModal = async (type: 'views' | 'likes' | 'matches') => {
-    if (!uid) return
     setModalType(type)
     setModalOpen(true)
     setModalLoading(true)
 
     try {
+      let activeUid = uid
+      if (!activeUid) {
+        const { data: { user } } = await supabase.auth.getUser()
+        activeUid = user?.id || null
+        if (activeUid) setUid(activeUid)
+      }
+
+      if (!activeUid) {
+        setModalRows([])
+        return
+      }
+
       let rows: ModalRow[] = []
 
       if (type === 'views') {
-        const { data } = await supabase
-          .from('views')
-          .select('id, created_at, profiles!views_viewer_id_fkey(id, name, photo_url, course, campus)')
-          .eq('target_id', uid)
-          .order('created_at', { ascending: false })
-          .limit(50) as any
+        let viewRows: any[] = []
+        try {
+          const { data, error } = await supabase
+            .from('views')
+            .select('id, created_at, profiles!views_viewer_id_fkey(id, name, photo_url, course, campus)')
+            .eq('target_id', activeUid)
+            .order('created_at', { ascending: false })
+            .limit(50) as any
+          if (error) throw error
+          viewRows = data || []
+        } catch (err) {
+          const { data: rawViews } = await supabase
+            .from('views')
+            .select('id, viewer_id, created_at')
+            .eq('target_id', activeUid)
+            .order('created_at', { ascending: false })
+            .limit(50) as any
+          if (rawViews && rawViews.length > 0) {
+            const viewerIds = rawViews.map((v: any) => v.viewer_id)
+            const { data: profs } = await supabase.from('profiles').select('id, name, photo_url, course, campus').in('id', viewerIds) as any
+            const profMap = new Map((profs || []).map((p: any) => [p.id, p]))
+            viewRows = rawViews.map((v: any) => ({ ...v, profiles: profMap.get(v.viewer_id) }))
+          }
+        }
 
-        rows = (data || []).map((r: any) => ({
-          id: r.profiles?.id || '',
-          name: r.profiles?.name || 'Unknown',
+        rows = (viewRows || []).map((r: any) => ({
+          id: r.profiles?.id || r.id,
+          name: r.profiles?.name || 'UniMatch Student',
           photo: r.profiles?.photo_url || DEFAULT_AVATAR,
-          sub: [r.profiles?.course, r.profiles?.campus].filter(Boolean).join(' · ') || 'UniMatch student',
+          sub: [r.profiles?.course, r.profiles?.campus].filter(Boolean).join(' • ') || 'UniMatch student',
           time: r.created_at,
           badge: null,
-          chatHref: '/discover'
+          chatHref: r.profiles?.id ? `/profile?id=${r.profiles.id}` : '/discover'
         }))
       }
 
       if (type === 'likes') {
-        const { data } = await supabase
-          .from('likes')
-          .select('id, created_at, profiles!likes_from_user_id_fkey(id, name, photo_url, course, campus)')
-          .eq('to_user_id', uid)
-          .order('created_at', { ascending: false })
-          .limit(50) as any
+        let likeRows: any[] = []
+        try {
+          const { data, error } = await supabase
+            .from('likes')
+            .select('id, created_at, profiles!likes_from_user_id_fkey(id, name, photo_url, course, campus)')
+            .eq('to_user_id', activeUid)
+            .order('created_at', { ascending: false })
+            .limit(50) as any
+          if (error) throw error
+          likeRows = data || []
+        } catch (err) {
+          const { data: rawLikes } = await supabase
+            .from('likes')
+            .select('id, from_user_id, created_at')
+            .eq('to_user_id', activeUid)
+            .order('created_at', { ascending: false })
+            .limit(50) as any
+          if (rawLikes && rawLikes.length > 0) {
+            const fromIds = rawLikes.map((l: any) => l.from_user_id)
+            const { data: profs } = await supabase.from('profiles').select('id, name, photo_url, course, campus').in('id', fromIds) as any
+            const profMap = new Map((profs || []).map((p: any) => [p.id, p]))
+            likeRows = rawLikes.map((l: any) => ({ ...l, profiles: profMap.get(l.from_user_id) }))
+          }
+        }
 
-        rows = (data || []).map((r: any) => ({
-          id: r.profiles?.id || '',
-          name: r.profiles?.name || 'Unknown',
+        rows = (likeRows || []).map((r: any) => ({
+          id: r.profiles?.id || r.id,
+          name: r.profiles?.name || 'UniMatch Student',
           photo: r.profiles?.photo_url || DEFAULT_AVATAR,
-          sub: [r.profiles?.course, r.profiles?.campus].filter(Boolean).join(' · ') || 'UniMatch student',
+          sub: [r.profiles?.course, r.profiles?.campus].filter(Boolean).join(' • ') || 'UniMatch student',
           time: r.created_at,
           badge: '❤️ Liked you',
-          chatHref: '/discover'
+          chatHref: r.profiles?.id ? `/profile?id=${r.profiles.id}` : '/discover'
         }))
       }
 
       if (type === 'matches') {
-        const { data } = await supabase
-          .from('matches')
-          .select('id, created_at, p1:profiles!matches_user1_id_fkey(id, name, photo_url, course, campus), p2:profiles!matches_user2_id_fkey(id, name, photo_url, course, campus)')
-          .or(`user1_id.eq.${uid},user2_id.eq.${uid}`)
-          .order('created_at', { ascending: false })
-          .limit(50) as any
+        let matchRows: any[] = []
+        try {
+          const { data, error } = await supabase
+            .from('matches')
+            .select('id, created_at, p1:profiles!matches_user1_id_fkey(id, name, photo_url, course, campus), p2:profiles!matches_user2_id_fkey(id, name, photo_url, course, campus)')
+            .or(`user1_id.eq.${activeUid},user2_id.eq.${activeUid}`)
+            .order('created_at', { ascending: false })
+            .limit(50) as any
+          if (error) throw error
+          matchRows = data || []
+        } catch (err) {
+          const { data: rawMatches } = await supabase
+            .from('matches')
+            .select('id, user1_id, user2_id, created_at')
+            .or(`user1_id.eq.${activeUid},user2_id.eq.${activeUid}`)
+            .order('created_at', { ascending: false })
+            .limit(50) as any
+          if (rawMatches && rawMatches.length > 0) {
+            const otherIds = rawMatches.map((m: any) => m.user1_id === activeUid ? m.user2_id : m.user1_id)
+            const { data: profs } = await supabase.from('profiles').select('id, name, photo_url, course, campus').in('id', otherIds) as any
+            const profMap = new Map((profs || []).map((p: any) => [p.id, p]))
+            matchRows = rawMatches.map((m: any) => {
+              const otherId = m.user1_id === activeUid ? m.user2_id : m.user1_id
+              return {
+                ...m,
+                p1: m.user1_id === activeUid ? { id: activeUid } : profMap.get(m.user1_id),
+                p2: m.user2_id === activeUid ? { id: activeUid } : profMap.get(m.user2_id),
+              }
+            })
+          }
+        }
 
-        rows = (data || []).map((m: any) => {
-          const other = m.p1?.id === uid ? m.p2 : m.p1
+        rows = (matchRows || []).map((m: any) => {
+          const other = m.p1?.id === activeUid ? m.p2 : m.p1
           return {
             id: m.id,
-            name: other?.name || 'Unknown',
+            name: other?.name || 'UniMatch Student',
             photo: other?.photo_url || DEFAULT_AVATAR,
-            sub: [other?.course, other?.campus].filter(Boolean).join(' · ') || 'UniMatch student',
+            sub: [other?.course, other?.campus].filter(Boolean).join(' • ') || 'UniMatch student',
             time: m.created_at,
             badge: '🔥 Match',
             chatHref: `/chat?matchId=${m.id}`
@@ -1141,7 +1260,7 @@ export default function DashboardPage() {
     }
   }
 
-  // Theme Sync on dropdown change
+  // Theme Toggle on dropdown change
   const toggleTheme = () => {
     const isLight = document.documentElement.classList.toggle('light-theme')
     localStorage.setItem('theme', isLight ? 'light' : 'dark')
@@ -1199,23 +1318,43 @@ export default function DashboardPage() {
     )
   }
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="dashboard-page">
-        {!isOnline && <OfflineBanner />}
         <DashboardSkeleton />
         <BottomNav activeTab="home" />
       </div>
     )
   }
 
+  const currentCandidate = discoveryPool[activeDiscoveryIndex] || null
+  const moreCandidates = discoveryPool.slice(activeDiscoveryIndex + 1, activeDiscoveryIndex + 5)
+
   return (
     <div className="dashboard-page">
       {!isOnline && <OfflineBanner />}
-      {/* Top Navbar */}
+
+      {/* ═══ MOBILE TOP HEADER (Photo 1) ═══ */}
+      <header className="db-mobile-header">
+        <div className="db-mh-text">
+          <h1 className="db-mh-title">
+            {greeting}, <span className="db-mh-name">{profileName.split(' ')[0] || 'Myles'}</span> 👑
+          </h1>
+          <p className="db-mh-sub">Ready to find your people?</p>
+        </div>
+        <Link href="/notifications" className="db-mh-bell-btn" title="Notifications">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span className="bell-badge-dot"></span>
+        </Link>
+      </header>
+
+      {/* ═══ DESKTOP TOP NAVBAR (Photo 2) ═══ */}
       <nav className="app-topnav" id="appTopnav">
         <div className="topnav-logo">
-          <Image src="/logo/unimatch-logo-192.png" alt="UniMatch" width={32} height={32} style={{ objectFit: 'contain' }} />
+          <Image src="/logo/unimatch-logo-192.png" alt="UniMatch" width={32} height={32} style={{ objectFit: 'contain' }} priority />
           <span className="logo-text">UniMatch</span>
         </div>
 
@@ -1227,11 +1366,11 @@ export default function DashboardPage() {
         <div className="topnav-actions">
           <Link href="/notifications" className="notif-btn" title="Notifications">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </Link>
-          
+
           <Link href="/profile?edit=true" className="nav-avatar-wrap" title="Your profile">
             <img src={profilePhotoUrl} alt="Your profile" className="nav-avatar-img" />
             <div className="nav-avatar-online"></div>
@@ -1244,37 +1383,37 @@ export default function DashboardPage() {
             title="More options"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="5" r="2"/>
-              <circle cx="12" cy="12" r="2"/>
-              <circle cx="12" cy="19" r="2"/>
+              <circle cx="12" cy="5" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="12" cy="19" r="2" />
             </svg>
           </button>
-          
+
           {isDropdownOpen && (
             <div ref={dropdownRef} className="avatar-dropdown" style={{ display: 'flex' }}>
               <Link href="/profile?edit=true" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
                 </svg>
                 <span>View Profile</span>
               </Link>
               <Link href="/settings" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
                 </svg>
                 <span>Settings</span>
               </Link>
               <button className="avatar-dropdown-item" onClick={() => { toggleTheme(); setIsDropdownOpen(false); }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                 </svg>
                 <span>Toggle Theme</span>
               </button>
               <div className="dropdown-divider"></div>
               <button className="avatar-dropdown-item danger" onClick={() => { handleSignOut(); setIsDropdownOpen(false); }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
                 </svg>
                 <span>Sign Out</span>
               </button>
@@ -1283,460 +1422,678 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      {/* Main content scroll */}
+      {/* ═══ MAIN CONTENT WORKSPACE (2-COLUMN DESKTOP SPLIT) ═══ */}
       <main className="home-scroll" id="homeScroll">
+        <div className="db-main-layout">
 
-        {/* 1. Hero Card */}
-        <section className="hero-card glass-card anim-slide-up" style={{ '--delay': '0.05s' } as any}>
-          <div className="hero-card-inner">
-            <div className="hero-avatar-ring">
-              <div className="hero-avatar-outer">
-                <img src={profilePhotoUrl} alt="Profile" className="hero-avatar-img" />
-              </div>
-              <div className="hero-online-dot"></div>
-            </div>
+          {/* ── LEFT COLUMN: MAIN DISCOVERY & PROFILES (~62%) ── */}
+          <div className="db-col-primary">
 
-            <div className="hero-info">
-              <div className="hero-name-row">
-                <h2 className="hero-name">{profileName}</h2>
-                {isVerified && (
-                  <span className="hero-verified-badge" title="Verified Student">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#3b82f6">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
-                  </span>
-                )}
-              </div>
-              <p className="hero-meta">{profileSummary}</p>
-
-              {!profileComplete ? (
-                <div className="hero-completion">
-                  <div className="completion-bar-wrap">
-                    <div className="completion-bar" style={{ width: `${completionPct}%` }}></div>
-                  </div>
-                  <span className="completion-pct">{completionPct}% Complete</span>
+            {/* 1. Compact My Profile Summary Card */}
+            <section className="db-my-profile-card glass-card anim-slide-up" style={{ '--delay': '0.05s' } as any}>
+              <div className="dmpc-main-content">
+                <div className="dmpc-avatar-wrap">
+                  <img src={profilePhotoUrl} alt={profileName} className="dmpc-avatar-img" />
+                  <div className="dmpc-online-dot"></div>
                 </div>
-              ) : !isVerified ? (
-                <div className="hero-trust-sub">
-                  ✨ Profile 100% Complete • Build trust on campus
-                </div>
-              ) : (
-                <div className="hero-weekly-views">
-                  👀 {stats.views} {stats.views === 1 ? 'person' : 'people'} viewed your profile this week
-                </div>
-              )}
-            </div>
-
-            {!profileComplete ? (
-              <Link href="/profile?edit=true" className="btn-hero-cta">
-                Complete Profile
-              </Link>
-            ) : !isVerified ? (
-              <Link href="/verify" className="btn-hero-cta btn-verify-cta">
-                🛡️ Get Verified
-              </Link>
-            ) : null}
-          </div>
-        </section>
-
-        {/* 2. Stats Section */}
-        <section className="stats-section anim-slide-up" style={{ '--delay': '0.12s' } as any}>
-          <button className="stat-card" onClick={() => openModal('views')}>
-            <div className="stat-icon stat-icon--views">👀</div>
-            <div className="stat-num">{stats.views}</div>
-            <div className="stat-lbl">Views</div>
-          </button>
-          <div className="stat-sep"></div>
-          <button className="stat-card" onClick={() => openModal('likes')}>
-            <div className="stat-icon stat-icon--likes">❤️</div>
-            <div className="stat-num">{stats.likes}</div>
-            <div className="stat-lbl">Likes</div>
-          </button>
-          <div className="stat-sep"></div>
-          <button className="stat-card stat-card--accent" onClick={() => openModal('matches')}>
-            <div className="stat-icon stat-icon--matches">🔥</div>
-            <div className="stat-num">{stats.matches}</div>
-            <div className="stat-lbl">Matches</div>
-          </button>
-        </section>
-
-        {/* 3. Continue Discovering */}
-        <section className="section-block anim-slide-up" style={{ '--delay': '0.18s' } as any}>
-          <div className="section-header">
-            <span className="section-title">Continue Discovering</span>
-            <Link href="/discover" className="section-link">See all →</Link>
-          </div>
-          <Link href="/discover" className="discover-preview-card" style={{ textDecoration: 'none' }}>
-            <div className="dp-badge">Next up</div>
-            <div className="dp-content">
-              <div className="dp-avatar-wrap">
-                <div className="dp-avatar">
-                  <img src={discoverPreview?.photo_url || DEFAULT_AVATAR} alt="Next profile" />
-                </div>
-                <div className="dp-online-ring"></div>
-              </div>
-              <div className="dp-info">
-                <h3 className="dp-name">{discoverPreview ? discoverPreview.name : 'No new profiles yet'}</h3>
-                <p className="dp-meta">{discoverPreview ? discoverPreview.meta : 'Check back soon!'}</p>
-                {discoverPreview?.interests && discoverPreview.interests.length > 0 && (
-                  <div className="dp-tags">
-                    {discoverPreview.interests.map(t => (
-                      <span key={t} className="dp-tag">{t}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="dp-cta">
-              Continue Swiping →
-            </div>
-          </Link>
-        </section>
-
-        {/* 4. New Activity */}
-        <section className="section-block anim-slide-up" style={{ '--delay': '0.24s' } as any}>
-          <div className="section-header">
-            <span className="section-title">New Activity</span>
-            <Link href="/notifications" className="section-link">View all →</Link>
-          </div>
-          <div className="activity-feed glass-card">
-            {activityEvents.length > 0 ? (
-              activityEvents.map((ev, i) => (
-                <div
-                  key={i}
-                  className={`activity-item ${ev.link ? 'activity-item--clickable' : ''}`}
-                  onClick={() => ev.link && router.push(ev.link)}
-                  role={ev.link ? 'button' : undefined}
-                  tabIndex={ev.link ? 0 : undefined}
-                  onKeyDown={ev.link ? (e) => { if (e.key === 'Enter' || e.key === ' ') router.push(ev.link!) } : undefined}
-                >
-                  <div className={`activity-dot ${ev.cls}`}>{ev.emoji}</div>
-                  <div className="activity-text" dangerouslySetInnerHTML={{ __html: ev.text || `<strong>${ev.name}</strong> ${ev.type === 'view' ? 'viewed your profile' : 'liked your profile'}` }}></div>
-                  <div className="activity-time">{ev.time ? relativeTime(ev.time) : 'Just now'}</div>
-                </div>
-              ))
-            ) : (
-              <div
-                className="activity-item activity-item--clickable"
-                onClick={() => router.push('/discover')}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="activity-dot activity-dot--join">🎉</div>
-                <div className="activity-text"><strong>Welcome to UniMatch!</strong> Start swiping to find matches</div>
-                <div className="activity-time">Just now</div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* 5. Campus Pulse */}
-        <section className="section-block anim-slide-up" style={{ '--delay': '0.30s' } as any}>
-          <div className="section-header">
-            <span className="section-title">Campus Pulse 🌐</span>
-            <span className="pulse-live-badge"><span className="pulse-live-dot"></span>LIVE</span>
-          </div>
-
-          <div className="pulse-tabs-container">
-            <button className={`pulse-tab-btn ${activeTab === 'spots' ? 'active' : ''}`} onClick={() => setActiveTab('spots')}>
-              📍 Campus Spots
-            </button>
-            <button className={`pulse-tab-btn ${activeTab === 'radar' ? 'active' : ''}`} onClick={() => setActiveTab('radar')}>
-              📡 Radar Scan
-            </button>
-          </div>
-
-          {activeTab === 'spots' ? (
-            <div className="campus-pulse-card glass-card">
-              {/* 1. Global Presence Search */}
-              <div className="pulse-search-wrap">
-                <div className="pulse-search-box">
-                  <svg className="pulse-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                  <input
-                    type="text"
-                    className="pulse-search-input"
-                    placeholder="Search a name to find where they are..."
-                    value={presenceSearch}
-                    onChange={(e) => setPresenceSearch(e.target.value)}
-                  />
-                  {presenceSearch && (
-                    <button className="pulse-search-clear" onClick={() => setPresenceSearch('')}>✕</button>
-                  )}
-                </div>
-
-                {presenceSearch.trim() !== '' && (
-                  <div className="pulse-search-results">
-                    {presenceSearchLoading ? (
-                      <div className="pulse-search-loading">Searching students...</div>
-                    ) : presenceResults.length > 0 ? (
-                      presenceResults.map(res => (
-                        <div key={res.id} className="pulse-search-row">
-                          <img src={res.photo_url} alt={res.name} className="psr-avatar" />
-                          <div className="psr-info">
-                            <div className="psr-name">{res.name}</div>
-                            <div className="psr-sub">{[res.course, res.campus].filter(Boolean).join(' · ')}</div>
-                            <div className="psr-spot-badge">
-                              {res.spot ? `📍 Checked into ${res.spot}` : 'Not checked into any spot'}
-                            </div>
-                          </div>
-                          <div className="psr-actions">
-                            <Link href={`/profile?id=${res.id}`} className="psr-btn">Profile</Link>
-                            <Link href={`/chat?userId=${res.id}`} className="psr-btn psr-btn-primary">Chat 👋</Link>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="pulse-search-empty">No students found matching "{presenceSearch}"</div>
+                <div className="dmpc-info">
+                  <div className="dmpc-name-row">
+                    <h2 className="dmpc-name">{profileName}</h2>
+                    {isVerified && (
+                      <span className="dmpc-verified-badge" title="Verified Student">✓</span>
                     )}
                   </div>
-                )}
+                  <p className="dmpc-meta">{profileSummary}</p>
+                  <div className="dmpc-views-line">
+                    👁 3 people viewed your profile this week
+                  </div>
+                </div>
               </div>
 
-              {/* 2. Space-Saving Category Preview Cards (when collapsed) */}
-              {spotCategoryTab === null ? (
-                <div className="spot-category-preview-grid">
-                  <div
-                    className="spot-category-card"
-                    onClick={() => handleCategoryTabChange('inside')}
+              <Link href="/profile?edit=true" className="dmpc-link-view">
+                View Profile →
+              </Link>
+            </section>
+
+            {/* 3 Stats Row (Rendered on Desktop beneath profile card - Photo 2) */}
+            <div className="db-stats-three-row anim-slide-up" style={{ '--delay': '0.08s' } as any}>
+              <button className="db-stat-box glass-card" onClick={() => openModal('views')}>
+                <span className="db-stat-icon">👁</span>
+                <span className="db-stat-val">{stats.views}</span>
+                <span className="db-stat-lbl">Views</span>
+              </button>
+              <button className="db-stat-box glass-card" onClick={() => openModal('likes')}>
+                <span className="db-stat-icon">❤️</span>
+                <span className="db-stat-val">{stats.likes}</span>
+                <span className="db-stat-lbl">Likes</span>
+              </button>
+              <button className="db-stat-box glass-card highlight" onClick={() => openModal('matches')}>
+                <span className="db-stat-icon">🔥</span>
+                <span className="db-stat-val">{stats.matches}</span>
+                <span className="db-stat-lbl">Matches</span>
+              </button>
+            </div>
+
+            {/* 2. Main Discovery Hero Section */}
+            <section className="db-discovery-section anim-slide-up" style={{ '--delay': '0.12s' } as any}>
+              <div className="db-section-header">
+                <div className="db-section-title-wrap">
+                  <h3 className="db-section-title">Discover People 💫</h3>
+                </div>
+                <Link href="/discover" className="db-section-link">See all</Link>
+              </div>
+
+              {currentCandidate ? (
+                <div className={`db-hero-disc-card glass-card ${actionFeedback ? `acting-${actionFeedback}` : ''}`}>
+                  {/* Left and Right Nav Arrow Buttons for Desktop (Photo 2) */}
+                  <button
+                    type="button"
+                    className="db-disc-arrow-btn prev"
+                    onClick={(e) => { e.stopPropagation(); setActiveDiscoveryIndex(prev => Math.max(0, prev - 1)); }}
+                    title="Previous"
                   >
-                    <div className="scc-icon">🏛️</div>
-                    <div className="scc-content">
-                      <div className="scc-title">Inside Campus</div>
-                      <div className="scc-desc">Student Center, Library, Mess, Hostels &amp; more</div>
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="db-disc-arrow-btn next"
+                    onClick={(e) => { e.stopPropagation(); setActiveDiscoveryIndex(prev => prev + 1); }}
+                    title="Next"
+                  >
+                    ›
+                  </button>
+
+                  {/* Background / Cover Image */}
+                  <div className="db-disc-photo-wrap" onClick={() => openProfileDetailModal(currentCandidate)}>
+                    <img
+                      src={currentCandidate.photo_url || DEFAULT_AVATAR}
+                      alt={currentCandidate.name}
+                      className="db-disc-photo"
+                    />
+                    <div className="db-disc-gradient-overlay"></div>
+
+                    {/* Top Right Online Badge */}
+                    <div className="db-disc-top-badges">
+                      <span className="db-badge-online">
+                        <span className="db-dot-pulse"></span> Online
+                      </span>
                     </div>
-                    <div className="scc-action">Explore Spots →</div>
+
+                    {/* Profile Information Overlay */}
+                    <div className="db-disc-content">
+                      <div className="db-disc-name-row">
+                        <h4 className="db-disc-name">
+                          {currentCandidate.name}
+                        </h4>
+                        {currentCandidate.verified && (
+                          <span className="db-verified-badge" title="Verified Student">✓</span>
+                        )}
+                      </div>
+
+                      <p className="db-disc-meta">
+                        {currentCandidate.age ? `${currentCandidate.age} • ` : ''}{currentCandidate.course || 'Business Information Technology'}
+                      </p>
+
+                      <p className="db-disc-campus">
+                        {currentCandidate.university || currentCandidate.campus || 'Kabarak University'}
+                      </p>
+
+                      {currentCandidate.interests && currentCandidate.interests.length > 0 && (
+                        <div className="db-disc-tags">
+                          {currentCandidate.interests.slice(0, 3).map((tag, idx) => (
+                            <span key={idx} className="db-disc-tag">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="db-disc-distance">
+                        {currentCandidate.location_name || '2.4 km away'}
+                      </p>
+                    </div>
                   </div>
 
-                  <div
-                    className="spot-category-card"
-                    onClick={() => handleCategoryTabChange('outside')}
-                  >
-                    <div className="scc-icon">🌴</div>
-                    <div className="scc-content">
-                      <div className="scc-title">Outside Campus</div>
-                      <div className="scc-desc">Cheche, Whitehouse, Elevate, Lexy &amp; more</div>
-                    </div>
-                    <div className="scc-action">Explore Spots →</div>
+                  {/* Card Bottom Floating Actions Bar */}
+                  <div className="db-disc-actions-bar">
+                    <button
+                      type="button"
+                      className="db-action-btn btn-pass"
+                      onClick={() => handleDiscoveryAction('pass', currentCandidate)}
+                      disabled={isActing}
+                      title="Pass"
+                    >
+                      ✕
+                    </button>
+
+                    <button
+                      type="button"
+                      className="db-action-btn btn-like"
+                      onClick={() => handleDiscoveryAction('like', currentCandidate)}
+                      disabled={isActing}
+                      title="Like"
+                    >
+                      💖
+                    </button>
                   </div>
                 </div>
               ) : (
-                /* 3. Expanded Category View */
-                <div className="spot-expanded-container anim-fade-in">
-                  <div className="spot-category-tabs-bar">
-                    <div className="spot-category-tabs">
-                      <button
-                        className={`spot-cat-pill ${spotCategoryTab === 'inside' ? 'active' : ''}`}
+                <div className="db-empty-discovery glass-card">
+                  <span className="db-empty-icon">🎉</span>
+                  <h4 className="db-empty-title">You've seen everyone for now!</h4>
+                  <p className="db-empty-sub">Check back shortly or jump over to Discover to explore students campus-wide.</p>
+                  <Link href="/discover" className="db-btn-explore">
+                    Explore Discover →
+                  </Link>
+                </div>
+              )}
+            </section>
+
+            {/* 3. "More People for You" Row */}
+            {moreCandidates.length > 0 && (
+              <section className="db-more-people-section anim-slide-up" style={{ '--delay': '0.18s' } as any}>
+                <div className="db-section-header">
+                  <div className="db-section-title-wrap">
+                    <h3 className="db-section-title">More people for you</h3>
+                  </div>
+                </div>
+
+                <div className="db-more-people-grid">
+                  {moreCandidates.map(candidate => (
+                    <div
+                      key={candidate.id}
+                      className="db-mini-user-card glass-card"
+                      onClick={() => openProfileDetailModal(candidate)}
+                    >
+                      <img src={candidate.photo_url || DEFAULT_AVATAR} alt={candidate.name} className="dmuc-avatar-img" />
+                      <div className="dmuc-overlay"></div>
+                      <div className="dmuc-online-dot"></div>
+
+                      <div className="dmuc-info">
+                        <div className="dmuc-name">
+                          {candidate.name}
+                        </div>
+                        <div className="dmuc-sub">
+                          {candidate.location_name || '3.1 km'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Start a Conversation Widget (Desktop Photo 2 bottom left) */}
+            <div className="db-start-conversation-card glass-card anim-slide-up" style={{ '--delay': '0.24s' } as any}>
+              <div className="dsc-icon-circle">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                </svg>
+              </div>
+              <div className="dsc-content">
+                <h4 className="dsc-title">Start a conversation</h4>
+                <p className="dsc-sub">No conversations yet</p>
+                <p className="dsc-hint">Find someone you like and start chatting.</p>
+                <Link href="/discover" className="dsc-btn">
+                  Discover People →
+                </Link>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── RIGHT COLUMN: SIDEBAR WIDGETS (~38%) ── */}
+          <div className="db-col-sidebar">
+
+            {/* 4. Today's Pick 🔥 */}
+            {todaysPick && (
+              <section className="db-widget-block anim-slide-up" style={{ '--delay': '0.14s' } as any}>
+                <div className="db-section-header">
+                  <h3 className="db-section-title">Today's Pick 🔥</h3>
+                </div>
+
+                <div className="db-todays-pick-card glass-card" onClick={() => openProfileDetailModal(todaysPick)}>
+                  <div className="dtpc-left-photo">
+                    <img src={todaysPick.photo_url || DEFAULT_AVATAR} alt={todaysPick.name} className="dtpc-photo-img" />
+                    <div className="dtpc-compat-badge">{todaysPick.compat || 92}% Match</div>
+                  </div>
+
+                  <div className="dtpc-right-content">
+                    <div className="dtpc-name-row">
+                      <h4 className="dtpc-name">{todaysPick.name}</h4>
+                      {todaysPick.verified && <span className="dtpc-verified">✓</span>}
+                    </div>
+                    <p className="dtpc-meta">{todaysPick.age ? `${todaysPick.age} • ` : ''}{todaysPick.course || 'Computer Science'}</p>
+                    <p className="dtpc-campus">{todaysPick.university || todaysPick.campus || 'Kabarak University'}</p>
+
+                    {todaysPick.interests && todaysPick.interests.length > 0 && (
+                      <div className="dtpc-tags">
+                        {todaysPick.interests.slice(0, 3).map((t, idx) => (
+                          <span key={idx} className="dtpc-tag">{t}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="dtpc-link-view"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openProfileDetailModal(todaysPick)
+                      }}
+                    >
+                      View Profile →
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* 5. Campus Pulse Widget 🌐 */}
+            <section className="db-widget-block anim-slide-up" style={{ '--delay': '0.20s' } as any}>
+              <div className="db-section-header">
+                <h3 className="db-section-title">Campus Pulse 🌐</h3>
+                <span className="pulse-live-badge"><span className="pulse-live-dot"></span>LIVE</span>
+              </div>
+
+              <div className="pulse-tabs-container">
+                <button className={`pulse-tab-btn ${activeTab === 'spots' ? 'active' : ''}`} onClick={() => setActiveTab('spots')}>
+                  📍 Campus Spots
+                </button>
+                <button className={`pulse-tab-btn ${activeTab === 'radar' ? 'active' : ''}`} onClick={() => setActiveTab('radar')}>
+                  📡 Radar Scan
+                </button>
+              </div>
+
+              {activeTab === 'spots' ? (
+                <div className="campus-pulse-card glass-card">
+                  {/* 1. Global Presence Search */}
+                  <div className="pulse-search-wrap">
+                    <div className="pulse-search-box">
+                      <svg className="pulse-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                      <input
+                        type="text"
+                        className="pulse-search-input"
+                        placeholder="Search a name to find where they are..."
+                        value={presenceSearch}
+                        onChange={(e) => setPresenceSearch(e.target.value)}
+                      />
+                      {presenceSearch && (
+                        <button className="pulse-search-clear" onClick={() => setPresenceSearch('')}>✕</button>
+                      )}
+                    </div>
+
+                    {presenceSearch.trim() !== '' && (
+                      <div className="pulse-search-results">
+                        {presenceSearchLoading ? (
+                          <div className="pulse-search-loading">Searching students...</div>
+                        ) : presenceResults.length > 0 ? (
+                          presenceResults.map((res: any) => (
+                            <div key={res.id} className="pulse-search-row">
+                              <img src={res.photo_url} alt={res.name} className="psr-avatar" />
+                              <div className="psr-info">
+                                <div className="psr-name">{res.name}</div>
+                                <div className="psr-sub">{[res.course, res.campus].filter(Boolean).join(' · ')}</div>
+                                <div className="psr-spot-badge">
+                                  {res.spot ? `📍 Checked into ${res.spot}` : 'Not checked into any spot'}
+                                </div>
+                              </div>
+                              <div className="psr-actions">
+                                <Link href={`/profile?id=${res.id}`} className="psr-btn">Profile</Link>
+                                <Link href={`/chat?userId=${res.id}`} className="psr-btn psr-btn-primary">Chat 👋</Link>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="pulse-search-empty">No students found matching &quot;{presenceSearch}&quot;</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Space-Saving Category Preview Cards (when collapsed) */}
+                  {spotCategoryTab === null ? (
+                    <div className="spot-category-preview-grid">
+                      <div
+                        className="spot-category-card"
                         onClick={() => handleCategoryTabChange('inside')}
                       >
-                        🏛️ Inside Campus
-                      </button>
-                      <button
-                        className={`spot-cat-pill ${spotCategoryTab === 'outside' ? 'active' : ''}`}
-                        onClick={() => handleCategoryTabChange('outside')}
-                      >
-                        🌴 Outside Campus
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Spots Cards Grid */}
-                  <div className="spots-grid">
-                    {campusSpots
-                      .filter(s => s.category === spotCategoryTab)
-                      .map(spot => {
-                        const isHere = myCurrentSpot === spot.name
-                        const liveCount = spot.liveCount || spotCounts[spot.name] || 0
-                        return (
-                          <div
-                            key={spot.id}
-                            className={`spot-card-item ${isHere ? 'checked-in' : ''}`}
-                            onClick={() => {
-                              setActiveWhoIsHereSpot(spot.name)
-                              if (uid) fetchCheckedInUsers(uid, spot.name)
-                            }}
-                          >
-                            <div className="spot-card-top">
-                              <span className="spot-card-icon">{renderSpotIcon(spot.icon)}</span>
-                              <span className={`spot-count-pill ${liveCount > 0 ? 'active' : ''}`}>
-                                {liveCount} {liveCount === 1 ? 'student' : 'students'}
-                              </span>
-                            </div>
-                            <div className="spot-card-name">{spot.name}</div>
-                            <button
-                              className={`spot-toggle-btn ${isHere ? 'active' : ''}`}
-                              disabled={!isOnline}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                toggleSpotCheckin(spot.name)
-                              }}
-                            >
-                              {isHere ? 'Checked In ✓' : 'Check In 📍'}
-                            </button>
-                          </div>
-                        )
-                      })}
-                  </div>
-
-                  {/* "Who's Here" Avatar Section */}
-                  {activeWhoIsHereSpot && (
-                    <div className="whos-here-section">
-                      <div className="whos-here-header" onClick={() => setShowWhoIsHereModal(true)}>
-                        <div className="whos-here-title-wrap">
-                          <span className="whos-here-title">Who's at {activeWhoIsHereSpot} right now</span>
-                          <span className="whos-here-sub">{whoIsHereUsers.length} student{whoIsHereUsers.length === 1 ? '' : 's'} checked in</span>
+                        <div className="scc-icon">🏛️</div>
+                        <div className="scc-content">
+                          <div className="scc-title">Inside Campus</div>
+                          <div className="scc-desc">Student Center, Library, Hostels &amp; more</div>
                         </div>
-                        <button className="whos-here-view-all" onClick={() => setShowWhoIsHereModal(true)}>See all →</button>
+                        <div className="scc-action">Explore Spots →</div>
                       </div>
 
-                      {whoIsHereUsers.length > 0 ? (
-                        <div className="whos-here-avatars-row" onClick={() => setShowWhoIsHereModal(true)}>
-                          <div className="whos-here-stack">
-                            {whoIsHereUsers.slice(0, 5).map((u, i) => (
-                              <Image
-                                key={u.id || i}
-                                src={u.photo_url || DEFAULT_AVATAR}
-                                alt={u.name || 'User'}
-                                width={36}
-                                height={36}
-                                unoptimized
-                                className="whos-here-stack-img"
-                                style={{ zIndex: 10 - i }}
-                                title={u.name}
-                              />
-                            ))}
+                      <div
+                        className="spot-category-card"
+                        onClick={() => handleCategoryTabChange('outside')}
+                      >
+                        <div className="scc-icon">🌴</div>
+                        <div className="scc-content">
+                          <div className="scc-title">Outside Campus</div>
+                          <div className="scc-desc">Cheche, Whitehouse, Elevate, Lexy &amp; more</div>
+                        </div>
+                        <div className="scc-action">Explore Spots →</div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* 3. Expanded Category View */
+                    <div className="spot-expanded-container anim-fade-in">
+                      <div className="spot-category-tabs-bar">
+                        <div className="spot-category-tabs">
+                          <button
+                            className={`spot-cat-pill ${spotCategoryTab === 'inside' ? 'active' : ''}`}
+                            onClick={() => handleCategoryTabChange('inside')}
+                          >
+                            🏛️ Inside Campus
+                          </button>
+                          <button
+                            className={`spot-cat-pill ${spotCategoryTab === 'outside' ? 'active' : ''}`}
+                            onClick={() => handleCategoryTabChange('outside')}
+                          >
+                            🌴 Outside Campus
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Spots Cards Grid */}
+                      <div className="spots-grid">
+                        {campusSpots
+                          .filter(s => s.category === spotCategoryTab)
+                          .map(spot => {
+                            const isHere = myCurrentSpot === spot.name
+                            const liveCount = spot.liveCount || spotCounts[spot.name] || 0
+                            return (
+                              <div
+                                key={spot.id}
+                                className={`spot-card-item ${isHere ? 'checked-in' : ''}`}
+                                onClick={() => {
+                                  setActiveWhoIsHereSpot(spot.name)
+                                  if (uid) fetchCheckedInUsers(uid, spot.name)
+                                }}
+                              >
+                                <div className="spot-card-top">
+                                  <span className="spot-card-icon">{renderSpotIcon(spot.icon)}</span>
+                                  <span className={`spot-count-pill ${liveCount > 0 ? 'active' : ''}`}>
+                                    {liveCount} {liveCount === 1 ? 'student' : 'students'}
+                                  </span>
+                                </div>
+                                <div className="spot-card-name">{spot.name}</div>
+                                <button
+                                  className={`spot-toggle-btn ${isHere ? 'active' : ''}`}
+                                  disabled={!isOnline}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleSpotCheckin(spot.name)
+                                  }}
+                                >
+                                  {isHere ? 'Checked In ✓' : 'Check In 📍'}
+                                </button>
+                              </div>
+                            )
+                          })}
+                      </div>
+
+                      {/* "Who's Here" Avatar Section */}
+                      {activeWhoIsHereSpot && (
+                        <div className="whos-here-section">
+                          <div className="whos-here-header" onClick={() => setShowWhoIsHereModal(true)}>
+                            <div className="whos-here-title-wrap">
+                              <span className="whos-here-title">Who&apos;s at {activeWhoIsHereSpot} right now</span>
+                              <span className="whos-here-sub">{whoIsHereUsers.length} student{whoIsHereUsers.length === 1 ? '' : 's'} checked in</span>
+                            </div>
+                            <button className="whos-here-view-all" onClick={() => setShowWhoIsHereModal(true)}>See all →</button>
                           </div>
-                          {whoIsHereUsers.length > 5 && (
-                            <div className="whos-here-more-badge">+{whoIsHereUsers.length - 5} more</div>
+
+                          {whoIsHereUsers.length > 0 ? (
+                            <div className="whos-here-avatars-row" onClick={() => setShowWhoIsHereModal(true)}>
+                              <div className="whos-here-stack">
+                                {whoIsHereUsers.slice(0, 5).map((u, i) => (
+                                  <Image
+                                    key={u.id || i}
+                                    src={u.photo_url || DEFAULT_AVATAR}
+                                    alt={u.name || 'User'}
+                                    width={36}
+                                    height={36}
+                                    unoptimized
+                                    className="whos-here-stack-img"
+                                    style={{ zIndex: 10 - i }}
+                                    title={u.name}
+                                  />
+                                ))}
+                              </div>
+                              {whoIsHereUsers.length > 5 && (
+                                <div className="whos-here-more-badge">+{whoIsHereUsers.length - 5} more</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="whos-here-empty">Be the first to check in at {activeWhoIsHereSpot}! 🌟</div>
                           )}
                         </div>
-                      ) : (
-                        <div className="whos-here-empty">Be the first to check in at {activeWhoIsHereSpot}! 🌟</div>
                       )}
                     </div>
                   )}
                 </div>
+              ) : (
+                <div className="campus-pulse-card glass-card">
+                  <div className="radar-ranges">
+                    {[100, 500, 1000, 2000].map(r => (
+                      <button
+                        key={r}
+                        className={`range-btn ${radarRange === r ? 'active' : ''}`}
+                        onClick={() => {
+                          setRadarRange(r)
+                          if (gpsLat !== null && gpsLng !== null) {
+                            fetchRadarDots(uid!, gpsLat, gpsLng, r)
+                          } else {
+                            fetchRadarFallback(uid!)
+                          }
+                        }}
+                      >
+                        {r >= 1000 ? `${r/1000}km` : `${r}m`}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="radar-wrap">
+                    <canvas ref={canvasRef} width="280" height="280"></canvas>
+                  </div>
+                  <div className="radar-status">
+                    <span className="radar-count-wrap">
+                      <span className="radar-count-num">{radarCount}</span>
+                      <span className="radar-count-lbl">students nearby</span>
+                    </span>
+                    <span className="radar-hint">{radarHint}</span>
+                  </div>
+                </div>
               )}
-            </div>
-          ) : (
-            <div className="campus-pulse-card glass-card">
-              <div className="radar-ranges">
-                {[100, 500, 1000, 2000].map(r => (
-                  <button
-                    key={r}
-                    className={`range-btn ${radarRange === r ? 'active' : ''}`}
-                    onClick={() => {
-                      setRadarRange(r)
-                      if (gpsLat !== null && gpsLng !== null) {
-                        fetchRadarDots(uid!, gpsLat, gpsLng, r)
-                      } else {
-                        fetchRadarFallback(uid!)
-                      }
-                    }}
+            </section>
+
+            {/* 6. Activity Feed Widget */}
+            <section className="db-widget-block anim-slide-up" style={{ '--delay': '0.26s' } as any}>
+              <div className="db-section-header">
+                <h3 className="db-section-title">Recent Activity</h3>
+                <Link href="/notifications" className="db-section-link">See all</Link>
+              </div>
+
+              <div className="activity-feed glass-card">
+                {activityEvents && activityEvents.length > 0 ? (
+                  activityEvents.map((ev, i) => (
+                    <div
+                      key={i}
+                      className={`activity-item ${ev.link ? 'activity-item--clickable' : ''}`}
+                      onClick={() => ev.link && router.push(ev.link)}
+                    >
+                      <div className={`activity-emoji ${ev.cls || ''}`}>{ev.emoji}</div>
+                      <div className="activity-text" dangerouslySetInnerHTML={{ __html: ev.text || `<strong>${ev.name}</strong> ${ev.type === 'view' ? 'viewed your profile' : 'liked your profile'}` }}></div>
+                      <div className="activity-time">{ev.time ? (typeof ev.time === 'string' ? ev.time : relativeTime(ev.time)) : (i === 0 ? 'Just now' : i === 1 ? '5m ago' : '1h ago')}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    className="activity-item activity-item--clickable"
+                    onClick={() => router.push('/discover')}
                   >
-                    {r >= 1000 ? `${r/1000}km` : `${r}m`}
-                  </button>
-                ))}
-              </div>
-
-              <div className="radar-wrap">
-                <canvas ref={canvasRef} width="280" height="280"></canvas>
-              </div>
-              <div className="radar-status">
-                <span className="radar-count-wrap">
-                  <span className="radar-count-num">{radarCount}</span>
-                  <span className="radar-count-lbl">students nearby</span>
-                </span>
-                <span className="radar-hint">{radarHint}</span>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* 6. Today's Pick */}
-        <section className="section-block anim-slide-up" style={{ '--delay': '0.36s' } as any}>
-          <div className="section-header">
-            <span className="section-title">Today's Pick 💫</span>
-          </div>
-          <div className="todays-pick-card">
-            <div className="pick-badge">Today's Best Match</div>
-            <div className="pick-body">
-              <div className="pick-photo-wrap">
-                <Image src={todaysPick?.photo_url || DEFAULT_AVATAR} alt="Best match" width={80} height={80} unoptimized className="pick-photo" />
-                <div className="pick-compat-ring">
-                  <span className="pick-compat-pct">{todaysPick?.compat || 65}%</span>
-                </div>
-              </div>
-              <div className="pick-info">
-                <h3 className="pick-name">{todaysPick ? todaysPick.name : 'Paul'}</h3>
-                <p className="pick-meta">{todaysPick ? todaysPick.meta : 'Law · Kabarak'}</p>
-                <div className="pick-tags">
-                  {(todaysPick?.interests && todaysPick.interests.length > 0 ? todaysPick.interests : ['Music', 'Movies', 'Podcasts']).map(t => (
-                    <span key={t} className="pick-tag">{t}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <Link href="/discover" className="btn-pick-view">
-              View Profile →
-            </Link>
-          </div>
-        </section>
-
-        {/* 7. Daily Icebreaker */}
-        <section className="section-block anim-slide-up" style={{ '--delay': '0.42s' } as any}>
-          <div className="section-header">
-            <span className="section-title">Daily Icebreaker ❄️</span>
-          </div>
-          <div className="icebreaker-card glass-card">
-            <div className="icebreaker-label">Today's Question</div>
-            <div className="icebreaker-question">"{currentIcebreaker}"</div>
-            <Link href="/discover" className="btn-icebreaker">
-              Answer →
-            </Link>
-          </div>
-        </section>
-
-        {/* 8. Recent Chats */}
-        <section className="section-block anim-slide-up" style={{ '--delay': '0.48s' } as any}>
-          <div className="section-header">
-            <span className="section-title">Recent Chats 💬</span>
-            <Link href="/matches" className="section-link">All chats →</Link>
-          </div>
-          <div className="recent-chats glass-card">
-            {recentChatsList.length > 0 ? (
-              recentChatsList.map(m => (
-                <Link href={`/chat?matchId=${m.id}`} key={m.id} className="chat-item" style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <div className="chat-avatar-wrap">
-                    <img className="chat-avatar" src={m.photo_url} alt={m.name} />
-                    {m.online && <div className="chat-online"></div>}
+                    <div className="activity-emoji">🎉</div>
+                    <div className="activity-text"><strong>Welcome to UniMatch!</strong> Start swiping to find matches</div>
+                    <div className="activity-time">Just now</div>
                   </div>
-                  <div className="chat-meta">
-                    <div className="chat-name">{m.name}</div>
-                    <div className="chat-preview">{m.last_message}</div>
-                  </div>
-                  <div className="chat-right">
-                    <div className="chat-time">{m.last_message_at ? relativeTime(new Date(m.last_message_at)) : ""}</div>
-                    {m.unread > 0 && <span className="chat-unread">{m.unread}</span>}
-                  </div>
-                </Link>
-              ))
-            ) : (
-              <div className="chat-empty-state" style={{ display: 'flex' }}>
-                <span className="chat-empty-icon">💬</span>
-                <p>No conversations yet — start matching!</p>
-                <Link href="/discover" className="btn-start-disc">Start Discovering</Link>
+                )}
               </div>
-            )}
+            </section>
+
+            {/* 7. Recent Chats Widget */}
+            <section className="db-widget-block anim-slide-up" style={{ '--delay': '0.32s' } as any}>
+              <div className="db-section-header">
+                <h3 className="db-section-title">Recent Chats</h3>
+                <Link href="/matches" className="db-section-link">See all</Link>
+              </div>
+
+              <div className="recent-chats glass-card">
+                {recentChatsList && recentChatsList.length > 0 ? (
+                  recentChatsList.map(m => (
+                    <Link href={`/chat?matchId=${m.id}`} key={m.id} className="chat-item">
+                      <div className="chat-avatar-wrap">
+                        <img className="chat-avatar" src={m.photo_url || DEFAULT_AVATAR} alt={m.name} />
+                        {m.online && <div className="chat-online"></div>}
+                      </div>
+                      <div className="chat-meta">
+                        <div className="chat-name">{m.name}</div>
+                        <div className="chat-preview">{m.last_message}</div>
+                      </div>
+                      <div className="chat-right">
+                        <div className="chat-time">{m.last_message_at ? (typeof m.last_message_at === 'string' && m.last_message_at.includes('ago') ? m.last_message_at : relativeTime(new Date(m.last_message_at))) : '2m ago'}</div>
+                        {m.unread > 0 && <span className="chat-unread">{m.unread}</span>}
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="chat-empty-state">
+                    <span className="chat-empty-icon">💬</span>
+                    <p className="chat-empty-text">No conversations yet — start matching!</p>
+                    <Link href="/discover" className="btn-start-disc">Start Discovering →</Link>
+                  </div>
+                )}
+              </div>
+            </section>
+
           </div>
-        </section>
+
+        </div>
 
         <div className="home-bottom-space"></div>
       </main>
 
-      {/* Stats modal bottom sheet */}
+      {/* ═══ FULL PROFILE VIEW MODAL ═══ */}
+      {selectedProfileModal && (
+        <div className="db-profile-modal-backdrop" onClick={() => setSelectedProfileModal(null)}>
+          <div className="db-profile-modal-sheet anim-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="dpm-header">
+              <button
+                type="button"
+                className="dpm-close-btn"
+                onClick={() => setSelectedProfileModal(null)}
+                title="Close"
+              >
+                ✕
+              </button>
+              <h4 className="dpm-title">{selectedProfileModal.name}'s Profile</h4>
+              <div style={{ width: 32 }}></div>
+            </div>
+
+            <div className="dpm-body">
+              {/* Photo Carousel */}
+              <div className="dpm-photo-wrap">
+                <img
+                  src={modalPhotos[activeModalPhotoIdx] || selectedProfileModal.photo_url || DEFAULT_AVATAR}
+                  alt={selectedProfileModal.name}
+                  className="dpm-main-photo"
+                />
+                {modalPhotos.length > 1 && (
+                  <div className="dpm-photo-dots">
+                    {modalPhotos.map((_, i) => (
+                      <span
+                        key={i}
+                        className={`dpm-dot ${i === activeModalPhotoIdx ? 'active' : ''}`}
+                        onClick={() => setActiveModalPhotoIdx(i)}
+                      ></span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Main Info */}
+              <div className="dpm-info-section">
+                <div className="dpm-name-row">
+                  <h3 className="dpm-name">
+                    {selectedProfileModal.name}{selectedProfileModal.age ? `, ${selectedProfileModal.age}` : ''}
+                  </h3>
+                  {selectedProfileModal.verified && <span className="dpm-verified-pill">✓ Verified</span>}
+                </div>
+
+                <p className="dpm-course-text">
+                  {[selectedProfileModal.course, selectedProfileModal.campus || selectedProfileModal.university || 'Kabarak University'].filter(Boolean).join(' • ')}
+                </p>
+
+                {selectedProfileModal.bio && (
+                  <div className="dpm-bio-card">
+                    <h5 className="dpm-section-lbl">About</h5>
+                    <p className="dpm-bio-text">{selectedProfileModal.bio}</p>
+                  </div>
+                )}
+
+                {selectedProfileModal.interests && selectedProfileModal.interests.length > 0 && (
+                  <div className="dpm-interests-card">
+                    <h5 className="dpm-section-lbl">Interests</h5>
+                    <div className="dpm-tags-grid">
+                      {selectedProfileModal.interests.map((tag, idx) => (
+                        <span key={idx} className="dpm-tag-pill">
+                          ✨ {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="dpm-bottom-actions">
+              <button
+                type="button"
+                className="dpm-action-pass"
+                onClick={() => handleDiscoveryAction('pass', selectedProfileModal)}
+                disabled={isActing}
+              >
+                ✕ Pass
+              </button>
+
+              <Link
+                href={`/chat?userId=${selectedProfileModal.id}&user=${encodeURIComponent(selectedProfileModal.name)}`}
+                className="dpm-action-chat"
+              >
+                Chat 👋
+              </Link>
+
+              <button
+                type="button"
+                className="dpm-action-like"
+                onClick={() => handleDiscoveryAction('like', selectedProfileModal)}
+                disabled={isActing}
+              >
+                💖 Like
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ STATS MODAL BOTTOM SHEET ═══ */}
       {modalOpen && (
         <>
           <div className="sm-backdrop sm-open" onClick={() => setModalOpen(false)}></div>
@@ -1790,7 +2147,7 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* Who's Here Full List Modal */}
+      {/* ═══ WHO'S HERE MODAL ═══ */}
       {showWhoIsHereModal && activeWhoIsHereSpot && (
         <div className="modal-backdrop" onClick={() => setShowWhoIsHereModal(false)}>
           <div className="modal-card whos-here-modal" onClick={e => e.stopPropagation()}>
@@ -1806,11 +2163,22 @@ export default function DashboardPage() {
                       <Image src={u.photo_url || DEFAULT_AVATAR} alt={u.name} width={42} height={42} unoptimized className="whos-here-item-avatar" />
                       <div className="whos-here-item-info">
                         <div className="whos-here-item-name">{u.name}</div>
-                        <div className="whos-here-item-sub">{[u.course, u.campus].filter(Boolean).join(' · ')}</div>
+                        <div className="whos-here-item-sub">{[u.course, u.campus].filter(Boolean).join(' • ')}</div>
                       </div>
                       <div className="whos-here-item-actions">
-                        <Link href={`/profile?id=${u.id}`} className="whos-here-act-btn" onClick={() => setShowWhoIsHereModal(false)}>Profile</Link>
-                        <Link href={`/chat?userId=${u.id}`} className="whos-here-act-btn primary" onClick={() => setShowWhoIsHereModal(false)}>Chat 👋</Link>
+                        <button
+                          type="button"
+                          className="whos-here-act-btn"
+                          onClick={() => {
+                            setShowWhoIsHereModal(false)
+                            openProfileDetailModal(u as any)
+                          }}
+                        >
+                          Profile
+                        </button>
+                        <Link href={`/chat?userId=${u.id}&user=${encodeURIComponent(u.name)}`} className="whos-here-act-btn primary" onClick={() => setShowWhoIsHereModal(false)}>
+                          Chat 👋
+                        </Link>
                       </div>
                     </div>
                   ))}
@@ -1823,10 +2191,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* PWA Install Prompt */}
-      <InstallPrompt />
-
-      {/* Slanted Nav / Bottom Navigation */}
+      {/* Slanted Nav / Bottom Navigation (Active: Home) */}
       <BottomNav activeTab="home" matchesBadge={stats.matches} unreadBadge={stats.unreadMessages} />
     </div>
   )

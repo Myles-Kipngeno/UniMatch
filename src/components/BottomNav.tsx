@@ -45,7 +45,7 @@ export default function BottomNav({ activeTab, matchesBadge, unreadBadge }: Bott
         {unreadBadge && unreadBadge > 0 ? <span className="bn-badge">{unreadBadge}</span> : null}
       </Link>
 
-      <Link href="/profile?edit=true" className={`bn-item ${activeTab === 'profile' ? 'active' : ''}`} id="bn-profile">
+      <Link href="/profile" className={`bn-item ${activeTab === 'profile' ? 'active' : ''}`} id="bn-profile">
         <div className="bn-indicator"></div>
         <svg className="bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />

@@ -31,13 +31,13 @@ export default function InstallPrompt() {
     // 2. Clear any legacy permanent localStorage flag so users aren't permanently blocked
     try {
       localStorage.removeItem('unimatch_pwa_prompt_dismissed')
-    } catch (_) {}
+    } catch (_) { }
 
     // 3. Guard: Never show if user previously dismissed in this active session
     try {
       const alreadyDismissedInSession = sessionStorage.getItem(SESSION_DISMISSED_KEY) === 'true'
       if (alreadyDismissedInSession) return
-    } catch (_) {}
+    } catch (_) { }
 
     // 4. Identify Device Platform
     const ua = window.navigator.userAgent
@@ -55,7 +55,7 @@ export default function InstallPrompt() {
     // 5. Intercept beforeinstallprompt event whenever browser fires it
     const handleBeforeInstall = (e?: any) => {
       if (e) {
-        ;(window as any).deferredBeforeInstallPrompt = e
+        ; (window as any).deferredBeforeInstallPrompt = e
       }
     }
 
@@ -89,7 +89,7 @@ export default function InstallPrompt() {
         await deferredEvent.prompt()
         const choiceResult = await deferredEvent.userChoice
         console.log('[PWA] User choice:', choiceResult?.outcome)
-        ;(window as any).deferredBeforeInstallPrompt = null
+          ; (window as any).deferredBeforeInstallPrompt = null
       } catch (err) {
         console.warn('[PWA] Install prompt error:', err)
       } finally {
@@ -132,7 +132,7 @@ export default function InstallPrompt() {
           alt="UniMatch"
           className="install-prompt-icon"
           onError={(e) => {
-            ;(e.target as HTMLElement).setAttribute('src', '/favicon.svg')
+            ; (e.target as HTMLElement).setAttribute('src', '/favicon.svg')
           }}
         />
         <div className="install-prompt-text">

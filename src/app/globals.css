@@ -21,8 +21,15 @@
 }
 
 @keyframes slideDownBanner {
-  from { transform: translateY(-100%); opacity: 0; }
-  to   { transform: translateY(0);     opacity: 1; }
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Reset body defaults — dark theme background & ambient glow across all pages */

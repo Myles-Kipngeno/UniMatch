@@ -29,11 +29,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Get and refresh session if needed
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const user = session?.user
+  // Safely get user session
+  let user = null
+  try {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    user = authUser
+  } catch (err) {
+    // If Supabase is unreachable or session invalid, user remains null
+  }
 
   const url = request.nextUrl.clone()
   const { pathname } = url

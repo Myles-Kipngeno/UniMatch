@@ -1,0 +1,16 @@
+
+> unimatch@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.22
+   - Local:        http://localhost:3002
+   - Network:      http://192.168.56.1:3002
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 5.7s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 868ms (169 modules)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 4.3s (788 modules)
+ GET /login 200 in 6095ms

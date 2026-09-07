@@ -5,6 +5,7 @@ import { ModalProvider } from './ModalContext'
 import { AppCacheProvider } from '@/context/AppCacheContext'
 import { NetworkProvider } from '@/context/NetworkContext'
 import { GlobalOfflineBanner } from './OfflineNotice'
+import InstallPrompt from './InstallPrompt'
 
 export default function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -13,7 +14,7 @@ export default function Providers({ children }: { children: ReactNode }) {
     // 1. Intercept and store beforeinstallprompt event globally
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault()
-      ;(window as any).deferredBeforeInstallPrompt = e
+        ; (window as any).deferredBeforeInstallPrompt = e
       window.dispatchEvent(new Event('unimatch:beforeinstallprompt'))
     }
 
@@ -37,6 +38,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         <ModalProvider>
           <GlobalOfflineBanner />
           {children}
+          <InstallPrompt />
         </ModalProvider>
       </AppCacheProvider>
     </NetworkProvider>

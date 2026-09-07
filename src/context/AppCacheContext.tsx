@@ -91,7 +91,15 @@ function persistToStorage(cache: AppCacheState) {
 const AppCacheContext = createContext<AppCacheContextType | undefined>(undefined)
 
 export function AppCacheProvider({ children }: { children: ReactNode }) {
-  const [cache, setCacheState] = useState<AppCacheState>(hydrateFromStorage)
+  const [cache, setCacheState] = useState<AppCacheState>(EMPTY_CACHE)
+  const isHydratedRef = useRef(false)
+
+  // Hydrate from localStorage strictly after client mount to prevent SSR hydration mismatch
+  useEffect(() => {
+    const stored = hydrateFromStorage()
+    setCacheState(stored)
+    isHydratedRef.current = true
+  }, [])
 
   // Debounced localStorage write
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -99,6 +107,7 @@ export function AppCacheProvider({ children }: { children: ReactNode }) {
   cacheRef.current = cache
 
   const schedulePersist = useCallback(() => {
+    if (!isHydratedRef.current) return
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
     persistTimerRef.current = setTimeout(() => {
       persistToStorage(cacheRef.current)
@@ -107,7 +116,9 @@ export function AppCacheProvider({ children }: { children: ReactNode }) {
 
   // Persist whenever cache changes (debounced)
   useEffect(() => {
-    schedulePersist()
+    if (isHydratedRef.current) {
+      schedulePersist()
+    }
   }, [cache, schedulePersist])
 
   const getCache = useCallback((key: keyof AppCacheState, subKey?: string) => {
