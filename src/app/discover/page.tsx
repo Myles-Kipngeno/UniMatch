@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -47,6 +47,8 @@ const CURATED_INTERESTS = [
   { name: "Volunteering", emoji: "🤝" }
 ]
 
+const PROFILE_SELECT_COLS = "id, name, age, gender, campus, course, year_of_study, bio, photo_url, interests, preference, profile_complete"
+const PROFILE_PAGE_SIZE = 30
 
 interface Profile {
   id: string;
@@ -86,6 +88,9 @@ export default function DiscoverPage() {
       if (cached.currentUserProfile) setCurrentUserProfile(cached.currentUserProfile)
       if (cached.allProfiles) setAllProfiles(cached.allProfiles)
       if (cached.candidates) setCandidates(cached.candidates)
+      // Resume pagination past the cached pool so load-more doesn't refetch seen profiles
+      profileOffsetRef.current = (cached.allProfiles || []).length
+      hasMoreProfilesRef.current = true
       setLoading(false)
     }
   }, [getCache])
@@ -100,6 +105,14 @@ export default function DiscoverPage() {
   // Filters DOM Refs
   const filterPanelRef = useRef<HTMLDivElement>(null)
   const filterTriggerRef = useRef<HTMLButtonElement>(null)
+
+  // Pagination / load-more refs
+  const excludedIdsRef = useRef<Set<string>>(new Set())
+  const skippedEmptyPagesRef = useRef(0)
+  const profileOffsetRef = useRef(0)
+  const hasMoreProfilesRef = useRef(true)
+  const isLoadingMoreRef = useRef(false)
+  const lastDeckLenRef = useRef(0)
 
   // Single outside-click dismiss listener pattern
   useEffect(() => {
@@ -148,7 +161,7 @@ export default function DiscoverPage() {
         // 1. Fetch current user's profile details
         const { data: profile } = await supabase
           .from("profiles")
-          .select("*")
+          .select(PROFILE_SELECT_COLS)
           .eq("id", user.id)
           .single() as any
 
@@ -163,14 +176,13 @@ export default function DiscoverPage() {
           setFilterPreference(profile.preference)
         }
 
-        // 2. Fetch existing likes, passes, blocked users (bi-directional), and hidden settings, plus all complete profiles
-        const [likesRes, passesRes, blockedByMeRes, blockedMeRes, hiddenSettingsRes, usersRes] = await Promise.all([
+        // 2. Fetch existing likes, passes, blocked users (bi-directional), and hidden settings in parallel
+        const [likesRes, passesRes, blockedByMeRes, blockedMeRes, hiddenSettingsRes] = await Promise.all([
           supabase.from("likes").select("to_user_id").eq("from_user_id", user.id) as any,
           supabase.from("passes").select("to_user_id").eq("from_user_id", user.id) as any,
           supabase.from("blocked_users").select("blocked_id").eq("blocker_id", user.id) as any,
           supabase.from("blocked_users").select("blocker_id").eq("blocked_id", user.id) as any,
-          supabase.from("user_settings").select("user_id").eq("discovery_visible", false) as any,
-          supabase.from("profiles").select("*").eq("profile_complete", true) as any
+          supabase.from("user_settings").select("user_id").eq("discovery_visible", false) as any
         ])
 
         const likedUids = new Set((likesRes.data || []).map((l: any) => l.to_user_id))
@@ -180,18 +192,26 @@ export default function DiscoverPage() {
           ...(blockedMeRes.data || []).map((b: any) => b.blocker_id)
         ])
         const hiddenUids = new Set((hiddenSettingsRes.data || []).map((s: any) => s.user_id))
+        const excludedIds = new Set<string>([...likedUids, ...passedUids, ...blockedUids, ...hiddenUids, user.id])
 
-        const candidatesProfiles = (usersRes.data || []).filter((u: Profile) => {
-          if (u.id === user.id) return false
-          if (likedUids.has(u.id) || passedUids.has(u.id) || blockedUids.has(u.id) || hiddenUids.has(u.id)) return false
-          return true
-        })
+        // Store excluded IDs for loadMore
+        excludedIdsRef.current = excludedIds
 
-        setAllProfiles(candidatesProfiles)
+        // 3. Fetch first page of profiles (server-side exclusion)
+        const { data: firstPage } = await supabase
+          .from("profiles")
+          .select(PROFILE_SELECT_COLS)
+          .eq("profile_complete", true)
+          .not("id", "in", `(${Array.from(excludedIds).join(',')})`)
+          .range(0, PROFILE_PAGE_SIZE - 1) as any
 
-        // 3. Compile and sort initial candidates list
+        const firstPageProfiles = (firstPage || []) as Profile[]
+        profileOffsetRef.current = firstPageProfiles.length
+        hasMoreProfilesRef.current = firstPageProfiles.length >= PROFILE_PAGE_SIZE
+
+        // 4. Compile and sort initial candidates list
         const initialPreference = profile.preference || "all"
-        const filtered = candidatesProfiles
+        const filtered = firstPageProfiles
           .filter((u: Profile) => {
             if (initialPreference !== "all" && u.gender !== initialPreference) return false
             return true
@@ -202,10 +222,11 @@ export default function DiscoverPage() {
           }))
           .sort((a: any, b: any) => b._compatibility - a._compatibility)
 
+        setAllProfiles(firstPageProfiles)
         setCandidates(filtered)
         setCache('discover', {
           currentUserProfile: profile,
-          allProfiles: candidatesProfiles,
+          allProfiles: firstPageProfiles,
           candidates: filtered
         })
         clearNetworkError()
@@ -240,6 +261,31 @@ export default function DiscoverPage() {
     return Math.min(score, 99)
   }
 
+  // Shared client filter predicate (used by applyClientFiltering and loadMoreProfiles)
+  const matchesClientFilters = (
+    u: Profile,
+    campusVal: string,
+    courseVal: string,
+    yearVal: string,
+    prefVal: string
+  ) => {
+    if (prefVal !== "all" && u.gender !== prefVal) return false
+    const campusClean = campusVal.toLowerCase().trim()
+    if (campusClean && (!u.campus || !u.campus.toLowerCase().includes(campusClean))) return false
+    const courseClean = courseVal.toLowerCase().trim()
+    if (courseClean && (!u.course || !u.course.toLowerCase().includes(courseClean))) return false
+    if (yearVal && u.year_of_study !== yearVal) return false
+    return true
+  }
+
+  const scoreProfiles = (profiles: Profile[]) =>
+    profiles
+      .map((u: Profile) => ({
+        ...u,
+        _compatibility: calculateCompatibility(currentUserProfile!, u)
+      }))
+      .sort((a: any, b: any) => b._compatibility - a._compatibility)
+
   // Client-Side Filters compiler
   const applyClientFiltering = (
     campusVal = filterCampus,
@@ -247,23 +293,10 @@ export default function DiscoverPage() {
     yearVal = filterYear,
     prefVal = filterPreference
   ) => {
-    const campusClean = campusVal.toLowerCase().trim()
-    const courseClean = courseVal.toLowerCase().trim()
-
-    const filtered = allProfiles
-      .filter((u: Profile) => {
-        if (prefVal !== "all" && u.gender !== prefVal) return false
-        if (campusClean && (!u.campus || !u.campus.toLowerCase().includes(campusClean))) return false
-        if (courseClean && (!u.course || !u.course.toLowerCase().includes(courseClean))) return false
-        if (yearVal && u.year_of_study !== yearVal) return false
-        return true
-      })
-      .map((u: Profile) => ({
-        ...u,
-        _compatibility: calculateCompatibility(currentUserProfile!, u)
-      }))
-      .sort((a: any, b: any) => b._compatibility - a._compatibility)
-
+    const filtered = scoreProfiles(
+      allProfiles.filter((u: Profile) => matchesClientFilters(u, campusVal, courseVal, yearVal, prefVal))
+    )
+    skippedEmptyPagesRef.current = 0
     setCandidates(filtered)
     setShowFilters(false)
   }
@@ -280,6 +313,7 @@ export default function DiscoverPage() {
   const handleSwipeCommit = async (direction: 'left' | 'right' | 'up', target: Profile) => {
     // 1. Instantly advance candidate stack
     setCandidates(prev => prev.filter(c => c.id !== target.id))
+    excludedIdsRef.current.add(target.id)
 
     if (!currentUser) return
 
@@ -297,7 +331,7 @@ export default function DiscoverPage() {
         // Check if matching trigger created the match row
         const { data: match } = await (supabase.from("matches") as any)
           .select("id")
-          .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${target.id}),and(user1_id.eq.${target.id},user2_id.eq.${currentUser.id})`)
+          .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${target.id}),and(user1_id.eq.${target.id},user2_id.eq:${currentUser.id})`)
           .maybeSingle()
 
         if (match) {
@@ -323,6 +357,80 @@ export default function DiscoverPage() {
       }
     }
   }
+
+  // LOAD MORE PROFILES (auto-trigger when deck is low)
+  const loadMoreProfiles = useCallback(async () => {
+    if (isLoadingMoreRef.current || !hasMoreProfilesRef.current) return
+    isLoadingMoreRef.current = true
+
+    try {
+      // Fetch next page of profiles server-side
+      const excludedArr = Array.from(excludedIdsRef.current)
+      // Batch exclusion in groups of 50 to avoid SQL array size limits
+      const BATCH = 50
+      let query = supabase
+        .from("profiles")
+        .select(PROFILE_SELECT_COLS)
+        .eq("profile_complete", true)
+
+      // Apply exclusions in batches
+      for (let i = 0; i < excludedArr.length; i += BATCH) {
+        const batch = excludedArr.slice(i, i + BATCH)
+        query = query.not("id", "in", `(${batch.join(',')})`)
+      }
+
+      const start = profileOffsetRef.current
+      const end = start + PROFILE_PAGE_SIZE - 1
+      const { data: nextPage } = await query.range(start, end) as any
+
+      const newProfiles = (nextPage || []) as Profile[]
+      profileOffsetRef.current += newProfiles.length
+      hasMoreProfilesRef.current = newProfiles.length >= PROFILE_PAGE_SIZE
+
+      if (newProfiles.length === 0) {
+        isLoadingMoreRef.current = false
+        return
+      }
+
+      setAllProfiles(prev => {
+        const seen = new Set(prev.map((p: Profile) => p.id))
+        return [...prev, ...newProfiles.filter((p: Profile) => !seen.has(p.id))]
+      })
+
+      // Append to candidates, applying the same client filters as the active deck
+      const filteredNew = newProfiles.filter((u: Profile) =>
+        matchesClientFilters(u, filterCampus, filterCourse, filterYear, filterPreference)
+      )
+      if (filteredNew.length > 0) {
+        const scored = scoreProfiles(filteredNew)
+        setCandidates(prev => {
+          const seen = new Set(prev.map((c: any) => c.id))
+          return [...prev, ...scored.filter((c: any) => !seen.has(c.id))]
+        })
+      } else if (hasMoreProfilesRef.current && skippedEmptyPagesRef.current < 30) {
+        // Entire page filtered out; pull the next batch to keep the deck populated.
+        // Bound the chain so an ultra-strict filter can't paginate the whole table.
+        skippedEmptyPagesRef.current += 1
+        isLoadingMoreRef.current = false
+        loadMoreProfiles()
+        return
+      } else {
+        skippedEmptyPagesRef.current = 0
+        hasMoreProfilesRef.current = false
+      }
+    } catch (err) {
+      console.error("Load more profiles error:", err)
+    } finally {
+      isLoadingMoreRef.current = false
+    }
+  }, [currentUserProfile, filterCampus, filterCourse, filterYear, filterPreference])
+
+  // Auto-load when deck is low
+  useEffect(() => {
+    if (candidates.length < 3 && hasMoreProfilesRef.current && !isLoadingMoreRef.current) {
+      loadMoreProfiles()
+    }
+  }, [candidates.length, loadMoreProfiles])
 
   // Programmatic Button Swiping
   const triggerSwipe = (direction: 'left' | 'right' | 'up') => {

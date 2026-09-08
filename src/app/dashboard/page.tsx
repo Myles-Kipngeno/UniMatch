@@ -141,6 +141,9 @@ export default function DashboardPage() {
   const [modalPhotosLoading, setModalPhotosLoading] = useState(false)
   const [activeModalPhotoIdx, setActiveModalPhotoIdx] = useState(0)
 
+  // Prefetched gallery photos keyed by user_id (loaded in one batched query with the discovery pool)
+  const poolPhotosRef = useRef<Map<string, string[]>>(new Map())
+
   // Campus Spots & Presence States
   const [campusSpots, setCampusSpots] = useState<CampusSpot[]>(DEFAULT_CAMPUS_SPOTS)
   const [spotCategoryTab, setSpotCategoryTab] = useState<'inside' | 'outside' | null>('inside')
@@ -991,8 +994,24 @@ export default function DashboardPage() {
       if (profiles && profiles.length > 0) {
         setDiscoveryPool(profiles)
         setActiveDiscoveryIndex(0)
+
+        // Batch-prefetch gallery photos for the whole pool with a single query
+        const poolIds = profiles.map((p: any) => p.id)
+        const photos = await supabase
+          .from('profile_photos')
+          .select('user_id, url, position')
+          .in('user_id', poolIds)
+          .order('position', { ascending: true }) as any
+
+        const grouped = new Map<string, string[]>()
+        for (const ph of (photos.data || [])) {
+          if (!grouped.has(ph.user_id)) grouped.set(ph.user_id, [])
+          grouped.get(ph.user_id)!.push(ph.url)
+        }
+        poolPhotosRef.current = grouped
       } else {
         setDiscoveryPool([])
+        poolPhotosRef.current = new Map()
         setActiveDiscoveryIndex(0)
       }
     } catch (e) {
@@ -1092,6 +1111,15 @@ export default function DashboardPage() {
     setSelectedProfileModal(candidate)
     setActiveModalPhotoIdx(0)
     setModalPhotosLoading(true)
+
+    // Fast path: photos were already prefetched with the discovery pool
+    const prefetched = poolPhotosRef.current.get(candidate.id)
+    if (prefetched) {
+      const photoUrls = [candidate.photo_url, ...prefetched].filter(Boolean) as string[]
+      setModalPhotos(Array.from(new Set(photoUrls)))
+      setModalPhotosLoading(false)
+      return
+    }
 
     try {
       const { data: photos } = await supabase
@@ -1860,7 +1888,6 @@ export default function DashboardPage() {
                                     alt={u.name || 'User'}
                                     width={36}
                                     height={36}
-                                    unoptimized
                                     className="whos-here-stack-img"
                                     style={{ zIndex: 10 - i }}
                                     title={u.name}
@@ -2160,7 +2187,7 @@ export default function DashboardPage() {
                 <div className="whos-here-list">
                   {whoIsHereUsers.map(u => (
                     <div key={u.id} className="whos-here-item">
-                      <Image src={u.photo_url || DEFAULT_AVATAR} alt={u.name} width={42} height={42} unoptimized className="whos-here-item-avatar" />
+                      <Image src={u.photo_url || DEFAULT_AVATAR} alt={u.name} width={42} height={42} className="whos-here-item-avatar" />
                       <div className="whos-here-item-info">
                         <div className="whos-here-item-name">{u.name}</div>
                         <div className="whos-here-item-sub">{[u.course, u.campus].filter(Boolean).join(' • ')}</div>

@@ -5,7 +5,7 @@ import Providers from "@/components/Providers";
 
 const outfit = Outfit({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-outfit",
 });
 

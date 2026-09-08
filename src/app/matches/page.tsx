@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -170,6 +170,15 @@ export default function MatchesPage() {
     }
   }
 
+  // Debounce full matches refetch so realtime bursts collapse into one request
+  const fetchMatchesRef = useRef(fetchMatches)
+  fetchMatchesRef.current = fetchMatches
+  const matchesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleMatchesRefetch = useCallback((userId: string) => {
+    if (matchesDebounceRef.current) clearTimeout(matchesDebounceRef.current)
+    matchesDebounceRef.current = setTimeout(() => fetchMatchesRef.current(userId), 1000)
+  }, [])
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -187,21 +196,22 @@ export default function MatchesPage() {
     if (!uid) return
     const channel = supabase
       .channel(`matches_rt_${uid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `user1_id=eq.${uid}` }, () => fetchMatches(uid))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `user2_id=eq.${uid}` }, () => fetchMatches(uid))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `user1_id=eq.${uid}` }, () => scheduleMatchesRefetch(uid))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `user2_id=eq.${uid}` }, () => scheduleMatchesRefetch(uid))
       .subscribe()
 
     // Reconnect handler: refetch matches missed while offline
     const handleReconnect = () => {
-      fetchMatches(uid)
+      scheduleMatchesRefetch(uid)
     }
     window.addEventListener('unimatch:reconnect', handleReconnect)
 
     return () => {
       supabase.removeChannel(channel)
+      if (matchesDebounceRef.current) clearTimeout(matchesDebounceRef.current)
       window.removeEventListener('unimatch:reconnect', handleReconnect)
     }
-  }, [uid, supabase])
+  }, [uid, supabase, scheduleMatchesRefetch])
 
   const filteredMatches = matches.filter(m => {
     if (searchQuery.trim()) {
@@ -331,7 +341,7 @@ export default function MatchesPage() {
       <div className="mp-detail">
         {/* Photo */}
         <div className="mp-photo-wrap">
-          <Image src={m.photoUrl || DEFAULT_AVATAR} alt={m.name} width={300} height={300} unoptimized className="mp-photo" />
+          <Image src={m.photoUrl || DEFAULT_AVATAR} alt={m.name} width={300} height={300} className="mp-photo" />
           <span className="mp-match-pct">{m.matchPct}% Match</span>
           <button
             ref={isMenuOpen ? matchTriggerRef : null}
@@ -530,7 +540,7 @@ export default function MatchesPage() {
                   onClick={() => openDetail(m)}
                 >
                   <div className="mp-avatar-wrap">
-                    <Image src={m.photoUrl || DEFAULT_AVATAR} alt={m.name} width={52} height={52} unoptimized className="mp-avatar" />
+                    <Image src={m.photoUrl || DEFAULT_AVATAR} alt={m.name} width={52} height={52} className="mp-avatar" />
                     {m.online && <span className="mp-online-dot" />}
                   </div>
                   <div className="mp-row-info">

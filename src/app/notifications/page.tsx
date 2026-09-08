@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -524,6 +524,15 @@ export default function NotificationsPage() {
     initNotifications()
   }, [supabase, router])
 
+  // Debounce full notifications refetch so realtime bursts collapse into one request
+  const fetchNotificationsRef = useRef(fetchNotifications)
+  fetchNotificationsRef.current = fetchNotifications
+  const notifDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleNotifications = useCallback((userId: string) => {
+    if (notifDebounceRef.current) clearTimeout(notifDebounceRef.current)
+    notifDebounceRef.current = setTimeout(() => fetchNotificationsRef.current(userId), 1000)
+  }, [])
+
   // Realtime subscription
   useEffect(() => {
     if (!uid) return
@@ -533,22 +542,23 @@ export default function NotificationsPage() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` },
         () => {
-          fetchNotifications(uid)
+          scheduleNotifications(uid)
         }
       )
       .subscribe()
 
     // Reconnect handler: refetch notifications missed while offline
     const handleReconnect = () => {
-      fetchNotifications(uid)
+      scheduleNotifications(uid)
     }
     window.addEventListener('unimatch:reconnect', handleReconnect)
 
     return () => {
       supabase.removeChannel(channel)
+      if (notifDebounceRef.current) clearTimeout(notifDebounceRef.current)
       window.removeEventListener('unimatch:reconnect', handleReconnect)
     }
-  }, [uid])
+  }, [uid, scheduleNotifications])
 
   const relativeTime = (date: Date) => {
     const diff = (Date.now() - date.getTime()) / 1000
@@ -714,7 +724,7 @@ export default function NotificationsPage() {
                     <div className="notif-card-left">
                       {group.senderPhoto ? (
                         <div className="notif-avatar-wrap">
-                          <Image className="notif-avatar-img" src={group.senderPhoto} alt={group.senderName || 'User'} width={42} height={42} unoptimized />
+                          <Image className="notif-avatar-img" src={group.senderPhoto} alt={group.senderName || 'User'} width={42} height={42} />
                           <span className={`notif-avatar-badge ${group.iconCls}`}>{group.icon}</span>
                         </div>
                       ) : (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -476,6 +476,15 @@ function ChatPageContent() {
     }
   }
 
+  // Debounce full conversation refetch so realtime bursts collapse into one request
+  const fetchConversationsRef = useRef(fetchConversations)
+  fetchConversationsRef.current = fetchConversations
+  const convDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleConversations = useCallback((userId: string) => {
+    if (convDebounceRef.current) clearTimeout(convDebounceRef.current)
+    convDebounceRef.current = setTimeout(() => fetchConversationsRef.current(userId), 1000)
+  }, [])
+
   // 3. Realtime subscription for Matches List updates
   useEffect(() => {
     if (!currentUser) return
@@ -485,26 +494,27 @@ function ChatPageContent() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matches', filter: `user1_id=eq.${currentUser.id}` },
-        () => fetchConversations(currentUser.id)
+        () => scheduleConversations(currentUser.id)
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matches', filter: `user2_id=eq.${currentUser.id}` },
-        () => fetchConversations(currentUser.id)
+        () => scheduleConversations(currentUser.id)
       )
       .subscribe()
 
     // Reconnect handler: refetch conversations missed while offline
     const handleReconnect = () => {
-      fetchConversations(currentUser.id)
+      scheduleConversations(currentUser.id)
     }
     window.addEventListener('unimatch:reconnect', handleReconnect)
 
     return () => {
       supabase.removeChannel(channel)
+      if (convDebounceRef.current) clearTimeout(convDebounceRef.current)
       window.removeEventListener('unimatch:reconnect', handleReconnect)
     }
-  }, [currentUser?.id])
+  }, [currentUser?.id, scheduleConversations])
 
   // 4. Load Active Conversation thread when URL parameters change
   useEffect(() => {

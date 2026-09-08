@@ -239,9 +239,15 @@ CREATE INDEX IF NOT EXISTS idx_likes_from_to ON public.likes(from_user_id, to_us
 CREATE INDEX IF NOT EXISTS idx_likes_to ON public.likes(to_user_id);
 CREATE INDEX IF NOT EXISTS idx_passes_from_to ON public.passes(from_user_id, to_user_id);
 CREATE INDEX IF NOT EXISTS idx_matches_users ON public.matches(user1_id, user2_id);
+CREATE INDEX IF NOT EXISTS idx_matches_user2_id ON public.matches(user2_id);
 CREATE INDEX IF NOT EXISTS idx_messages_match ON public.messages(match_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON public.messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_unread ON public.messages(match_id, created_at DESC)
+  WHERE is_read = false;
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_views_target ON public.views(target_id);
+CREATE INDEX IF NOT EXISTS idx_profile_photos_user_id ON public.profile_photos(user_id);
+CREATE INDEX IF NOT EXISTS idx_blocked_users_blocked_id ON public.blocked_users(blocked_id);
 
 -- ── AUTOMATIC TRIGGERS ──
 

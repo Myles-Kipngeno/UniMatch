@@ -532,7 +532,6 @@ function ProfileFormContent() {
                     alt="Profile"
                     width={400}
                     height={400}
-                    unoptimized
                   />
                   <div className="preview-overlay">
                     <h3>{name || 'Student'}{age ? `, ${age}` : ''}</h3>
@@ -635,7 +634,6 @@ function ProfileFormContent() {
                           alt="Profile"
                           width={130}
                           height={130}
-                          unoptimized
                         />
                         <div className="photo-overlay">
                           <label className="upload-label" title="Upload new photo">
@@ -977,7 +975,6 @@ function ProfileFormContent() {
                                 alt="Profile"
                                 width={140}
                                 height={140}
-                                unoptimized
                               />
                               <div className="photo-overlay">
                                 <label className="upload-label">
