@@ -34,6 +34,7 @@ export function SkeletonBlock({
 
 export function DashboardSkeleton() {
   return (
+    <div style={{ minHeight: '100dvh', width: '100%', backgroundColor: '#09080f', boxSizing: 'border-box' }}>
     <div style={{ padding: '16px', maxWidth: '600px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
       <style>{`
         @keyframes skeletonPulse {
@@ -75,6 +76,7 @@ export function DashboardSkeleton() {
           <SkeletonBlock key={i} width="110px" height="90px" borderRadius="14px" style={{ flexShrink: 0 }} />
         ))}
       </div>
+    </div>
     </div>
   )
 }

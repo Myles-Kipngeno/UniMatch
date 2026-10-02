@@ -1428,19 +1428,19 @@ export default function DashboardPage() {
     }
   }
 
-  if (isNetworkError && !getCache('dashboard')) {
+  if (!mounted || loading) {
     return (
       <div className="dashboard-page">
-        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
+        <DashboardSkeleton />
         <BottomNav activeTab="home" />
       </div>
     )
   }
 
-  if (!mounted || loading) {
+  if (isNetworkError && !getCache('dashboard')) {
     return (
       <div className="dashboard-page">
-        <DashboardSkeleton />
+        <OfflineNotice onRetry={() => { clearNetworkError(); window.location.reload(); }} />
         <BottomNav activeTab="home" />
       </div>
     )
@@ -1754,8 +1754,8 @@ export default function DashboardPage() {
                     <svg viewBox="0 0 72 72" aria-hidden="true">
                       <defs>
                         <linearGradient id="pickRingGrad" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stopColor="#f472b6" />
-                          <stop offset="100%" stopColor="#a855f7" />
+                          <stop offset="0%" stopColor="#818cf8" />
+                          <stop offset="100%" stopColor="#4f46e5" />
                         </linearGradient>
                       </defs>
                       <circle cx="36" cy="36" r="30" className="db-pick-ring-track" />
