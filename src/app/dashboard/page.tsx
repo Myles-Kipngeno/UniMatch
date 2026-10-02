@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { Fredoka } from 'next/font/google'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
@@ -100,6 +101,66 @@ const DEFAULT_CAMPUS_SPOTS: CampusSpot[] = [
   { id: '13', name: 'Carrots', category: 'outside', icon: 'mapPin', sort_order: 6, liveCount: 0 },
 ]
 
+// Rounded, warm display face for headings & numbers (dashboard only)
+const displayFont = Fredoka({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-display',
+})
+
+const VIBE_PRESETS = [
+  '☕ Up for coffee',
+  '📚 Study date?',
+  '🎶 Music on repeat',
+  '⚽ Game day energy',
+  '🌙 Late-night talks',
+  '✨ Just vibing',
+]
+
+const SWIPE_THRESHOLD = 110
+
+// Activity feed copy — names are rendered as text by React, never as HTML
+const ACTIVITY_LABELS: Record<ActivityEvent['type'], string> = {
+  view: 'viewed your profile',
+  like: 'liked your profile',
+  match: 'matched with you',
+  join: 'joined UniMatch',
+}
+
+// Animated number that counts up from 0 whenever the value changes
+function CountUp({ value, duration = 900 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(0)
+
+  useEffect(() => {
+    const target = Number(value) || 0
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduce || target === 0) {
+      setDisplay(target)
+      return
+    }
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / duration)
+      const eased = 1 - Math.pow(1 - p, 3)
+      setDisplay(Math.round(target * eased))
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [value, duration])
+
+  return <>{display.toLocaleString()}</>
+}
+
+// Stroke icons used by the stat cards
+const StatIcon = ({ type }: { type: 'views' | 'likes' | 'matches' }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {type === 'views' && <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>}
+    {type === 'likes' && <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />}
+    {type === 'matches' && <path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 002.5 2.5z" />}
+  </svg>
+)
 
 
 export default function DashboardPage() {
@@ -180,6 +241,20 @@ export default function DashboardPage() {
   // Touch Swipe-to-close state
   const [touchStartY, setTouchStartY] = useState(0)
 
+  // My interests (used to highlight shared interests on Today's Pick)
+  const [myInterests, setMyInterests] = useState<string[]>([])
+
+  // Mood / vibe status (stored per user on this device)
+  const [vibe, setVibe] = useState('')
+  const [vibeEditorOpen, setVibeEditorOpen] = useState(false)
+  const [vibeDraft, setVibeDraft] = useState('')
+
+  // Swipe gesture state for the discovery card
+  const [dragX, setDragX] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartXRef = useRef<number | null>(null)
+  const dragMovedRef = useRef(false)
+
   // Dropdown DOM Refs
   const dropdownRef = useRef<HTMLDivElement>(null)
   const dropdownTriggerRef = useRef<HTMLButtonElement>(null)
@@ -209,6 +284,23 @@ export default function DashboardPage() {
       setLoading(false)
     }
   }, [getCache])
+
+  // Restore this user's vibe status
+  useEffect(() => {
+    if (!uid) return
+    try {
+      setVibe(localStorage.getItem(`unimatch_vibe_${uid}`) || '')
+    } catch {
+      setVibe('')
+    }
+  }, [uid])
+
+  // Reset the swipe card whenever a new candidate is shown
+  useEffect(() => {
+    setDragX(0)
+    setIsDragging(false)
+    dragStartXRef.current = null
+  }, [activeDiscoveryIndex])
 
   // Single outside-click dismiss listener pattern for 3-dot dropdown
   useEffect(() => {
@@ -318,6 +410,7 @@ export default function DashboardPage() {
         if (profile.photo_url) setProfilePhotoUrl(profile.photo_url)
         setProfileComplete(!!profile.profile_complete)
         setIsVerified(!!profile.verified)
+        setMyInterests(Array.isArray(profile.interests) ? profile.interests : [])
 
         // Completion percentage
         const fields = ["name", "bio", "course", "campus", "photo_url", "age", "gender", "interests"]
@@ -934,8 +1027,7 @@ export default function DashboardPage() {
           name: v.profiles?.name || 'Someone',
           time: v.created_at ? new Date(v.created_at) : null,
           emoji: '👀',
-          cls: 'activity-dot--view',
-          text: `<strong>${v.profiles?.name || 'Someone'}</strong> viewed your profile`
+          cls: 'activity-dot--view'
         })
       })
 
@@ -952,8 +1044,7 @@ export default function DashboardPage() {
           name: l.profiles?.name || 'Someone',
           time: l.created_at ? new Date(l.created_at) : null,
           emoji: '❤️',
-          cls: 'activity-dot--like',
-          text: `<strong>${l.profiles?.name || 'Someone'}</strong> liked your profile`
+          cls: 'activity-dot--like'
         })
       })
     } catch (e) {
@@ -1358,9 +1449,75 @@ export default function DashboardPage() {
   const currentCandidate = discoveryPool[activeDiscoveryIndex] || null
   const moreCandidates = discoveryPool.slice(activeDiscoveryIndex + 1, activeDiscoveryIndex + 5)
 
+  // Today's Pick: shared interests first, then the rest
+  const pickInterests = todaysPick?.interests || []
+  const pickShared = pickInterests.filter(i => myInterests.includes(i))
+  const pickChips = [...pickShared, ...pickInterests.filter(i => !myInterests.includes(i))].slice(0, 5)
+  const pickCompat = todaysPick?.compat || 92
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 30
+
+  const saveVibe = (value: string) => {
+    const next = value.trim().slice(0, 40)
+    setVibe(next)
+    try {
+      if (uid) {
+        if (next) localStorage.setItem(`unimatch_vibe_${uid}`, next)
+        else localStorage.removeItem(`unimatch_vibe_${uid}`)
+      }
+    } catch { /* storage unavailable — keep in memory only */ }
+    setVibeEditorOpen(false)
+  }
+
+  // Swipe gestures: drag right to like, left to pass
+  const handleSwipeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isActing || (e.pointerType === 'mouse' && e.button !== 0)) return
+    dragStartXRef.current = e.clientX
+    dragMovedRef.current = false
+    setIsDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const handleSwipeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartXRef.current === null) return
+    const dx = e.clientX - dragStartXRef.current
+    if (Math.abs(dx) > 6) dragMovedRef.current = true
+    setDragX(dx)
+  }
+
+  const handleSwipeEnd = () => {
+    if (dragStartXRef.current === null) return
+    dragStartXRef.current = null
+    setIsDragging(false)
+    if (currentCandidate && Math.abs(dragX) > SWIPE_THRESHOLD) {
+      const action = dragX > 0 ? 'like' : 'pass'
+      setDragX(dragX > 0 ? 900 : -900)
+      handleDiscoveryAction(action, currentCandidate)
+    } else {
+      setDragX(0)
+    }
+  }
+
+  const handleDiscoveryPhotoClick = (candidate: ProfileCandidate) => {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false
+      return
+    }
+    openProfileDetailModal(candidate)
+  }
+
   return (
-    <div className="dashboard-page">
+    <div className={`dashboard-page ${displayFont.variable}`}>
       {!isOnline && <OfflineBanner />}
+
+      {/* Ambient animated background */}
+      <div className="db-ambient" aria-hidden="true">
+        <span className="db-blob db-blob-1"></span>
+        <span className="db-blob db-blob-2"></span>
+        <span className="db-blob db-blob-3"></span>
+        {Array.from({ length: 14 }).map((_, i) => (
+          <span key={i} className="db-particle" style={{ '--i': i } as React.CSSProperties}></span>
+        ))}
+      </div>
 
       {/* ═══ MOBILE TOP HEADER (Photo 1) ═══ */}
       <header className="db-mobile-header">
@@ -1460,10 +1617,15 @@ export default function DashboardPage() {
             {/* 1. Compact My Profile Summary Card */}
             <section className="db-my-profile-card glass-card anim-slide-up" style={{ '--delay': '0.05s' } as any}>
               <div className="dmpc-main-content">
-                <div className="dmpc-avatar-wrap">
-                  <img src={profilePhotoUrl} alt={profileName} className="dmpc-avatar-img" />
+                <Link
+                  href="/profile?edit=true"
+                  className="dmpc-avatar-wrap"
+                  style={{ '--pct': completionPct } as React.CSSProperties}
+                  aria-label={`Your profile — ${completionPct}% complete`}
+                >
+                  <img src={profilePhotoUrl} alt="" className="dmpc-avatar-img" />
                   <div className="dmpc-online-dot"></div>
-                </div>
+                </Link>
                 <div className="dmpc-info">
                   <div className="dmpc-name-row">
                     <h2 className="dmpc-name">{profileName}</h2>
@@ -1472,47 +1634,205 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <p className="dmpc-meta">{profileSummary}</p>
-                  <div className="dmpc-views-line">
-                    👁 3 people viewed your profile this week
-                  </div>
+                  {!vibeEditorOpen && (
+                    <button
+                      type="button"
+                      className={`dmpc-vibe-chip ${vibe ? '' : 'is-empty'}`}
+                      onClick={() => { setVibeDraft(vibe); setVibeEditorOpen(true) }}
+                      aria-label={vibe ? `Your vibe: ${vibe}. Edit` : 'Set your vibe status'}
+                    >
+                      <span className="dmpc-vibe-text">{vibe || '＋ Set your vibe'}</span>
+                      {vibe && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <Link href="/profile?edit=true" className="dmpc-link-view">
-                View Profile →
-              </Link>
+              {vibeEditorOpen && (
+                <form
+                  className="dmpc-vibe-editor anim-fade-in"
+                  onSubmit={(e) => { e.preventDefault(); saveVibe(vibeDraft) }}
+                >
+                  <input
+                    autoFocus
+                    type="text"
+                    className="dmpc-vibe-input"
+                    maxLength={40}
+                    value={vibeDraft}
+                    onChange={(e) => setVibeDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setVibeEditorOpen(false) }}
+                    placeholder="What's your vibe today?"
+                    aria-label="Your vibe status"
+                  />
+                  <div className="dmpc-vibe-presets">
+                    {VIBE_PRESETS.map(preset => (
+                      <button
+                        key={preset}
+                        type="button"
+                        className={`dmpc-vibe-preset ${vibeDraft === preset ? 'active' : ''}`}
+                        onClick={() => setVibeDraft(preset)}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="dmpc-vibe-actions">
+                    {vibe && (
+                      <button type="button" className="dmpc-vibe-btn ghost" onClick={() => saveVibe('')}>Clear</button>
+                    )}
+                    <button type="button" className="dmpc-vibe-btn ghost" onClick={() => setVibeEditorOpen(false)}>Cancel</button>
+                    <button type="submit" className="dmpc-vibe-btn primary">Save vibe</button>
+                  </div>
+                </form>
+              )}
+
+              <div className="dmpc-progress">
+                <div className="dmpc-progress-top">
+                  <span>Profile strength</span>
+                  <strong>{completionPct}%</strong>
+                </div>
+                <div
+                  className="dmpc-progress-track"
+                  role="progressbar"
+                  aria-label="Profile completion"
+                  aria-valuenow={completionPct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <span style={{ width: `${completionPct}%` }}></span>
+                </div>
+                <Link href="/profile?edit=true" className="dmpc-link-view">
+                  {completionPct < 100 ? 'Complete your profile →' : 'View Profile →'}
+                </Link>
+              </div>
             </section>
 
-            {/* 3 Stats Row (Rendered on Desktop beneath profile card - Photo 2) */}
+            {/* 3 Stats Row */}
             <div className="db-stats-three-row anim-slide-up" style={{ '--delay': '0.08s' } as any}>
-              <button className="db-stat-box glass-card" onClick={() => openModal('views')}>
-                <span className="db-stat-icon">👁</span>
-                <span className="db-stat-val">{stats.views}</span>
-                <span className="db-stat-lbl">Views</span>
-              </button>
-              <button className="db-stat-box glass-card" onClick={() => openModal('likes')}>
-                <span className="db-stat-icon">❤️</span>
-                <span className="db-stat-val">{stats.likes}</span>
-                <span className="db-stat-lbl">Likes</span>
-              </button>
-              <button className="db-stat-box glass-card highlight" onClick={() => openModal('matches')}>
-                <span className="db-stat-icon">🔥</span>
-                <span className="db-stat-val">{stats.matches}</span>
-                <span className="db-stat-lbl">Matches</span>
-              </button>
+              {([
+                { type: 'views', label: 'Views' },
+                { type: 'likes', label: 'Likes' },
+                { type: 'matches', label: 'Matches' },
+              ] as const).map(({ type, label }) => (
+                <button
+                  key={type}
+                  className={`db-stat-box glass-card stat-${type}`}
+                  onClick={() => openModal(type)}
+                  aria-label={`${stats[type]} ${label} — see who`}
+                >
+                  <span className="db-stat-icon"><StatIcon type={type} /></span>
+                  <span className="db-stat-val"><CountUp value={stats[type]} /></span>
+                  <span className="db-stat-lbl">{label}</span>
+                </button>
+              ))}
             </div>
+
+            {/* Today's Pick — hero */}
+            {todaysPick && (
+              <section className="db-pick-section anim-slide-up" style={{ '--delay': '0.1s' } as any} aria-labelledby="todays-pick-title">
+                <div className="db-section-header">
+                  <h3 id="todays-pick-title" className="db-section-title">Today&apos;s Pick 🔥</h3>
+                  <span className="db-section-sub">Matched on shared interests</span>
+                </div>
+
+                <div
+                  className="db-pick-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openProfileDetailModal(todaysPick)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProfileDetailModal(todaysPick) } }}
+                  aria-label={`View ${todaysPick.name}'s profile`}
+                >
+                  <img src={todaysPick.photo_url || DEFAULT_AVATAR} alt="" className="db-pick-photo" />
+                  <div className="db-pick-overlay"></div>
+
+                  <div className="db-pick-ring" aria-label={`${pickCompat}% match`}>
+                    <svg viewBox="0 0 72 72" aria-hidden="true">
+                      <defs>
+                        <linearGradient id="pickRingGrad" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor="#f472b6" />
+                          <stop offset="100%" stopColor="#a855f7" />
+                        </linearGradient>
+                      </defs>
+                      <circle cx="36" cy="36" r="30" className="db-pick-ring-track" />
+                      <circle
+                        cx="36"
+                        cy="36"
+                        r="30"
+                        className="db-pick-ring-fill"
+                        stroke="url(#pickRingGrad)"
+                        strokeDasharray={RING_CIRCUMFERENCE}
+                        strokeDashoffset={RING_CIRCUMFERENCE * (1 - pickCompat / 100)}
+                        style={{ '--ring-c': RING_CIRCUMFERENCE } as React.CSSProperties}
+                      />
+                    </svg>
+                    <span className="db-pick-ring-val">{pickCompat}%<small>match</small></span>
+                  </div>
+
+                  {todaysPick.online && (
+                    <span className="db-badge-online db-pick-online"><span className="db-dot-pulse"></span> Online</span>
+                  )}
+
+                  <div className="db-pick-body">
+                    <div className="db-pick-name-row">
+                      <h4 className="db-pick-name">{todaysPick.name}{todaysPick.age ? `, ${todaysPick.age}` : ''}</h4>
+                      {todaysPick.verified && <span className="db-verified-badge" title="Verified Student">✓</span>}
+                    </div>
+                    <p className="db-pick-meta">
+                      {[todaysPick.course, todaysPick.campus || todaysPick.university || 'Kabarak University'].filter(Boolean).join(' · ')}
+                    </p>
+                    {todaysPick.bio && <p className="db-pick-bio">{todaysPick.bio}</p>}
+
+                    {pickChips.length > 0 && (
+                      <div className="db-pick-chips">
+                        {pickChips.map((tag, idx) => (
+                          <span key={idx} className={`db-pick-chip ${pickShared.includes(tag) ? 'is-shared' : ''} tone-${idx % 4}`}>
+                            {pickShared.includes(tag) && <span aria-hidden="true">💞 </span>}
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {pickShared.length > 0 && (
+                      <p className="db-pick-common">{pickShared.length} interest{pickShared.length === 1 ? '' : 's'} in common</p>
+                    )}
+
+                    <button
+                      type="button"
+                      className="db-pick-connect"
+                      onClick={(e) => { e.stopPropagation(); openProfileDetailModal(todaysPick) }}
+                    >
+                      Connect
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
 
             {/* 2. Main Discovery Hero Section */}
             <section className="db-discovery-section anim-slide-up" style={{ '--delay': '0.12s' } as any}>
               <div className="db-section-header">
                 <div className="db-section-title-wrap">
                   <h3 className="db-section-title">Discover People 💫</h3>
+                  {currentCandidate && (
+                    <span className="db-section-sub">Swipe right to like · left to pass</span>
+                  )}
                 </div>
                 <Link href="/discover" className="db-section-link">See all</Link>
               </div>
 
               {currentCandidate ? (
-                <div className={`db-hero-disc-card glass-card ${actionFeedback ? `acting-${actionFeedback}` : ''}`}>
+                <div
+                  className={`db-hero-disc-card glass-card ${actionFeedback ? `acting-${actionFeedback}` : ''} ${isDragging ? 'is-dragging' : ''}`}
+                  style={dragX !== 0 ? { transform: `translateX(${dragX}px) rotate(${dragX / 18}deg)` } : undefined}
+                >
                   {/* Left and Right Nav Arrow Buttons for Desktop (Photo 2) */}
                   <button
                     type="button"
@@ -1532,13 +1852,37 @@ export default function DashboardPage() {
                   </button>
 
                   {/* Background / Cover Image */}
-                  <div className="db-disc-photo-wrap" onClick={() => openProfileDetailModal(currentCandidate)}>
+                  <div
+                    className="db-disc-photo-wrap"
+                    onClick={() => handleDiscoveryPhotoClick(currentCandidate)}
+                    onPointerDown={handleSwipeStart}
+                    onPointerMove={handleSwipeMove}
+                    onPointerUp={handleSwipeEnd}
+                    onPointerCancel={handleSwipeEnd}
+                  >
                     <img
                       src={currentCandidate.photo_url || DEFAULT_AVATAR}
                       alt={currentCandidate.name}
                       className="db-disc-photo"
+                      draggable={false}
                     />
                     <div className="db-disc-gradient-overlay"></div>
+
+                    {/* Swipe stamps */}
+                    <span
+                      className="db-swipe-stamp like"
+                      style={{ opacity: Math.max(0, Math.min(1, dragX / SWIPE_THRESHOLD)) }}
+                      aria-hidden="true"
+                    >
+                      LIKE
+                    </span>
+                    <span
+                      className="db-swipe-stamp nope"
+                      style={{ opacity: Math.max(0, Math.min(1, -dragX / SWIPE_THRESHOLD)) }}
+                      aria-hidden="true"
+                    >
+                      NOPE
+                    </span>
 
                     {/* Top Right Online Badge */}
                     <div className="db-disc-top-badges">
@@ -1607,11 +1951,23 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="db-empty-discovery glass-card">
-                  <span className="db-empty-icon">🎉</span>
-                  <h4 className="db-empty-title">You've seen everyone for now!</h4>
-                  <p className="db-empty-sub">Check back shortly or jump over to Discover to explore students campus-wide.</p>
+                  <div className="db-empty-illustration" aria-hidden="true">
+                    <span className="dei-ring dei-ring-1"></span>
+                    <span className="dei-ring dei-ring-2"></span>
+                    <span className="dei-core">
+                      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" />
+                      </svg>
+                    </span>
+                    <span className="dei-orbit dei-orbit-1"><span className="dei-heart">💗</span></span>
+                    <span className="dei-orbit dei-orbit-2"><span className="dei-heart">💜</span></span>
+                    <span className="dei-orbit dei-orbit-3"><span className="dei-heart">✨</span></span>
+                  </div>
+                  <h4 className="db-empty-title">You&apos;ve seen everyone for now!</h4>
+                  <p className="db-empty-sub">New students join every day. Explore Discover with filters for campus, course and year to find more people.</p>
                   <Link href="/discover" className="db-btn-explore">
-                    Explore Discover →
+                    Go Explore →
                   </Link>
                 </div>
               )}
@@ -1673,50 +2029,6 @@ export default function DashboardPage() {
           {/* ── RIGHT COLUMN: SIDEBAR WIDGETS (~38%) ── */}
           <div className="db-col-sidebar">
 
-            {/* 4. Today's Pick 🔥 */}
-            {todaysPick && (
-              <section className="db-widget-block anim-slide-up" style={{ '--delay': '0.14s' } as any}>
-                <div className="db-section-header">
-                  <h3 className="db-section-title">Today's Pick 🔥</h3>
-                </div>
-
-                <div className="db-todays-pick-card glass-card" onClick={() => openProfileDetailModal(todaysPick)}>
-                  <div className="dtpc-left-photo">
-                    <img src={todaysPick.photo_url || DEFAULT_AVATAR} alt={todaysPick.name} className="dtpc-photo-img" />
-                    <div className="dtpc-compat-badge">{todaysPick.compat || 92}% Match</div>
-                  </div>
-
-                  <div className="dtpc-right-content">
-                    <div className="dtpc-name-row">
-                      <h4 className="dtpc-name">{todaysPick.name}</h4>
-                      {todaysPick.verified && <span className="dtpc-verified">✓</span>}
-                    </div>
-                    <p className="dtpc-meta">{todaysPick.age ? `${todaysPick.age} • ` : ''}{todaysPick.course || 'Computer Science'}</p>
-                    <p className="dtpc-campus">{todaysPick.university || todaysPick.campus || 'Kabarak University'}</p>
-
-                    {todaysPick.interests && todaysPick.interests.length > 0 && (
-                      <div className="dtpc-tags">
-                        {todaysPick.interests.slice(0, 3).map((t, idx) => (
-                          <span key={idx} className="dtpc-tag">{t}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      className="dtpc-link-view"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openProfileDetailModal(todaysPick)
-                      }}
-                    >
-                      View Profile →
-                    </button>
-                  </div>
-                </div>
-              </section>
-            )}
-
             {/* 5. Campus Pulse Widget 🌐 */}
             <section className="db-widget-block anim-slide-up" style={{ '--delay': '0.20s' } as any}>
               <div className="db-section-header">
@@ -1724,11 +2036,12 @@ export default function DashboardPage() {
                 <span className="pulse-live-badge"><span className="pulse-live-dot"></span>LIVE</span>
               </div>
 
-              <div className="pulse-tabs-container">
-                <button className={`pulse-tab-btn ${activeTab === 'spots' ? 'active' : ''}`} onClick={() => setActiveTab('spots')}>
+              <div className="pulse-tabs-container" role="tablist" data-active={activeTab}>
+                <span className="pulse-tab-indicator" aria-hidden="true"></span>
+                <button role="tab" aria-selected={activeTab === 'spots'} className={`pulse-tab-btn ${activeTab === 'spots' ? 'active' : ''}`} onClick={() => setActiveTab('spots')}>
                   📍 Campus Spots
                 </button>
-                <button className={`pulse-tab-btn ${activeTab === 'radar' ? 'active' : ''}`} onClick={() => setActiveTab('radar')}>
+                <button role="tab" aria-selected={activeTab === 'radar'} className={`pulse-tab-btn ${activeTab === 'radar' ? 'active' : ''}`} onClick={() => setActiveTab('radar')}>
                   📡 Radar Scan
                 </button>
               </div>
@@ -1743,7 +2056,8 @@ export default function DashboardPage() {
                         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                       </svg>
                       <input
-                        type="text"
+                        type="search"
+                        aria-label="Search a student to see where they are"
                         className="pulse-search-input"
                         placeholder="Search a name to find where they are..."
                         value={presenceSearch}
@@ -1813,14 +2127,19 @@ export default function DashboardPage() {
                     /* 3. Expanded Category View */
                     <div className="spot-expanded-container anim-fade-in">
                       <div className="spot-category-tabs-bar">
-                        <div className="spot-category-tabs">
+                        <div className="spot-category-tabs" role="tablist" data-active={spotCategoryTab}>
+                          <span className="spot-cat-indicator" aria-hidden="true"></span>
                           <button
+                            role="tab"
+                            aria-selected={spotCategoryTab === 'inside'}
                             className={`spot-cat-pill ${spotCategoryTab === 'inside' ? 'active' : ''}`}
                             onClick={() => handleCategoryTabChange('inside')}
                           >
                             🏛️ Inside Campus
                           </button>
                           <button
+                            role="tab"
+                            aria-selected={spotCategoryTab === 'outside'}
                             className={`spot-cat-pill ${spotCategoryTab === 'outside' ? 'active' : ''}`}
                             onClick={() => handleCategoryTabChange('outside')}
                           >
@@ -1957,7 +2276,7 @@ export default function DashboardPage() {
                       onClick={() => ev.link && router.push(ev.link)}
                     >
                       <div className={`activity-emoji ${ev.cls || ''}`}>{ev.emoji}</div>
-                      <div className="activity-text" dangerouslySetInnerHTML={{ __html: ev.text || `<strong>${ev.name}</strong> ${ev.type === 'view' ? 'viewed your profile' : 'liked your profile'}` }}></div>
+                      <div className="activity-text"><strong>{ev.name}</strong> {ACTIVITY_LABELS[ev.type] || 'interacted with you'}</div>
                       <div className="activity-time">{ev.time ? (typeof ev.time === 'string' ? ev.time : relativeTime(ev.time)) : (i === 0 ? 'Just now' : i === 1 ? '5m ago' : '1h ago')}</div>
                     </div>
                   ))
