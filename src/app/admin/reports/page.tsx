@@ -133,7 +133,7 @@ function AdminReportsContent() {
         )
       )
 
-      let profilesMap: Record<string, any> = {}
+      const profilesMap: Record<string, any> = {}
       if (userIds.length > 0) {
         const { data: profilesData } = await (supabase.from('profiles') as any)
           .select('*')
@@ -562,7 +562,7 @@ function AdminReportsContent() {
                       {group.reports.map(subReport => (
                         <div key={subReport.id} className="subreport-item">
                           <div className="subreport-reporter-info">
-                            <img src={subReport.reporter?.photo_url || DEFAULT_AVATAR} className="subreport-avatar" />
+                            <img src={subReport.reporter?.photo_url || DEFAULT_AVATAR} alt={subReport.reporter?.name || "Reporter"} className="subreport-avatar" />
                             <div>
                               <div className="subreport-name">
                                 Reported by <b>{subReport.reporter?.name || 'Anonymous'}</b>
@@ -662,7 +662,7 @@ function AdminReportsContent() {
 
                     {report.details && (
                       <div className="report-details-box">
-                        "{report.details}"
+                        &ldquo;{report.details}&rdquo;
                       </div>
                     )}
 
@@ -707,7 +707,7 @@ function AdminReportsContent() {
               <div className="profiles-comparison-grid">
                 {/* Reporter Profile */}
                 <div className="profile-card-mini">
-                  <img src={selectedReport.reporter?.photo_url || DEFAULT_AVATAR} className="mini-avatar" />
+                  <img src={selectedReport.reporter?.photo_url || DEFAULT_AVATAR} alt={selectedReport.reporter?.name || "Reporter"} className="mini-avatar" />
                   <div className="mini-info">
                     <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase' }}>Reporter Profile</span>
                     <h4>{selectedReport.reporter?.name} {selectedReport.reporter?.age ? `, ${selectedReport.reporter?.age}` : ''}</h4>
@@ -718,7 +718,7 @@ function AdminReportsContent() {
 
                 {/* Reported User Profile */}
                 <div className="profile-card-mini reported">
-                  <img src={selectedReport.reported?.photo_url || DEFAULT_AVATAR} className="mini-avatar" />
+                  <img src={selectedReport.reported?.photo_url || DEFAULT_AVATAR} alt={selectedReport.reported?.name || "Reported user"} className="mini-avatar" />
                   <div className="mini-info">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontSize: '11px', color: '#f87171', fontWeight: 800, textTransform: 'uppercase' }}>Target Profile</span>

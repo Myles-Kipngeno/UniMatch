@@ -322,7 +322,7 @@ export default function SettingsPage() {
               ))
             ) : (
               <div className="blocked-empty">
-                <p>You haven't blocked any users yet.</p>
+                <p>You haven&apos;t blocked any users yet.</p>
               </div>
             )}
           </div>

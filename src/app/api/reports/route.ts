@@ -1,49 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
-import fs from 'fs'
-import path from 'path'
-
-const reportsFilePath = path.join(process.cwd(), 'data', 'reports.json')
 
 const ALLOWED_STATUSES = ['pending', 'under_review', 'resolved', 'dismissed']
 const MAX_REASON_LENGTH = 200
 const MAX_DETAILS_LENGTH = 2000
 
-// Profile fields the admin moderation panel needs — never return whole rows
-const REPORT_PROFILE_FIELDS = 'id, name, photo_url, age, course, campus, email'
-
-function readLocalReports(): any[] {
-  try {
-    if (fs.existsSync(reportsFilePath)) {
-      const content = fs.readFileSync(reportsFilePath, 'utf-8')
-      return JSON.parse(content) || []
-    }
-  } catch (e) { }
-  return []
-}
-
-function writeLocalReport(report: any) {
-  try {
-    const dir = path.dirname(reportsFilePath)
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
-    }
-    const current = readLocalReports()
-    const filtered = current.filter(r => r.id !== report.id)
-    filtered.unshift(report)
-    fs.writeFileSync(reportsFilePath, JSON.stringify(filtered, null, 2), 'utf-8')
-  } catch (e) {
-    console.error("Local report write notice:", e)
-  }
-}
-
-function updateLocalReportStatus(reportId: string, status: string) {
-  try {
-    const current = readLocalReports()
-    const updated = current.map(r => r.id === reportId ? { ...r, status } : r)
-    fs.writeFileSync(reportsFilePath, JSON.stringify(updated, null, 2), 'utf-8')
-  } catch (e) { }
-}
+// Profile fields the admin moderation panel needs — never return whole rows.
+// Emails are not stored on profiles; admins get them via admin_user_emails().
+const REPORT_PROFILE_FIELDS = 'id, name, photo_url, age, course, campus'
 
 function unauthorized(message = 'You must be signed in.') {
   return NextResponse.json({ error: message }, { status: 401 })
@@ -93,28 +57,17 @@ export async function GET(request: Request) {
     if (!(await isAdmin(ctx.supabase, ctx.user.id))) return forbidden()
     const { supabase } = ctx
 
-    let dbReports: any[] = []
-    try {
-      const { data } = await supabase
-        .from('reports')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (data) dbReports = data
-    } catch (e) { }
+    const { data: dbReports, error: reportsError } = await supabase
+      .from('reports')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    const localReports = readLocalReports()
+    if (reportsError) {
+      console.error("GET reports DB error:", reportsError.message)
+      return NextResponse.json({ error: 'Could not load reports.' }, { status: 500 })
+    }
 
-    const combinedReportsMap: Record<string, any> = {}
-    dbReports.forEach((r: any) => { combinedReportsMap[r.id] = r })
-    localReports.forEach((r: any) => {
-      if (!combinedReportsMap[r.id]) {
-        combinedReportsMap[r.id] = r
-      }
-    })
-
-    const allRawReports = Object.values(combinedReportsMap).sort(
-      (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
+    const allRawReports: any[] = dbReports || []
 
     if (allRawReports.length === 0) {
       return NextResponse.json({ success: true, reports: [], bannedUserIds: [] })
@@ -137,6 +90,16 @@ export async function GET(request: Request) {
         if (profilesData) {
           profilesData.forEach((p: any) => {
             profilesMap[p.id] = p
+          })
+        }
+      } catch (e) { }
+
+      // Admin-only lookup of account emails (from auth.users)
+      try {
+        const { data: emailRows } = await supabase.rpc('admin_user_emails', { user_ids: userIds })
+        if (Array.isArray(emailRows)) {
+          emailRows.forEach((row: any) => {
+            if (profilesMap[row.id]) profilesMap[row.id] = { ...profilesMap[row.id], email: row.email }
           })
         }
       } catch (e) { }
@@ -195,28 +158,22 @@ export async function POST(request: Request) {
       status: 'pending'
     }
 
-    // Try DB insert (id and created_at come from the table defaults)
-    try {
-      const { data, error } = await supabase
-        .from('reports')
-        .insert(reportData)
-        .select()
-        .single()
+    // id and created_at come from the table defaults
+    const { data, error } = await supabase
+      .from('reports')
+      .insert(reportData)
+      .select()
+      .single()
 
-      if (!error && data) {
-        return NextResponse.json({ success: true, data })
-      }
-      if (error) console.error("Report DB insert error:", error.message)
-    } catch (dbErr) { }
-
-    // Fallback: store locally so the report is not lost
-    const localReport = {
-      id: crypto.randomUUID(),
-      ...reportData,
-      created_at: new Date().toISOString()
+    if (error || !data) {
+      console.error("Report DB insert error:", error?.message)
+      return NextResponse.json(
+        { error: "We couldn't submit your report. Please try again." },
+        { status: 500 }
+      )
     }
-    writeLocalReport(localReport)
-    return NextResponse.json({ success: true, data: localReport })
+
+    return NextResponse.json({ success: true, data })
   } catch (err: any) {
     console.error("Server API report handler error:", err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
@@ -240,11 +197,11 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
 
-    updateLocalReportStatus(report_id, status)
-
-    try {
-      await (ctx.supabase.from('reports') as any).update({ status }).eq('id', report_id)
-    } catch (e) { }
+    const { error } = await (ctx.supabase.from('reports') as any).update({ status }).eq('id', report_id)
+    if (error) {
+      console.error("PATCH report DB error:", error.message)
+      return NextResponse.json({ error: 'Could not update report.' }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

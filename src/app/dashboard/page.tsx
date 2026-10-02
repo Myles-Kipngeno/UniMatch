@@ -2348,7 +2348,7 @@ export default function DashboardPage() {
               >
                 ✕
               </button>
-              <h4 className="dpm-title">{selectedProfileModal.name}'s Profile</h4>
+              <h4 className="dpm-title">{selectedProfileModal.name}&apos;s Profile</h4>
               <div style={{ width: 32 }}></div>
             </div>
 
@@ -2498,7 +2498,7 @@ export default function DashboardPage() {
         <div className="modal-backdrop" onClick={() => setShowWhoIsHereModal(false)}>
           <div className="modal-card whos-here-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>📍 Who's at {activeWhoIsHereSpot}</h3>
+              <h3>📍 Who&apos;s at {activeWhoIsHereSpot}</h3>
               <button className="modal-close" onClick={() => setShowWhoIsHereModal(false)}>✕</button>
             </div>
             <div className="modal-body">

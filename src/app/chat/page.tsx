@@ -2253,7 +2253,7 @@ function ChatPageContent() {
         <div className="report-modal-overlay" onClick={() => setShowProfileModal(false)}>
           <div className="report-modal-card profile-view-card" onClick={e => e.stopPropagation()}>
             <div className="report-modal-header">
-              <h3>{(profileModalUser || activeMatch).name}'s Profile</h3>
+              <h3>{(profileModalUser || activeMatch).name}&apos;s Profile</h3>
               <button className="report-modal-close" onClick={() => setShowProfileModal(false)}>✕</button>
             </div>
 

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
 -- ── 3. PROFILES TABLE ──
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT NOT NULL,
+  email TEXT, -- not stored (blanked by strip_profile_email); emails live in auth.users
   name TEXT NOT NULL,
   age INTEGER,
   gender TEXT,
@@ -669,6 +669,72 @@ CREATE POLICY "Admins can update reports" ON public.reports
   FOR UPDATE TO authenticated
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
+
+
+-- Privacy: emails are not kept on profiles
+-- (kept in sync with supabase_privacy_fixes.sql)
+-- ── 4. Admin-only email lookup ────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.admin_user_emails(user_ids uuid[])
+RETURNS TABLE (id uuid, email text)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Admin access required.' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+    SELECT u.id, u.email::text
+    FROM auth.users u
+    WHERE u.id = ANY(user_ids);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_user_emails(uuid[]) FROM public;
+GRANT EXECUTE ON FUNCTION public.admin_user_emails(uuid[]) TO authenticated;
+
+
+-- ── 5. Stop storing emails on profiles ────────────────────────────
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'email'
+  ) THEN
+    ALTER TABLE public.profiles ALTER COLUMN email DROP NOT NULL;
+  END IF;
+END $$;
+
+-- Any insert/update (signup trigger, profile saves) gets its email blanked
+CREATE OR REPLACE FUNCTION public.strip_profile_email()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  NEW.email := NULL;
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'email'
+  ) THEN
+    DROP TRIGGER IF EXISTS strip_profile_email ON public.profiles;
+    CREATE TRIGGER strip_profile_email
+      BEFORE INSERT OR UPDATE ON public.profiles
+      FOR EACH ROW EXECUTE FUNCTION public.strip_profile_email();
+
+    -- Clear the copies that are already there
+    UPDATE public.profiles SET email = NULL WHERE email IS NOT NULL;
+  END IF;
+END $$;
 
 
 -- STORAGE BUCKETS SETUP --
