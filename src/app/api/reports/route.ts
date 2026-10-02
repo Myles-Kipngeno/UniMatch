@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import fs from 'fs'
 import path from 'path'
 
 const reportsFilePath = path.join(process.cwd(), 'data', 'reports.json')
+
+const ALLOWED_STATUSES = ['pending', 'under_review', 'resolved', 'dismissed']
+const MAX_REASON_LENGTH = 200
+const MAX_DETAILS_LENGTH = 2000
+
+// Profile fields the admin moderation panel needs — never return whole rows
+const REPORT_PROFILE_FIELDS = 'id, name, photo_url, age, course, campus, email'
 
 function readLocalReports(): any[] {
   try {
@@ -38,22 +45,53 @@ function updateLocalReportStatus(reportId: string, status: string) {
   } catch (e) { }
 }
 
-function getSupabaseServerClient(authHeader?: string | null) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const options: any = {
-    auth: { persistSession: false, autoRefreshToken: false }
-  }
-  if (authHeader) {
-    options.global = { headers: { Authorization: authHeader } }
-  }
-  return createClient(url, key, options)
+function unauthorized(message = 'You must be signed in.') {
+  return NextResponse.json({ error: message }, { status: 401 })
+}
+
+function forbidden() {
+  return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
+}
+
+/**
+ * Builds a Supabase client that acts AS the signed-in user (anon key + their JWT),
+ * so every query is subject to Row Level Security. Returns null when the
+ * request has no valid session.
+ */
+async function getAuthedContext(request: Request): Promise<{ supabase: SupabaseClient; user: User } | null> {
+  const authHeader = request.headers.get('authorization') || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+  if (!token) return null
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    }
+  )
+
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  if (error || !user) return null
+  return { supabase, user }
+}
+
+async function isAdmin(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+  return (data as any)?.role === 'admin'
 }
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const supabase = getSupabaseServerClient(authHeader)
+    const ctx = await getAuthedContext(request)
+    if (!ctx) return unauthorized()
+    if (!(await isAdmin(ctx.supabase, ctx.user.id))) return forbidden()
+    const { supabase } = ctx
 
     let dbReports: any[] = []
     try {
@@ -88,12 +126,12 @@ export async function GET(request: Request) {
       )
     )
 
-    let profilesMap: Record<string, any> = {}
+    const profilesMap: Record<string, any> = {}
     if (userIds.length > 0) {
       try {
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('*')
+          .select(REPORT_PROFILE_FIELDS)
           .in('id', userIds)
 
         if (profilesData) {
@@ -124,36 +162,40 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, reports: enrichedReports, bannedUserIds })
   } catch (err: any) {
     console.error("GET reports server error:", err)
-    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const body = await request.json()
-    const { reporter_id, reported_id, reason, details } = body
+    const ctx = await getAuthedContext(request)
+    if (!ctx) return unauthorized('You must be signed in to submit a report.')
+    const { supabase, user } = ctx
 
-    if (!reporter_id || !reported_id || !reason) {
+    const body = await request.json()
+    const { reported_id, reason, details } = body
+
+    if (!reported_id || !reason) {
       return NextResponse.json(
-        { error: 'Missing required report fields (reporter_id, reported_id, or reason).' },
+        { error: 'Missing required report fields (reported_id or reason).' },
         { status: 400 }
       )
     }
 
-    const supabase = getSupabaseServerClient(authHeader)
-
-    const reportData: any = {
-      id: 'rep_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-      reporter_id,
-      reported_id,
-      reason,
-      details: details ? String(details).trim() : null,
-      status: 'pending',
-      created_at: new Date().toISOString()
+    if (reported_id === user.id) {
+      return NextResponse.json({ error: 'You cannot report yourself.' }, { status: 400 })
     }
 
-    // Try DB Insert
+    // The reporter is always the signed-in user — never trust a reporter_id from the body
+    const reportData = {
+      reporter_id: user.id,
+      reported_id: String(reported_id),
+      reason: String(reason).trim().slice(0, MAX_REASON_LENGTH),
+      details: details ? String(details).trim().slice(0, MAX_DETAILS_LENGTH) : null,
+      status: 'pending'
+    }
+
+    // Try DB insert (id and created_at come from the table defaults)
     try {
       const { data, error } = await supabase
         .from('reports')
@@ -162,23 +204,31 @@ export async function POST(request: Request) {
         .single()
 
       if (!error && data) {
-        writeLocalReport(data)
         return NextResponse.json({ success: true, data })
       }
+      if (error) console.error("Report DB insert error:", error.message)
     } catch (dbErr) { }
 
-    // Fallback: Store locally so report is ALWAYS saved and user NEVER sees an RLS error
-    writeLocalReport(reportData)
-    return NextResponse.json({ success: true, data: reportData })
+    // Fallback: store locally so the report is not lost
+    const localReport = {
+      id: crypto.randomUUID(),
+      ...reportData,
+      created_at: new Date().toISOString()
+    }
+    writeLocalReport(localReport)
+    return NextResponse.json({ success: true, data: localReport })
   } catch (err: any) {
     console.error("Server API report handler error:", err)
-    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
+    const ctx = await getAuthedContext(request)
+    if (!ctx) return unauthorized()
+    if (!(await isAdmin(ctx.supabase, ctx.user.id))) return forbidden()
+
     const body = await request.json()
     const { report_id, status } = body
 
@@ -186,15 +236,18 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Missing report_id or status' }, { status: 400 })
     }
 
+    if (!ALLOWED_STATUSES.includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    }
+
     updateLocalReportStatus(report_id, status)
 
     try {
-      const supabase = getSupabaseServerClient(authHeader)
-      await (supabase.from('reports') as any).update({ status }).eq('id', report_id)
+      await (ctx.supabase.from('reports') as any).update({ status }).eq('id', report_id)
     } catch (e) { }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }
