@@ -41,8 +41,6 @@ function AdminReportsContent() {
   const [loading, setLoading] = useState(true)
 
   // Passcode Lock Screen State
-  const [passcode, setPasscode] = useState('')
-  const [passcodeError, setPasscodeError] = useState('')
 
   const [reports, setReports] = useState<ReportItem[]>([])
   const [bannedUserIds, setBannedUserIds] = useState<string[]>([])
@@ -77,9 +75,10 @@ function AdminReportsContent() {
         const fullUser = { ...user, ...(profile || {}) }
         setCurrentUser(fullUser)
 
-        const storedAdminSession = typeof window !== 'undefined' ? localStorage.getItem('unimatch_admin_auth') : null
+        // Clear the legacy client-side unlock flag — admin access now comes only from the database role
+        try { localStorage.removeItem('unimatch_admin_auth') } catch (e) { }
 
-        if (profile?.role === 'admin' || storedAdminSession === 'unlocked_admin_session') {
+        if (profile?.role === 'admin') {
           setIsAdmin(true)
           await fetchReports()
         } else {
@@ -95,36 +94,14 @@ function AdminReportsContent() {
     checkAuthAndLoad()
   }, [])
 
-  const handleUnlockAdmin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const validKeys = ['unimatch2026', 'admin2026', 'admin123', 'superadmin']
-
-    if (validKeys.includes(passcode.trim().toLowerCase())) {
-      if (currentUser?.id) {
-        try {
-          await (supabase.from('profiles') as any)
-            .update({ role: 'admin' })
-            .eq('id', currentUser.id)
-        } catch (e) { }
-      }
-
-      try {
-        localStorage.setItem('unimatch_admin_auth', 'unlocked_admin_session')
-      } catch (e) { }
-
-      setIsAdmin(true)
-      setPasscodeError('')
-      await fetchReports()
-      modal.toast('Admin Portal Unlocked 🔓', 'success')
-    } else {
-      setPasscodeError('Invalid secret key. Access denied.')
-    }
-  }
-
   const fetchReports = async () => {
     try {
-      // 1. Fetch via Server API Route (Bypasses Client RLS)
-      const res = await fetch('/api/reports', { cache: 'no-store' })
+      // 1. Fetch via Server API Route (requires an admin session token)
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/reports', {
+        cache: 'no-store',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      })
       if (res.ok) {
         const json = await res.json()
         if (json.success && Array.isArray(json.reports)) {
@@ -382,29 +359,8 @@ function AdminReportsContent() {
           </h2>
 
           <p style={{ fontSize: '13.5px', color: '#9d91b8', lineHeight: 1.5, margin: '0 0 24px 0' }}>
-            This page is restricted to platform administrators. Enter your secret admin passcode to unlock the Safety Hub.
+            This page is restricted to platform administrators. Your account doesn&apos;t have admin access — ask an existing administrator to grant it.
           </p>
-
-          <form onSubmit={handleUnlockAdmin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <input
-              type="password"
-              placeholder="Enter Secret Key (e.g. unimatch2026)"
-              value={passcode}
-              onChange={e => setPasscode(e.target.value)}
-              style={{ background: 'rgba(255, 255, 255, 0.06)', border: passcodeError ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '12px', padding: '12px 16px', color: 'white', fontSize: '14px', outline: 'none', textAlign: 'center' }}
-            />
-
-            {passcodeError && (
-              <span style={{ fontSize: '12px', color: '#f87171', fontWeight: 600 }}>{passcodeError}</span>
-            )}
-
-            <button
-              type="submit"
-              style={{ background: 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)', color: 'white', border: 'none', padding: '12px', borderRadius: '12px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.4)' }}
-            >
-              Unlock Moderation Hub 🔓
-            </button>
-          </form>
 
           <div style={{ marginTop: '20px', paddingTop: '18px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
             <Link href="/dashboard" style={{ color: '#8b7fa8', fontSize: '13px', textDecoration: 'none' }}>

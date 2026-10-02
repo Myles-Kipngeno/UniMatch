@@ -281,9 +281,13 @@ export default function MatchesPage() {
       isDanger: true,
       onConfirm: async () => {
         try {
+          const { data: { session } } = await supabase.auth.getSession()
           const res = await fetch('/api/reports', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+            },
             body: JSON.stringify({
               reporter_id: uid,
               reported_id: match.otherUserId,

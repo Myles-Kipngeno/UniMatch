@@ -528,20 +528,148 @@ CREATE POLICY "Users select own blocked" ON public.blocked_users FOR SELECT USIN
 DROP POLICY IF EXISTS "Users insert own blocked" ON public.blocked_users;
 CREATE POLICY "Users insert own blocked" ON public.blocked_users FOR INSERT WITH CHECK (auth.uid() = blocker_id);
 
--- Reports Policies
+-- Admin helper, privileged-column protection & Reports Policies
+-- (kept in sync with supabase_security_fixes.sql)
+-- ── 0. Make sure the privileged columns exist ─────────────────────
+-- Older databases were created before these columns were added to the
+-- schema file, and CREATE TABLE IF NOT EXISTS never adds new columns.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+
+UPDATE public.profiles SET role = 'user' WHERE role IS NULL;
+UPDATE public.profiles SET verified = FALSE WHERE verified IS NULL;
+UPDATE public.profiles SET is_banned = FALSE WHERE is_banned IS NULL;
+UPDATE public.profiles SET email_verified = FALSE WHERE email_verified IS NULL;
+
+-- Same for the reports table
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS reporter_id UUID;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS reported_id UUID;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS details TEXT;
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- The API no longer sends an id, so make sure reports.id generates one
+DO $$
+DECLARE id_type text;
+BEGIN
+  SELECT data_type INTO id_type FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'reports' AND column_name = 'id';
+
+  IF id_type = 'uuid' THEN
+    ALTER TABLE public.reports ALTER COLUMN id SET DEFAULT gen_random_uuid();
+  ELSIF id_type IN ('text', 'character varying') THEN
+    ALTER TABLE public.reports ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+  END IF;
+END $$;
+
+
+-- ── 1. is_admin() helper ──────────────────────────────────────────
+-- SECURITY DEFINER so it can read profiles.role without triggering
+-- RLS recursion when used inside policies.
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id::text = auth.uid()::text AND role = 'admin'
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_admin() FROM public;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+
+
+-- ── 2. Lock privileged profile columns ────────────────────────────
+-- Regular users can still edit their own profile (name, bio, photos…)
+-- but can no longer change role, verified, is_banned or email_verified.
+-- Trusted server-side callers (SQL editor, service role, the signup
+-- trigger) have no 'authenticated'/'anon' JWT role and are not affected.
+CREATE OR REPLACE FUNCTION public.protect_profile_privileged_columns()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF coalesce(auth.role(), '') NOT IN ('authenticated', 'anon') THEN
+    RETURN NEW;
+  END IF;
+
+  IF public.is_admin() THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    NEW.role := 'user';
+    NEW.verified := false;
+    NEW.is_banned := false;
+    NEW.email_verified := false;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.role IS DISTINCT FROM OLD.role
+     OR NEW.verified IS DISTINCT FROM OLD.verified
+     OR NEW.is_banned IS DISTINCT FROM OLD.is_banned
+     OR NEW.email_verified IS DISTINCT FROM OLD.email_verified THEN
+    RAISE EXCEPTION 'You are not allowed to change role, verification or ban status.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_profile_privileged_columns ON public.profiles;
+CREATE TRIGGER protect_profile_privileged_columns
+  BEFORE INSERT OR UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_privileged_columns();
+
+-- Admins need to update other users' profiles to ban them
+DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
+CREATE POLICY "Admins can update any profile" ON public.profiles
+  FOR UPDATE TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+
+-- ── 3. Reports: replace the open "allow all" policies ─────────────
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users insert reports" ON public.reports;
-DROP POLICY IF EXISTS "Allow all reports insert" ON public.reports;
-CREATE POLICY "Allow all reports insert" ON public.reports FOR INSERT TO public WITH CHECK (true);
+-- Drop EVERY existing policy on reports (including any added by hand)
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN
+    SELECT policyname FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'reports'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.reports', pol.policyname);
+  END LOOP;
+END $$;
 
-DROP POLICY IF EXISTS "Authenticated users view reports" ON public.reports;
-DROP POLICY IF EXISTS "Allow all reports select" ON public.reports;
-CREATE POLICY "Allow all reports select" ON public.reports FOR SELECT TO public USING (true);
+-- Signed-in users can file a report, only as themselves, never about themselves
+CREATE POLICY "Users can file reports" ON public.reports
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid()::text = reporter_id::text AND reporter_id::text <> reported_id::text);
 
-DROP POLICY IF EXISTS "Authenticated users update reports" ON public.reports;
-DROP POLICY IF EXISTS "Allow all reports update" ON public.reports;
-CREATE POLICY "Allow all reports update" ON public.reports FOR UPDATE TO public USING (true);
+-- Reporters see their own reports; admins see all
+CREATE POLICY "Reporters and admins can view reports" ON public.reports
+  FOR SELECT TO authenticated
+  USING (auth.uid()::text = reporter_id::text OR public.is_admin());
+
+-- Only admins can change report status
+CREATE POLICY "Admins can update reports" ON public.reports
+  FOR UPDATE TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
 
 -- STORAGE BUCKETS SETUP --
 INSERT INTO storage.buckets (id, name, public) VALUES ('profile-images', 'profile-images', true) ON CONFLICT DO NOTHING;
