@@ -20,11 +20,29 @@ export default function Providers({ children }: { children: ReactNode }) {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall)
 
-    // 2. Register PWA service worker
+    // 2. Register PWA service worker — production only.
+    // In development the SW serves stale cached pages/JS (dev chunk names never
+    // change and pages compile slower than the SW's 5s timeout), which causes
+    // hydration mismatches. So in dev, remove any registered SW and its caches.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then((reg) => console.log('[SW] Registered:', reg.scope))
-        .catch((err) => console.warn('[SW] Registration failed:', err))
+      if (process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => console.log('[SW] Registered:', reg.scope))
+          .catch((err) => console.warn('[SW] Registration failed:', err))
+      } else {
+        navigator.serviceWorker.getRegistrations()
+          .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+          .then((results) => {
+            if (results.length > 0) console.log('[SW] Unregistered in development')
+          })
+          .catch(() => { })
+
+        if ('caches' in window) {
+          caches.keys()
+            .then((keys) => Promise.all(keys.filter((k) => k.startsWith('unimatch-') || k.startsWith('workbox-')).map((k) => caches.delete(k))))
+            .catch(() => { })
+        }
+      }
     }
 
     return () => {
