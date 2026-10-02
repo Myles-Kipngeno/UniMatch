@@ -20,9 +20,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
-  title: "UniMatch",
-  description: "University Match and Dating Web App",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://uni-match-one.vercel.app"),
+  title: "UniMatch — Campus Dating for University Students",
+  description: "Meet real, verified students from your campus — for love, friendship & study dates. Free, safe and made for campus life.",
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -34,16 +34,16 @@ export const metadata: Metadata = {
     ]
   },
   openGraph: {
-    title: "UniMatch",
-    description: "University Match and Dating Web App for Students",
+    title: "UniMatch — Campus Dating for University Students",
+    description: "Meet real, verified students from your campus — for love, friendship & study dates. Free, safe and made for campus life.",
     url: "https://uni-match-one.vercel.app",
     siteName: "UniMatch",
     images: [
       {
-        url: "/Unimatch_icon.png",
+        url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "UniMatch Logo"
+        alt: "UniMatch — Campus Dating for University Students"
       }
     ],
     locale: "en_US",
@@ -51,9 +51,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "UniMatch",
-    description: "University Match and Dating Web App for Students",
-    images: ["/Unimatch_icon.png"]
+    title: "UniMatch — Campus Dating for University Students",
+    description: "Meet real, verified students from your campus — for love, friendship & study dates.",
+    images: ["/og-image.jpg"]
   },
   appleWebApp: {
     capable: true,
