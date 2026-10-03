@@ -1595,25 +1595,16 @@ export default function DashboardPage() {
                 </svg>
                 <span>Toggle Theme</span>
               </button>
-              <button className="avatar-dropdown-item" onClick={async () => {
+              <button className="avatar-dropdown-item" onClick={() => {
                 const shareUrl = 'https://uni-match-one.vercel.app'
-                const shareText = `🎓 Meet students from your campus on UniMatch!\nFind love, friendship & study dates — verified uni students only.\n👉 ${shareUrl}`
                 setIsDropdownOpen(false)
-                try {
-                  // Try to share with the OG image attached
-                  const resp = await fetch('/og-image.jpg')
-                  const blob = await resp.blob()
-                  const file = new File([blob], 'unimatch.jpg', { type: 'image/jpeg' })
-                  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({ title: 'UniMatch', text: shareText, url: shareUrl, files: [file] })
-                    return
-                  }
-                } catch (_) {}
-                // Fallback: share without image (still shows link preview on WhatsApp)
+                // Share only the URL — WhatsApp auto-generates the rich link preview card from OG tags
                 if (typeof navigator !== 'undefined' && navigator.share) {
-                  navigator.share({ title: 'UniMatch', text: shareText, url: shareUrl }).catch(() => {})
+                  navigator.share({ url: shareUrl }).catch(() => {
+                    window.open(`https://wa.me/?text=${encodeURIComponent(shareUrl)}`, '_blank')
+                  })
                 } else {
-                  window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank')
+                  window.open(`https://wa.me/?text=${encodeURIComponent(shareUrl)}`, '_blank')
                 }
               }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
