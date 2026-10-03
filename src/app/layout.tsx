@@ -40,9 +40,11 @@ export const metadata: Metadata = {
     siteName: "UniMatch",
     images: [
       {
-        url: "/og-image.jpg",
+        url: "https://uni-match-one.vercel.app/og-image.jpg",
+        secureUrl: "https://uni-match-one.vercel.app/og-image.jpg",
         width: 1200,
         height: 630,
+        type: "image/jpeg",
         alt: "UniMatch — Campus Dating for University Students"
       }
     ],
@@ -53,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "UniMatch — Campus Dating for University Students",
     description: "Meet real, verified students from your campus — for love, friendship & study dates.",
-    images: ["/og-image.jpg"]
+    images: ["https://uni-match-one.vercel.app/og-image.jpg"]
   },
   appleWebApp: {
     capable: true,
