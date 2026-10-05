@@ -6,6 +6,7 @@ import { Fredoka } from 'next/font/google'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import { signOutAndClear, redirectToLogin } from '@/lib/auth/signOut'
 import BottomNav from '@/components/BottomNav'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { useModal } from '@/components/ModalContext'
@@ -58,7 +59,21 @@ interface CheckedInUser {
   photo_url: string
   course: string
   campus: string
+  // Extra profile fields so "Profile" from Who's Here shows the full card
+  age?: number | null
+  bio?: string | null
+  interests?: string[] | null
+  university?: string | null
+  verified?: boolean
+  // The signed-in user (listed first with "(You)" as check-in confirmation)
+  isMe?: boolean
 }
+
+// A check-in counts as "live" for this long (spot counts and Who's Here use the same window)
+const PRESENCE_FRESH_MS = 15 * 60 * 1000
+
+const isValidCoord = (v: number | null | undefined): v is number =>
+  typeof v === 'number' && Number.isFinite(v)
 
 interface CampusSpot {
   id: string
@@ -220,6 +235,13 @@ export default function DashboardPage() {
   const [myCurrentSpot, setMyCurrentSpot] = useState<string | null>(null)
   const myCurrentSpotRef = useRef<string | null>(null)
   const checkinTimeRef = useRef<number | null>(null)
+  // Bumped on every check-in/out so spot fetches started before it can't overwrite the new spot
+  const presenceVersionRef = useRef(0)
+  const checkinInFlightRef = useRef(false)
+  // Latest Who's Here selection/request (realtime refreshes keep the user's selection;
+  // out-of-order responses for an older spot are ignored)
+  const activeWhoIsHereSpotRef = useRef<string | null>(null)
+  const whoIsHereRequestRef = useRef<string | null>(null)
   const [spotCounts, setSpotCounts] = useState<Record<string, number>>({})
 
   // Radar / Geolocation States
@@ -262,6 +284,32 @@ export default function DashboardPage() {
   const updateCurrentSpot = (spotName: string | null) => {
     myCurrentSpotRef.current = spotName
     setMyCurrentSpot(spotName)
+  }
+
+  const selectWhoIsHereSpot = (spotName: string | null) => {
+    activeWhoIsHereSpotRef.current = spotName
+    setActiveWhoIsHereSpot(spotName)
+  }
+
+  // Latest own name/photo for the "(You)" entry (read from async callbacks and realtime handlers)
+  const myProfileRef = useRef({ name: profileName, photo_url: profilePhotoUrl })
+  myProfileRef.current = { name: profileName, photo_url: profilePhotoUrl }
+
+  const buildSelfEntry = (userId: string): CheckedInUser => ({
+    id: userId,
+    name: myProfileRef.current.name || 'You',
+    photo_url: myProfileRef.current.photo_url || DEFAULT_AVATAR,
+    course: '',
+    campus: '',
+    isMe: true
+  })
+
+  // Instantly nudge a spot's live count (card pill reads liveCount, then spotCounts)
+  const adjustSpotCount = (spotName: string, delta: number) => {
+    setSpotCounts(prev => ({ ...prev, [spotName]: Math.max(0, (prev[spotName] || 0) + delta) }))
+    setCampusSpots(prev => prev.map(s =>
+      s.name === spotName ? { ...s, liveCount: Math.max(0, (s.liveCount || 0) + delta) } : s
+    ))
   }
 
   // Load from cache immediately if available
@@ -722,32 +770,62 @@ export default function DashboardPage() {
   }
 
   // Upsert presence utility
-  const upsertPresence = async (userId: string, lat: number | null, lng: number | null, spotName?: string | null) => {
+  // Returns whether the presence row was saved
+  const upsertPresence = async (userId: string, lat: number | null, lng: number | null, spotName?: string | null): Promise<boolean> => {
     const targetSpot = spotName !== undefined ? spotName : myCurrentSpotRef.current
-    try {
-      await (supabase.from('presence' as any) as any).upsert(
-        { user_id: userId, online: true, location_name: targetSpot, lat, lng, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' }
-      )
-    } catch (e) {
-      console.warn("Presence upsert:", e)
+    const basePayload = { user_id: userId, online: true, location_name: targetSpot, updated_at: new Date().toISOString() }
+    // GPS is optional — only send coordinates when both are real numbers
+    const hasCoords = isValidCoord(lat) && isValidCoord(lng)
+
+    const save = async (payload: Record<string, unknown>): Promise<any> => {
+      try {
+        const { error } = await (supabase.from('presence' as any) as any).upsert(payload, { onConflict: 'user_id' })
+        return error ?? null
+      } catch (e) {
+        return e
+      }
     }
+    const logError = (attempt: string, err: any) => {
+      console.error(`Presence error (${attempt}):`, err, {
+        message: err?.message,
+        details: err?.details,
+        hint: err?.hint,
+        code: err?.code,
+      })
+    }
+
+    let err = await save(hasCoords ? { ...basePayload, lat, lng } : basePayload)
+    if (!err) return true
+    logError(hasCoords ? 'with location' : 'without location', err)
+    if (!hasCoords) return false
+
+    // Check-in must never be blocked by GPS columns — retry without lat/lng
+    err = await save(basePayload)
+    if (!err) return true
+    logError('fallback without location', err)
+    return false
   }
 
   // Spots count & campus_spots query
-  const fetchSpots = async (userId: string) => {
+  // focusSpot: Who's Here spot to show after this refresh (otherwise the user's current selection is kept)
+  const fetchSpots = async (userId: string, focusSpot?: string | null) => {
+    const versionAtStart = presenceVersionRef.current
     try {
       const { data: spotsData } = await supabase
         .from('campus_spots')
         .select('*')
         .order('sort_order', { ascending: true })
 
-      const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+      const cutoff = new Date(Date.now() - PRESENCE_FRESH_MS).toISOString()
       const { data } = await supabase
         .from('presence' as any)
         .select('location_name, user_id')
         .eq('online', true)
         .gte('updated_at', cutoff) as any
+
+      // A check-in/out happened (or is still saving) since this fetch began — its server
+      // data is stale and would undo the instant spot/count update. The check-in's own refresh follows.
+      if (checkinInFlightRef.current || versionAtStart !== presenceVersionRef.current) return
 
       const myPres = data?.find((p: any) => p.user_id === userId)
       const serverSpot = myPres ? myPres.location_name : null
@@ -781,8 +859,11 @@ export default function DashboardPage() {
 
       setCampusSpots(formatted)
 
-      const targetSpot = activeSpot || (formatted.length > 0 ? formatted.reduce((max, spot) => spot.liveCount > max.liveCount ? spot : max, formatted[0]).name : 'Student Center')
-      setActiveWhoIsHereSpot(targetSpot)
+      const targetSpot = focusSpot
+        || activeWhoIsHereSpotRef.current
+        || activeSpot
+        || (formatted.length > 0 ? formatted.reduce((max, spot) => spot.liveCount > max.liveCount ? spot : max, formatted[0]).name : 'Student Center')
+      selectWhoIsHereSpot(targetSpot)
       fetchCheckedInUsers(userId, targetSpot)
     } catch (e) {
       console.warn("Spots loading error:", e)
@@ -796,8 +877,13 @@ export default function DashboardPage() {
       return
     }
     if (!uid) return
+    // Ignore taps while the previous check-in/out is still saving
+    if (checkinInFlightRef.current) return
     const isCheckingOut = myCurrentSpotRef.current === spotName
     const nextSpot = isCheckingOut ? null : spotName
+
+    const previousSpot = myCurrentSpotRef.current
+    const previousCheckinTime = checkinTimeRef.current
 
     if (nextSpot) {
       checkinTimeRef.current = Date.now()
@@ -805,15 +891,42 @@ export default function DashboardPage() {
       checkinTimeRef.current = null
     }
 
-    updateCurrentSpot(nextSpot)
+    checkinInFlightRef.current = true
+    presenceVersionRef.current += 1
 
-    try {
-      await upsertPresence(uid, gpsLat, gpsLng, nextSpot)
-      modal.toast(nextSpot ? `Checked into ${nextSpot} 📍` : `Checked out of ${spotName}`, 'info')
-      fetchSpots(uid)
-    } catch (e) {
-      console.warn("Checkin toggle error:", e)
+    // Optimistic UI: button state, live counts and the Who's Here list update instantly
+    const previousWhoIsHereSpot = activeWhoIsHereSpotRef.current
+    const previousWhoIsHereUsers = whoIsHereUsers
+    updateCurrentSpot(nextSpot)
+    if (previousSpot) adjustSpotCount(previousSpot, -1)
+    if (nextSpot) adjustSpotCount(nextSpot, 1)
+    selectWhoIsHereSpot(spotName)
+    whoIsHereRequestRef.current = spotName
+    setWhoIsHereUsers(prev => {
+      // List shown before belongs to another spot — start from just the others we know of
+      const others = (previousWhoIsHereSpot === spotName ? prev : []).filter(u => u.id !== uid)
+      return nextSpot ? [buildSelfEntry(uid), ...others] : others
+    })
+
+    // upsertPresence retries without GPS, so false means both attempts failed
+    const saved = await upsertPresence(uid, gpsLat, gpsLng, nextSpot)
+    presenceVersionRef.current += 1
+    checkinInFlightRef.current = false
+    if (!saved) {
+      // Roll back so the UI matches what's stored
+      checkinTimeRef.current = previousCheckinTime
+      updateCurrentSpot(previousSpot)
+      if (nextSpot) adjustSpotCount(nextSpot, -1)
+      if (previousSpot) adjustSpotCount(previousSpot, 1)
+      selectWhoIsHereSpot(previousWhoIsHereSpot)
+      whoIsHereRequestRef.current = previousWhoIsHereSpot
+      setWhoIsHereUsers(previousWhoIsHereUsers)
+      modal.toast(nextSpot ? `Couldn't check into ${nextSpot}. Try again.` : `Couldn't check out of ${spotName}. Try again.`, 'error')
+      return
     }
+    modal.toast(nextSpot ? `Checked into ${nextSpot} 📍` : `Checked out of ${spotName}`, 'info')
+    // Refresh live counts and the Who's Here list for the spot just toggled
+    fetchSpots(uid, spotName)
   }
 
   // Handle Category Tab Change (Inside vs Outside)
@@ -827,35 +940,61 @@ export default function DashboardPage() {
     if (filtered.length > 0) {
       const userSpotInCat = filtered.find(s => s.name === myCurrentSpot)
       const targetSpot = userSpotInCat ? userSpotInCat.name : filtered[0].name
-      setActiveWhoIsHereSpot(targetSpot)
+      selectWhoIsHereSpot(targetSpot)
       if (uid) fetchCheckedInUsers(uid, targetSpot)
     }
   }
 
   // Fetch checked in users for spot
   const fetchCheckedInUsers = async (userId: string, spotName: string) => {
+    whoIsHereRequestRef.current = spotName
+    const versionAtStart = presenceVersionRef.current
     try {
-      const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-      const { data } = await supabase
+      const cutoff = new Date(Date.now() - PRESENCE_FRESH_MS).toISOString()
+      const { data, error } = await supabase
         .from('presence' as any)
-        .select('user_id, updated_at, profiles!presence_user_id_fkey(id, name, photo_url, course, campus)')
+        .select('user_id, updated_at, profiles!presence_user_id_fkey(id, name, age, photo_url, course, campus, university, bio, interests, verified)')
         .eq('location_name', spotName)
+        .eq('online', true)
         .gte('updated_at', cutoff)
         .limit(20) as any
 
-      if (data) {
-        const users: CheckedInUser[] = data
-          .map((row: any) => ({
-            id: row.profiles?.id || row.user_id,
-            name: row.profiles?.name || 'Student',
-            photo_url: row.profiles?.photo_url || DEFAULT_AVATAR,
-            course: row.profiles?.course || '',
-            campus: row.profiles?.campus || ''
-          }))
-          .filter((u: CheckedInUser) => u.id !== userId)
+      // A newer spot was selected while this was loading — don't show the wrong list
+      if (whoIsHereRequestRef.current !== spotName) return
+      // Our own check-in/out changed since this began — the result would drop or re-add "(You)"
+      if (checkinInFlightRef.current || versionAtStart !== presenceVersionRef.current) return
 
-        setWhoIsHereUsers(users)
+      if (error) {
+        console.warn("Checked in users fetch error:", { message: error.message, details: error.details, code: error.code })
+        return
       }
+
+      const users: CheckedInUser[] = (data || [])
+        .filter((row: any) => row && row.user_id)
+        .map((row: any) => {
+          // The join can come back as null (missing profile) or, depending on typing, an array
+          const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles
+          return {
+            id: p?.id || row.user_id,
+            name: p?.name || 'Student',
+            photo_url: p?.photo_url || DEFAULT_AVATAR,
+            course: p?.course || '',
+            campus: p?.campus || '',
+            age: p?.age ?? null,
+            bio: p?.bio ?? null,
+            interests: Array.isArray(p?.interests) ? p.interests : null,
+            university: p?.university ?? null,
+            verified: !!p?.verified,
+            isMe: row.user_id === userId
+          }
+        })
+
+      // Keep yourself in the list (first) as confirmation; add yourself if the row
+      // isn't visible yet but you're checked in here
+      const me = users.find(u => u.isMe)
+      const others = users.filter(u => !u.isMe)
+      const self = me || (myCurrentSpotRef.current === spotName ? buildSelfEntry(userId) : null)
+      setWhoIsHereUsers(self ? [self, ...others] : others)
     } catch (e) {
       console.warn("Checked in users fetch error:", e)
     }
@@ -1153,14 +1292,17 @@ export default function DashboardPage() {
 
     setIsActing(true)
     setActionFeedback(action)
+    let succeeded = false
 
     try {
       if (action === 'like') {
-        await (supabase.from('likes') as any).insert({
+        const { error: likeError } = await (supabase.from('likes') as any).insert({
           from_user_id: uid,
           to_user_id: candidate.id,
           is_super_like: false
         })
+        // 23505 = already liked; anything else means the like wasn't saved
+        if (likeError && likeError.code !== '23505') throw likeError
 
         // Check if reciprocal like exists
         const { data: reciprocal } = await (supabase
@@ -1177,21 +1319,29 @@ export default function DashboardPage() {
           modal.toast(`Liked ${candidate.name} 💖`, 'info')
         }
       } else {
-        await (supabase.from('passes') as any).insert({
+        const { error: passError } = await (supabase.from('passes') as any).insert({
           from_user_id: uid,
           to_user_id: candidate.id
         })
+        if (passError && passError.code !== '23505') throw passError
         modal.toast(`Passed on ${candidate.name}`, 'info')
       }
+      succeeded = true
     } catch (e) {
       console.warn("Discovery action error:", e)
+      modal.toast(`Couldn't ${action} ${candidate.name}. Please try again.`, 'error')
     } finally {
       setTimeout(() => {
         setActionFeedback(null)
         setIsActing(false)
-        setActiveDiscoveryIndex(prev => prev + 1)
-        if (selectedProfileModal?.id === candidate.id) {
-          setSelectedProfileModal(null)
+        if (succeeded) {
+          setActiveDiscoveryIndex(prev => prev + 1)
+          if (selectedProfileModal?.id === candidate.id) {
+            setSelectedProfileModal(null)
+          }
+        } else {
+          // Keep the same person on screen so they can retry
+          setDragX(0)
         }
       }, 260)
     }
@@ -1394,11 +1544,8 @@ export default function DashboardPage() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          sessionStorage.clear()
-          const { error } = await supabase.auth.signOut()
-          if (error) throw error
-          modal.toast("You have been logged out.", "info")
-          router.push('/login')
+          await signOutAndClear(supabase)
+          redirectToLogin()
         } catch (e) {
           console.error("Logout failed:", e)
           modal.toast("Logout failed. Try again.", "error")
@@ -1600,7 +1747,9 @@ export default function DashboardPage() {
                 setIsDropdownOpen(false)
                 // Share only the URL — WhatsApp auto-generates the rich link preview card from OG tags
                 if (typeof navigator !== 'undefined' && navigator.share) {
-                  navigator.share({ url: shareUrl }).catch(() => {
+                  navigator.share({ url: shareUrl }).catch((err: unknown) => {
+                    // AbortError = user closed the share sheet; don't push them to WhatsApp
+                    if (err instanceof DOMException && err.name === 'AbortError') return
                     window.open(`https://wa.me/?text=${encodeURIComponent(shareUrl)}`, '_blank')
                   })
                 } else {
@@ -2178,7 +2327,7 @@ export default function DashboardPage() {
                                 key={spot.id}
                                 className={`spot-card-item ${isHere ? 'checked-in' : ''}`}
                                 onClick={() => {
-                                  setActiveWhoIsHereSpot(spot.name)
+                                  selectWhoIsHereSpot(spot.name)
                                   if (uid) fetchCheckedInUsers(uid, spot.name)
                                 }}
                               >
@@ -2227,7 +2376,7 @@ export default function DashboardPage() {
                                     height={36}
                                     className="whos-here-stack-img"
                                     style={{ zIndex: 10 - i }}
-                                    title={u.name}
+                                    title={u.isMe ? `${u.name} (You)` : u.name}
                                   />
                                 ))}
                               </div>
@@ -2526,16 +2675,25 @@ export default function DashboardPage() {
                     <div key={u.id} className="whos-here-item">
                       <Image src={u.photo_url || DEFAULT_AVATAR} alt={u.name} width={42} height={42} className="whos-here-item-avatar" />
                       <div className="whos-here-item-info">
-                        <div className="whos-here-item-name">{u.name}</div>
-                        <div className="whos-here-item-sub">{[u.course, u.campus].filter(Boolean).join(' • ')}</div>
+                        <div className="whos-here-item-name">{u.name}{u.isMe ? ' (You)' : ''}</div>
+                        <div className="whos-here-item-sub">
+                          {u.isMe ? `Checked in at ${activeWhoIsHereSpot} ✓` : [u.course, u.campus].filter(Boolean).join(' • ')}
+                        </div>
                       </div>
+                      {u.isMe ? (
+                        <div className="whos-here-item-actions">
+                          <Link href="/profile" className="whos-here-act-btn" onClick={() => setShowWhoIsHereModal(false)}>
+                            My Profile
+                          </Link>
+                        </div>
+                      ) : (
                       <div className="whos-here-item-actions">
                         <button
                           type="button"
                           className="whos-here-act-btn"
                           onClick={() => {
                             setShowWhoIsHereModal(false)
-                            openProfileDetailModal(u as any)
+                            openProfileDetailModal(u)
                           }}
                         >
                           Profile
@@ -2544,6 +2702,7 @@ export default function DashboardPage() {
                           Chat 👋
                         </Link>
                       </div>
+                      )}
                     </div>
                   ))}
                 </div>

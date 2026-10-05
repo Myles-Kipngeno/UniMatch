@@ -158,6 +158,7 @@ export default function UploadPhotosPage() {
     setProgressFillPct(5)
     setProgressLabelText('Preparing upload...')
 
+    let savedCount = 0
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
@@ -218,21 +219,30 @@ export default function UploadPhotosPage() {
           })
 
         if (dbErr) {
+          // File is in storage but not linked to the profile — remove it and report the failure
           console.error('DB insert error:', dbErr)
+          await supabase.storage.from('profile-images').remove([fileName])
+          modal.toast(`Failed to save ${file.name}`, 'error')
+          continue
         }
+        savedCount++
 
         // Set as main profile photo if user currently has default avatar
         if (isImage && (!profilePhoto || profilePhoto === DEFAULT_AVATAR)) {
-          await (supabase.from('profiles') as any)
+          const { error: mainErr } = await (supabase.from('profiles') as any)
             .update({ photo_url: publicUrl })
             .eq('id', uid)
-          setProfilePhoto(publicUrl)
+          if (mainErr) {
+            console.warn('Set main photo after upload failed:', mainErr.message)
+          } else {
+            setProfilePhoto(publicUrl)
+          }
         }
 
         setProgressFillPct(Math.round(((i + 1) / files.length) * 100))
       }
 
-      modal.toast('Upload complete! 🎉', 'success')
+      if (savedCount > 0) modal.toast('Upload complete! 🎉', 'success')
       await loadMedia(uid)
     } catch (err: any) {
       console.error('Upload flow error:', err)
@@ -271,17 +281,22 @@ export default function UploadPhotosPage() {
       isDanger: true,
       onConfirm: async () => {
         try {
+          // Remove the DB record first so a failure leaves nothing half-deleted
+          const { error: deleteError } = await (supabase.from('profile_photos' as any) as any)
+            .delete()
+            .eq('id', item.id)
+          if (deleteError) throw deleteError
+
           const parts = item.url.split('/profile-images/')
           if (parts.length > 1) {
             const filePath = decodeURIComponent(parts[1])
-            await supabase.storage.from('profile-images').remove([filePath])
+            const { error: storageError } = await supabase.storage.from('profile-images').remove([filePath])
+            if (storageError) console.warn('Storage cleanup failed:', storageError.message)
           }
-          await (supabase.from('profile_photos' as any) as any)
-            .delete()
-            .eq('id', item.id)
 
           if (profilePhoto === item.url) {
-            await (supabase.from('profiles') as any).update({ photo_url: null }).eq('id', uid!)
+            const { error: clearError } = await (supabase.from('profiles') as any).update({ photo_url: null }).eq('id', uid!)
+            if (clearError) throw clearError
             setProfilePhoto(DEFAULT_AVATAR)
           }
           await loadMedia(uid!)

@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import PasswordInput from '@/components/PasswordInput'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
+import { signOutAndClear } from '@/lib/auth/signOut'
 import LoadingScreen from '@/components/LoadingScreen'
 import './login.css'
 
@@ -25,11 +28,19 @@ export default function LoginPage() {
   const [rememberedAccounts, setRememberedAccounts] = useState<RememberedAccount[]>([])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
+
+  // Errors passed back from /auth/callback (e.g. non-university Google account)
+  useEffect(() => {
+    const authError = new URLSearchParams(window.location.search).get('auth_error')
+    if (authError) {
+      setError(authError)
+      window.history.replaceState(null, '', '/login')
+    }
+  }, [])
 
   useEffect(() => {
     async function checkSessionAndSaved() {
@@ -53,12 +64,12 @@ export default function LoginPage() {
 
   const handleSignOutActive = async () => {
     try {
-      sessionStorage.clear()
-      await supabase.auth.signOut()
+      await signOutAndClear(supabase)
       setActiveUser(null)
       modal.toast('Signed out active session. You can now log into your account.', 'info')
     } catch (e) {
       console.error(e)
+      modal.toast('Could not sign out. Please try again.', 'error')
     }
   }
 
@@ -279,24 +290,15 @@ export default function LoginPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <div className="password-wrapper">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              id="loginPassword"
-              name="password"
-              autoComplete="current-password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <i
-              className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}
-              id="togglePassword"
-              onClick={() => setShowPassword(!showPassword)}
-              style={{ cursor: 'pointer' }}
-            ></i>
-          </div>
+          <PasswordInput
+            id="loginPassword"
+            name="password"
+            autoComplete="current-password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', fontSize: '13px', color: '#9e9bb8', textAlign: 'left' }}>
             <input
@@ -327,6 +329,8 @@ export default function LoginPage() {
           <button type="submit" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}
           </button>
+
+          <GoogleSignInButton />
 
           <p className="switch">
             New here?{' '}

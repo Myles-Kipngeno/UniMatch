@@ -745,6 +745,11 @@ function ChatPageContent() {
 
     const msgReactions = reactions[msgId] || []
     const existing = msgReactions.find(r => r.user_id === currentUser.id)
+    const rollback = (err: any) => {
+      console.warn("Reaction save failed:", err?.message || err)
+      setReactions(prev => ({ ...prev, [msgId]: msgReactions }))
+      modal.toast("Couldn't save your reaction. Try again.", 'error')
+    }
 
     // Optimistic UI Update
     if (existing) {
@@ -754,14 +759,16 @@ function ChatPageContent() {
           ...prev,
           [msgId]: (prev[msgId] || []).filter(r => r.user_id !== currentUser.id)
         }))
-        await (supabase.from('message_reactions') as any).delete().eq('id', existing.id)
+        const { error } = await (supabase.from('message_reactions') as any).delete().eq('id', existing.id)
+        if (error) rollback(error)
       } else {
         // Different emoji -> Update reaction
         setReactions(prev => ({
           ...prev,
           [msgId]: (prev[msgId] || []).map(r => r.user_id === currentUser.id ? { ...r, emoji } : r)
         }))
-        await (supabase.from('message_reactions') as any).update({ emoji }).eq('id', existing.id)
+        const { error } = await (supabase.from('message_reactions') as any).update({ emoji }).eq('id', existing.id)
+        if (error) rollback(error)
       }
     } else {
       // New emoji -> Insert reaction
@@ -771,12 +778,14 @@ function ChatPageContent() {
         ...prev,
         [msgId]: [...(prev[msgId] || []), newReact]
       }))
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('message_reactions')
         .insert({ message_id: msgId, user_id: currentUser.id, emoji } as any)
         .select()
         .single() as any
-      if (data) {
+      if (error) {
+        rollback(error)
+      } else if (data) {
         setReactions(prev => ({
           ...prev,
           [msgId]: (prev[msgId] || []).map(r => r.id === tempId ? data : r)
@@ -916,11 +925,12 @@ function ChatPageContent() {
             ? { last_message: '🎵 Voice message', last_message_at: new Date().toISOString(), user2_unread: (matchRow.user2_unread || 0) + 1 }
             : { last_message: '🎵 Voice message', last_message_at: new Date().toISOString(), user1_unread: (matchRow.user1_unread || 0) + 1 }
 
-          await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
+          const { error: matchUpdateError } = await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
+          if (matchUpdateError) console.warn("Match preview update failed:", matchUpdateError.message)
         }
       } catch (err) {
         console.error("Audio message upload error:", err)
-        alert("Failed to send voice message. Please try again.")
+        modal.toast("Failed to send voice message. Please try again.", 'error')
       } finally {
         setSending(false)
         setIsRecording(false)
@@ -1006,7 +1016,12 @@ function ChatPageContent() {
         .single() as any
 
       if (error) {
+        // The message was NOT saved — remove it and give the text back so it can be resent
         console.warn("Supabase insert notice:", error.message || error.details || error)
+        setMessages(prev => prev.filter(m => m.id !== optimisticId))
+        setInputText(current => current || content)
+        modal.toast("Message not sent. Check your connection and try again.", 'error')
+        return
       } else if (newMsg) {
         // Swap optimistic ID with database ID
         setMessages(prev => prev.map(m => m.id === optimisticId ? newMsg : m))
@@ -1025,7 +1040,8 @@ function ChatPageContent() {
           ? { last_message: content, last_message_at: new Date().toISOString(), user2_unread: (matchRow.user2_unread || 0) + 1 }
           : { last_message: content, last_message_at: new Date().toISOString(), user1_unread: (matchRow.user1_unread || 0) + 1 }
 
-        await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
+        const { error: matchUpdateError } = await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
+        if (matchUpdateError) console.warn("Match preview update failed:", matchUpdateError.message)
       }
     } catch (err: any) {
       console.warn("Send message background notice:", err?.message || err)
@@ -1273,10 +1289,12 @@ function ChatPageContent() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          await (supabase.from('messages') as any).delete().eq('match_id', targetId)
-          await (supabase.from('matches') as any)
+          const { error: deleteError } = await (supabase.from('messages') as any).delete().eq('match_id', targetId)
+          if (deleteError) throw deleteError
+          const { error: resetError } = await (supabase.from('matches') as any)
             .update({ last_message: null, last_message_at: null, user1_unread: 0, user2_unread: 0 })
             .eq('id', targetId)
+          if (resetError) console.warn("Match preview reset failed:", resetError.message)
 
           setMessages([])
           modal.toast('Chat history cleared', 'info')
@@ -1301,7 +1319,8 @@ function ChatPageContent() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          await supabase.from('matches').delete().eq('id', targetId)
+          const { error } = await supabase.from('matches').delete().eq('id', targetId)
+          if (error) throw error
           modal.toast(`You have unmatched with ${activeMatch.name}.`, 'info')
           router.push('/matches')
         } catch (err) {
@@ -1325,11 +1344,14 @@ function ChatPageContent() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          await (supabase.from('blocked_users') as any).insert({
+          const { error: blockError } = await (supabase.from('blocked_users') as any).insert({
             blocker_id: currentUser.id,
             blocked_id: activeMatch.otherUserId
           })
-          await supabase.from('matches').delete().eq('id', targetId)
+          // 23505 = already blocked; treat as success
+          if (blockError && blockError.code !== '23505') throw blockError
+          const { error: unmatchError } = await supabase.from('matches').delete().eq('id', targetId)
+          if (unmatchError) throw unmatchError
 
           modal.toast(`${activeMatch.name} has been blocked.`, 'info')
           router.push('/matches')
@@ -1349,22 +1371,25 @@ function ChatPageContent() {
 
     const nextMuteState = !isMuted
     setIsMuted(nextMuteState)
-    modal.toast(nextMuteState ? `Muted notifications for ${activeMatch.name}` : `Unmuted notifications for ${activeMatch.name}`, 'info')
 
     try {
-      const { data: matchRow } = await supabase
+      const { data: matchRow, error: fetchError } = await supabase
         .from('matches')
         .select('user1_id, user2_id')
         .eq('id', targetId)
         .single() as any
+      if (fetchError || !matchRow) throw fetchError || new Error('Match not found')
 
-      if (matchRow) {
-        const isUser1 = matchRow.user1_id === currentUser.id
-        const updateData = isUser1 ? { muted_by_user1: nextMuteState } : { muted_by_user2: nextMuteState }
-        await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
-      }
+      const isUser1 = matchRow.user1_id === currentUser.id
+      const updateData = isUser1 ? { muted_by_user1: nextMuteState } : { muted_by_user2: nextMuteState }
+      const { error } = await (supabase.from('matches') as any).update(updateData).eq('id', targetId)
+      if (error) throw error
+
+      modal.toast(nextMuteState ? `Muted notifications for ${activeMatch.name}` : `Unmuted notifications for ${activeMatch.name}`, 'info')
     } catch (e) {
       console.warn("Mute update warning:", e)
+      setIsMuted(!nextMuteState)
+      modal.toast("Couldn't update notification setting. Try again.", 'error')
     }
   }
 

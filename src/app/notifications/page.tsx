@@ -258,6 +258,14 @@ export default function NotificationsPage() {
   const { getCache, setCache } = useAppCache()
   const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/dashboard')
+    }
+  }
+
   const cachedNotifs = getCache('notifications')
   const [uid, setUid] = useState<string | null>(null)
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => cachedNotifs || [])
@@ -352,13 +360,10 @@ export default function NotificationsPage() {
         return updated
       })
       if (uid && !item.id.startsWith('demo-')) {
-        try {
-          await (supabase.from('notifications') as any)
-            .update({ is_read: true })
-            .eq('id', item.id)
-        } catch (e) {
-          console.warn("Error marking single read:", e)
-        }
+        const { error } = await (supabase.from('notifications') as any)
+          .update({ is_read: true })
+          .eq('id', item.id)
+        if (error) console.warn("Error marking single read:", error.message)
       }
     }
 
@@ -402,22 +407,26 @@ export default function NotificationsPage() {
       return
     }
 
+    const previous = notifications
     setNotifications(prev => {
       const updated = prev.map(n => ({ ...n, unread: false }))
       setCache('notifications', updated)
       return updated
     })
-    modal.toast('All notifications marked as read ✓', 'success')
 
     if (uid) {
-      try {
-        await (supabase.from('notifications') as any)
-          .update({ is_read: true })
-          .eq('user_id', uid)
-      } catch (e) {
-        console.warn("Error marking all read:", e)
+      const { error } = await (supabase.from('notifications') as any)
+        .update({ is_read: true })
+        .eq('user_id', uid)
+      if (error) {
+        console.warn("Error marking all read:", error.message)
+        setNotifications(previous)
+        setCache('notifications', previous)
+        modal.toast("Couldn't mark notifications as read. Try again.", 'error')
+        return
       }
     }
+    modal.toast('All notifications marked as read ✓', 'success')
   }
 
   // Clear all notifications
@@ -433,19 +442,19 @@ export default function NotificationsPage() {
       confirmText: 'Clear All',
       isDanger: true,
       onConfirm: async () => {
+        if (uid) {
+          const { error } = await (supabase.from('notifications') as any)
+            .delete()
+            .eq('user_id', uid)
+          if (error) {
+            console.warn("Error clearing notifications:", error.message)
+            modal.toast("Couldn't clear notifications. Try again.", 'error')
+            return
+          }
+        }
         setNotifications([])
         setCache('notifications', [])
         modal.toast('Cleared all notifications', 'success')
-
-        if (uid) {
-          try {
-            await (supabase.from('notifications') as any)
-              .delete()
-              .eq('user_id', uid)
-          } catch (e) {
-            console.warn("Error clearing notifications:", e)
-          }
-        }
       }
     })
   }
@@ -460,22 +469,26 @@ export default function NotificationsPage() {
     }
     if (!itemId) return
 
+    const previous = notifications
     setNotifications(prev => {
       const updated = prev.filter(n => n.id !== itemId)
       setCache('notifications', updated)
       return updated
     })
-    modal.toast('Notification removed', 'info')
 
     if (uid && !itemId.startsWith('demo-')) {
-      try {
-        await (supabase.from('notifications') as any)
-          .delete()
-          .eq('id', itemId)
-      } catch (e) {
-        console.warn("Error deleting notification:", e)
+      const { error } = await (supabase.from('notifications') as any)
+        .delete()
+        .eq('id', itemId)
+      if (error) {
+        console.warn("Error deleting notification:", error.message)
+        setNotifications(previous)
+        setCache('notifications', previous)
+        modal.toast("Couldn't remove notification. Try again.", 'error')
+        return
       }
     }
+    modal.toast('Notification removed', 'info')
   }
 
   // Delete notification stack
@@ -489,25 +502,29 @@ export default function NotificationsPage() {
     if (!group) return
 
     const itemIds = group.items.map(i => i.id)
+    const previous = notifications
     setNotifications(prev => {
       const updated = prev.filter(n => !itemIds.includes(n.id))
       setCache('notifications', updated)
       return updated
     })
-    modal.toast('Cleared stacked notifications', 'info')
 
     if (uid) {
       const dbIds = itemIds.filter(id => !id.startsWith('demo-'))
       if (dbIds.length > 0) {
-        try {
-          await (supabase.from('notifications') as any)
-            .delete()
-            .in('id', dbIds)
-        } catch (e) {
-          console.warn("Error deleting group notifications:", e)
+        const { error } = await (supabase.from('notifications') as any)
+          .delete()
+          .in('id', dbIds)
+        if (error) {
+          console.warn("Error deleting group notifications:", error.message)
+          setNotifications(previous)
+          setCache('notifications', previous)
+          modal.toast("Couldn't clear these notifications. Try again.", 'error')
+          return
         }
       }
     }
+    modal.toast('Cleared stacked notifications', 'info')
   }
 
   // Bootstrapper
@@ -645,7 +662,7 @@ export default function NotificationsPage() {
       {/* Top Main Navigation Header */}
       <header className="notif-page-header">
         <div className="nph-left">
-          <button className="notif-back-btn" onClick={() => router.back()} title="Back">
+          <button className="notif-back-btn" onClick={handleBack} title="Back">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6"/>
             </svg>
@@ -670,18 +687,19 @@ export default function NotificationsPage() {
         {/* Category Tabs */}
         <div className="notif-tabs">
           {[
-            { id: 'all', label: 'All' },
-            { id: 'matches', label: '💕 Matches' },
-            { id: 'likes', label: '❤️ Likes' },
-            { id: 'views', label: '👀 Views' },
-            { id: 'messages', label: '💬 Messages' }
+            { id: 'all', icon: '', label: 'All' },
+            { id: 'matches', icon: '💕', label: 'Matches' },
+            { id: 'likes', icon: '❤️', label: 'Likes' },
+            { id: 'views', icon: '👀', label: 'Views' },
+            { id: 'messages', icon: '💬', label: 'Messages' }
           ].map(tab => (
             <button
               key={tab.id}
               className={`notif-tab ${activeCat === tab.id ? 'active' : ''}`}
               onClick={() => setActiveCat(tab.id)}
             >
-              {tab.label}
+              {tab.icon && <span className="notif-tab-icon">{tab.icon}</span>}
+              <span className="notif-tab-text">{tab.label}</span>
             </button>
           ))}
         </div>

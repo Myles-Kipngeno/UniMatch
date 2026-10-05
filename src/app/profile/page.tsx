@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import { signOutAndClear, redirectToLogin } from '@/lib/auth/signOut'
 import BottomNav from '@/components/BottomNav'
 import LoadingScreen from '@/components/LoadingScreen'
 import { useAppCache } from '@/context/AppCacheContext'
@@ -46,12 +47,15 @@ const CURATED_INTERESTS = [
   { name: "Volunteering", emoji: "🤝" }
 ]
 
+const PHOTO_REQUIRED_MSG = 'Please upload a profile photo to complete your profile.'
+
 import { useModal } from '@/components/ModalContext'
 
 function ProfileFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClient()
+  // One client for the component's lifetime (stable reference for effects)
+  const [supabase] = useState(() => createClient())
   const modal = useModal()
 
   const isEditModeParam = searchParams.get('edit') === 'true'
@@ -88,10 +92,25 @@ function ProfileFormContent() {
   const { isOnline, isNetworkError, reportNetworkError, clearNetworkError } = useNetwork()
 
   const viewUserIdParam = searchParams.get('id') || searchParams.get('userId')
+  const profileKey = viewUserIdParam || 'self'
+
+  // getCache/setCache change identity on every cache update. Keeping them in a ref lets
+  // the load effects read the latest versions WITHOUT re-running (re-running refetched
+  // the profile in a loop and wiped whatever the user was typing).
+  const cacheApiRef = useRef({ getCache, setCache, clearNetworkError, reportNetworkError })
+  cacheApiRef.current = { getCache, setCache, clearNetworkError, reportNetworkError }
+
+  // Set once the user edits any field — loads must never overwrite their input after that
+  const formTouchedRef = useRef(false)
+  const markFormTouched = () => { formTouchedRef.current = true }
+  // Which profile key the form was last filled for (cache hydrate / DB fetch run once each)
+  const cacheHydratedForRef = useRef<string | null>(null)
+  const profileFetchedForRef = useRef<string | null>(null)
   const [isOtherUser, setIsOtherUser] = useState(false)
 
   const [loading, setLoading] = useState(() => !getCache('profile', viewUserIdParam || 'self'))
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [error, setError] = useState('')
 
   // Sync active tab with URL query parameter (only on initial mount, not after user clicks a tab)
@@ -102,11 +121,31 @@ function ProfileFormContent() {
     }
   }, [isEditModeParam, isOtherUser])
 
+  // Switching to a different profile starts with a fresh, untouched form.
+  // Compares against the last key so it never fires on mount (or StrictMode re-runs).
+  const lastProfileKeyRef = useRef(profileKey)
+  useEffect(() => {
+    if (lastProfileKeyRef.current === profileKey) return
+    lastProfileKeyRef.current = profileKey
+    formTouchedRef.current = false
+    cacheHydratedForRef.current = null
+    profileFetchedForRef.current = null
+  }, [profileKey])
+
   // Load from cache initially if present
   useEffect(() => {
     const targetKey = viewUserIdParam || 'self'
+    if (cacheHydratedForRef.current === targetKey) return
     const cached = getCache('profile', targetKey)
     if (cached) {
+      cacheHydratedForRef.current = targetKey
+      // Onboarding (own profile not complete yet) starts with empty fields, so stale
+      // values from an unfinished row never pre-fill the wizard
+      const shouldFillForm = Boolean(cached.profile_complete) || Boolean(viewUserIdParam)
+      if (formTouchedRef.current || !shouldFillForm) {
+        setLoading(false)
+        return
+      }
       if (cached.name) setName(cached.name)
       if (cached.gender) setGender(cached.gender)
       if (cached.age) setAge(String(cached.age))
@@ -157,6 +196,10 @@ function ProfileFormContent() {
   }, [menuOpen])
 
   useEffect(() => {
+    if (profileFetchedForRef.current === profileKey) return
+    profileFetchedForRef.current = profileKey
+    const { getCache, setCache, clearNetworkError, reportNetworkError } = cacheApiRef.current
+
     async function getProfile() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -184,20 +227,25 @@ function ProfileFormContent() {
           .single() as any
 
         if (profile) {
-          setName(profile.name || '')
-          setGender(profile.gender || '')
-          setAge(profile.age ? String(profile.age) : '')
-          setCampus(profile.campus || '')
-          setCourse(profile.course || '')
-          setYearOfStudy(profile.year_of_study || '')
-          setBio(profile.bio || '')
-          setPreference(profile.preference || 'all')
-          setSelectedInterests(profile.interests || [])
-          
-          if (profile.photo_url) {
-            setCurrentPhotoUrl(profile.photo_url)
-            setPreviewUrl(profile.photo_url)
+          // Only fill the form if the user hasn't started editing it, and never during
+          // onboarding — the wizard starts empty even if the row holds old values
+          if (!formTouchedRef.current && (profile.profile_complete || viewingOther)) {
+            setName(profile.name || '')
+            setGender(profile.gender || '')
+            setAge(profile.age ? String(profile.age) : '')
+            setCampus(profile.campus || '')
+            setCourse(profile.course || '')
+            setYearOfStudy(profile.year_of_study || '')
+            setBio(profile.bio || '')
+            setPreference(profile.preference || 'all')
+            setSelectedInterests(profile.interests || [])
+
+            if (profile.photo_url) {
+              setCurrentPhotoUrl(profile.photo_url)
+              setPreviewUrl(profile.photo_url)
+            }
           }
+          cacheHydratedForRef.current = targetKey
 
           if (profile.profile_complete || viewingOther) {
             setProfileComplete(true)
@@ -222,7 +270,10 @@ function ProfileFormContent() {
     }
 
     getProfile()
-  }, [supabase, router, viewUserIdParam, setCache, clearNetworkError, reportNetworkError, getCache, isEditModeParam])
+    // Runs once per viewed profile. Cache/network helpers come from cacheApiRef on purpose:
+    // listing them here re-ran this fetch on every cache update and reset the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, profileKey])
 
   // Sign out action
   const handleSignOut = () => {
@@ -234,12 +285,11 @@ function ProfileFormContent() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          sessionStorage.clear()
-          await supabase.auth.signOut()
-          modal.toast("You have been logged out.", "info")
-          router.push('/login')
+          await signOutAndClear(supabase)
+          redirectToLogin()
         } catch (e) {
           console.warn("Sign out error:", e)
+          modal.toast("Logout failed. Try again.", "error")
         }
       }
     })
@@ -250,6 +300,8 @@ function ProfileFormContent() {
     const file = e.target.files?.[0]
     if (file) {
       setPhotoFile(file)
+      // Picking a photo resolves the "photo required" error
+      setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
       const reader = new FileReader()
       reader.onload = (event) => {
         setPreviewUrl(event.target?.result as string)
@@ -260,6 +312,7 @@ function ProfileFormContent() {
 
   // Toggle interests
   const toggleInterest = (interestName: string) => {
+    markFormTouched()
     setError('')
     if (selectedInterests.includes(interestName)) {
       setSelectedInterests(selectedInterests.filter(i => i !== interestName))
@@ -312,7 +365,19 @@ function ProfileFormContent() {
       setError('Please select at least 3 interests.')
       return
     }
+    // A photo is required: a newly picked file, or one already saved on the profile
+    if (!photoFile && !currentPhotoUrl) {
+      setError(PHOTO_REQUIRED_MSG)
+      return
+    }
+    if (!userId) {
+      setError('Still loading your account. Please try again in a moment.')
+      return
+    }
 
+    // Ref guard blocks a fast double-click before the disabled button re-renders
+    if (savingRef.current) return
+    savingRef.current = true
     setSaving(true)
 
     try {
@@ -336,13 +401,13 @@ function ProfileFormContent() {
         finalPhotoUrl = publicUrlData.publicUrl
 
         // Also add to profile_photos table
-        try {
-          await (supabase.from('profile_photos') as any).insert({
-            user_id: userId,
-            url: finalPhotoUrl,
-            type: 'image'
-          })
-        } catch (_) {}
+        // Gallery copy is a nice-to-have; the main photo is saved on the profile below
+        const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
+          user_id: userId,
+          url: finalPhotoUrl,
+          type: 'image'
+        })
+        if (galleryError) console.warn('Adding photo to gallery failed:', galleryError.message)
       }
 
       const profilePayload = {
@@ -362,12 +427,15 @@ function ProfileFormContent() {
         updated_at: new Date().toISOString()
       }
 
-      const { error: updateErr } = await (supabase.from('profiles') as any)
+      const { data: updatedRows, error: updateErr } = await (supabase.from('profiles') as any)
         .update(profilePayload)
         .eq('id', userId!)
+        .select('id')
 
-      if (updateErr) {
-        console.warn('Update error, trying upsert fallback:', updateErr)
+      // An update that matches no row returns no error — fall back to upsert then too,
+      // otherwise a missing profile row would be reported as saved
+      if (updateErr || !updatedRows || updatedRows.length === 0) {
+        console.warn('Update error, trying upsert fallback:', updateErr || 'no profile row updated')
         const { error: upsertErr } = await (supabase.from('profiles') as any)
           .upsert(profilePayload, { onConflict: 'id' })
         if (upsertErr) throw upsertErr
@@ -392,6 +460,7 @@ function ProfileFormContent() {
       console.error('Save profile error:', err)
       setError(err.message || 'Failed to save profile. Try again.')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
@@ -420,7 +489,7 @@ function ProfileFormContent() {
   const isEditing = !isOtherUser && (!showTabs || activeTab === 'edit')
 
   return (
-    <div className="profile-page">
+    <div className="profile-page" onChangeCapture={markFormTouched}>
       {!isOnline && <OfflineBanner />}
       <div className="bg-gradient"></div>
 
@@ -966,7 +1035,7 @@ function ProfileFormContent() {
                         </div>
 
                         <div className="form-group">
-                          <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo</label>
+                          <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo * (Required)</label>
                           <div className="photo-section" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
                             <div className="photo-container">
                               <Image
@@ -987,6 +1056,15 @@ function ProfileFormContent() {
                               </div>
                             </div>
                           </div>
+                          {previewUrl ? (
+                            <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '13px', color: '#4ade80' }}>
+                              ✓ {photoFile ? 'Photo ready to upload' : 'Photo added'}
+                            </p>
+                          ) : error === PHOTO_REQUIRED_MSG ? (
+                            <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.5rem' }}>
+                              Tap the photo above to add one — it&apos;s required.
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </div>

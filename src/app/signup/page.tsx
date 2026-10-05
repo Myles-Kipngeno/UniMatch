@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import PasswordInput from '@/components/PasswordInput'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
 import LoadingScreen from '@/components/LoadingScreen'
 import './signup.css'
 
@@ -21,11 +23,19 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [emailHelper, setEmailHelper] = useState('')
   const [loading, setLoading] = useState(false)
+  // Set after a successful signup: shows the "check your email" panel with Resend
+  const [signedUpEmail, setSignedUpEmail] = useState<string | null>(null)
+  const [resendCooldown, setResendCooldown] = useState(0)
+  const [resending, setResending] = useState(false)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendCooldown])
 
   const handleEmailChange = (val: string) => {
     setEmail(val)
@@ -96,8 +106,10 @@ export default function SignupPage() {
 
       const user = data.user
 
-      // 6️⃣ Upsert profile data in PostgreSQL
-      if (user) {
+      // 6️⃣ Upsert profile data in PostgreSQL.
+      // The signup trigger already creates the profile; with email confirmation on there's
+      // no session yet, so RLS can reject this — that must not fail an otherwise good signup.
+      if (user && data.session) {
         const { error: upsertErr } = await supabase.from('profiles').upsert({
           id: user.id,
           email: user.email!,
@@ -106,15 +118,12 @@ export default function SignupPage() {
           email_domain: KABARAK_DOMAIN,
           profile_complete: false,
         } as any)
-        if (upsertErr) throw upsertErr
+        if (upsertErr) console.warn('Profile upsert after signup:', upsertErr.message)
       }
 
-      modal.alert({
-        title: 'Account Created 🎉',
-        message: `Please check your ${UNIVERSITY_NAME} email to verify your account before logging in.`,
-        type: 'success',
-        onClose: () => router.push('/login')
-      })
+      setSignedUpEmail(trimmedEmail)
+      setResendCooldown(60)
+      setLoading(false)
     } catch (err: any) {
       console.error('Signup error:', err)
       setError(err.message || 'An error occurred during signup. Please try again.')
@@ -122,8 +131,55 @@ export default function SignupPage() {
     }
   }
 
+  const handleResendConfirmation = async () => {
+    if (!signedUpEmail || resendCooldown > 0 || resending) return
+    setResending(true)
+    try {
+      const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: signedUpEmail })
+      if (resendErr) throw resendErr
+      modal.toast('Confirmation email sent again — check your inbox and spam folder.', 'success')
+      setResendCooldown(60)
+    } catch (err: any) {
+      modal.toast(err.message || 'Could not resend the email. Try again shortly.', 'error')
+    } finally {
+      setResending(false)
+    }
+  }
+
   if (loading) {
     return <LoadingScreen message="Creating your account..." />
+  }
+
+  if (signedUpEmail) {
+    return (
+      <div className="signup-page">
+        <div className="container">
+          <div className="card" style={{ textAlign: 'center' }}>
+            <h2>Check your email 📬</h2>
+            <p>
+              We sent a confirmation link to <strong>{signedUpEmail}</strong>.
+              Open it to activate your account, then log in.
+            </p>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={handleResendConfirmation}
+              disabled={resendCooldown > 0 || resending}
+              style={{ width: '100%', minHeight: '46px', margin: '8px 0 12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontWeight: 600, cursor: resendCooldown > 0 || resending ? 'not-allowed' : 'pointer', opacity: resendCooldown > 0 || resending ? 0.6 : 1 }}
+            >
+              {resending ? 'Sending…' : resendCooldown > 0 ? `Resend email in ${resendCooldown}s` : 'Resend confirmation email'}
+            </button>
+            <button type="submit" onClick={() => router.push('/login')}>
+              Go to Login
+            </button>
+            <p className="switch">
+              Wrong email?{' '}
+              <a href="#" onClick={(e) => { e.preventDefault(); setSignedUpEmail(null) }}>Sign up again</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -155,45 +211,38 @@ export default function SignupPage() {
             </small>
           )}
 
-          <div className="password-wrapper">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              id="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <i
-              className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}
-              id="togglePassword"
-              onClick={() => setShowPassword(!showPassword)}
-              style={{ cursor: 'pointer' }}
-            ></i>
-          </div>
+          <PasswordInput
+            id="password"
+            name="password"
+            autoComplete="new-password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
-          <div className="password-wrapper">
-            <input
-              type={showConfirmPassword ? 'text' : 'password'}
-              id="confirmPassword"
-              placeholder="Confirm Password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
-            <i
-              className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}
-              id="toggleConfirmPassword"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              style={{ cursor: 'pointer' }}
-            ></i>
-          </div>
+          <PasswordInput
+            id="confirmPassword"
+            name="confirmPassword"
+            autoComplete="new-password"
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+          {confirmPassword.length > 0 && (
+            <small className="password-match-hint" style={{ display: 'block', marginTop: '-8px', marginBottom: '12px', fontSize: '12px', textAlign: 'left', color: password === confirmPassword ? '#10b981' : '#f87171' }}>
+              {password === confirmPassword ? '✓ Passwords match' : 'Passwords do not match yet'}
+            </small>
+          )}
 
           {error && <p id="error" className="error" style={{ display: 'block' }}>{error}</p>}
 
           <button type="submit" disabled={loading}>
             {loading ? 'Creating account...' : 'Sign Up'}
           </button>
+
+          <GoogleSignInButton label="Sign up with Google" />
 
           <p className="switch">
             Already have an account?{' '}

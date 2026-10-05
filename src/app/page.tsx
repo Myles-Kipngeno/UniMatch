@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import { signOutAndClear } from '@/lib/auth/signOut'
 import './landing.css'
 
 export default function LandingPage() {
@@ -127,7 +128,7 @@ export default function LandingPage() {
   const handleSignOut = async () => {
     try {
       const supabase = createClient()
-      await supabase.auth.signOut()
+      await signOutAndClear(supabase)
       setCurrentUser(null)
       setIsProfileComplete(null)
     } catch (e) {
