@@ -177,22 +177,27 @@ export default function DiscoverPage() {
         }
 
         // 2. Fetch existing likes, passes, blocked users (bi-directional), and hidden settings in parallel
-        const [likesRes, passesRes, blockedByMeRes, blockedMeRes, hiddenSettingsRes] = await Promise.all([
+        // RLS only lets users read their OWN blocks/settings, so "who blocked me" and
+        // "who hid themselves from discovery" come from a SECURITY DEFINER function.
+        const [likesRes, passesRes, blockedByMeRes, hiddenForMeRes] = await Promise.all([
           supabase.from("likes").select("to_user_id").eq("from_user_id", user.id) as any,
           supabase.from("passes").select("to_user_id").eq("from_user_id", user.id) as any,
           supabase.from("blocked_users").select("blocked_id").eq("blocker_id", user.id) as any,
-          supabase.from("blocked_users").select("blocker_id").eq("blocked_id", user.id) as any,
-          supabase.from("user_settings").select("user_id").eq("discovery_visible", false) as any
+          (supabase as any).rpc("discovery_hidden_user_ids") as any
         ])
+        if (hiddenForMeRes.error) {
+          console.warn("discovery_hidden_user_ids unavailable (run supabase_action_fixes.sql):", hiddenForMeRes.error.message)
+        }
 
         const likedUids = new Set((likesRes.data || []).map((l: any) => l.to_user_id))
         const passedUids = new Set((passesRes.data || []).map((p: any) => p.to_user_id))
-        const blockedUids = new Set([
-          ...(blockedByMeRes.data || []).map((b: any) => b.blocked_id),
-          ...(blockedMeRes.data || []).map((b: any) => b.blocker_id)
-        ])
-        const hiddenUids = new Set((hiddenSettingsRes.data || []).map((s: any) => s.user_id))
-        const excludedIds = new Set<string>([...likedUids, ...passedUids, ...blockedUids, ...hiddenUids, user.id])
+        const blockedUids = new Set<string>((blockedByMeRes.data || []).map((b: any) => b.blocked_id))
+        const hiddenUids = new Set<string>(
+          (Array.isArray(hiddenForMeRes.data) ? hiddenForMeRes.data : [])
+            .map((row: any) => (typeof row === 'string' ? row : row?.user_id))
+            .filter((id: unknown): id is string => typeof id === 'string')
+        )
+        const excludedIds = new Set<string>([...likedUids, ...passedUids, ...blockedUids, ...hiddenUids, user.id] as string[])
 
         // Store excluded IDs for loadMore
         excludedIdsRef.current = excludedIds

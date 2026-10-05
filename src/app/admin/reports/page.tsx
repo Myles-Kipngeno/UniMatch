@@ -200,11 +200,15 @@ function AdminReportsContent() {
       }
 
       if (report.status === 'pending') {
-        await (supabase.from('reports') as any)
+        const { error: reviewError } = await (supabase.from('reports') as any)
           .update({ status: 'under_review' })
           .eq('id', report.id)
 
-        setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'under_review' } : r))
+        if (reviewError) {
+          console.warn("Could not mark report under review:", reviewError.message)
+        } else {
+          setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'under_review' } : r))
+        }
       }
     } catch (e) {
       console.warn("Error fetching evidence chat logs:", e)
@@ -222,15 +226,19 @@ function AdminReportsContent() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          // 1. Update is_banned on profile
-          await (supabase.from('profiles') as any)
+          // 1. Update is_banned on profile (RLS-blocked updates return 0 rows, not an error)
+          const { data: bannedRows, error: banError } = await (supabase.from('profiles') as any)
             .update({ is_banned: true })
             .eq('id', targetUserId)
+            .select('id')
+          if (banError) throw banError
+          if (!bannedRows || bannedRows.length === 0) throw new Error('Ban was not saved (no permission or user not found)')
 
           // 2. Mark all pending/under_review reports against this target as resolved
-          await (supabase.from('reports') as any)
+          const { error: resolveError } = await (supabase.from('reports') as any)
             .update({ status: 'resolved' })
             .eq('reported_id', targetUserId)
+          if (resolveError) throw resolveError
 
           setBannedUserIds(prev => [...prev, targetUserId])
           setReports(prev => prev.map(r => r.reported_id === targetUserId ? { ...r, status: 'resolved' } : r))
@@ -252,9 +260,12 @@ function AdminReportsContent() {
     if (!selectedReport) return
 
     try {
-      await (supabase.from('reports') as any)
+      const { data: updatedRows, error } = await (supabase.from('reports') as any)
         .update({ status: newStatus })
         .eq('id', selectedReport.id)
+        .select('id')
+      if (error) throw error
+      if (!updatedRows || updatedRows.length === 0) throw new Error('Status was not saved (no permission or report not found)')
 
       setReports(prev => prev.map(r => r.id === selectedReport.id ? { ...r, status: newStatus } : r))
       setSelectedReport(null)

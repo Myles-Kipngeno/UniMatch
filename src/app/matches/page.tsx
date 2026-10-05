@@ -317,11 +317,16 @@ export default function MatchesPage() {
       isDanger: true,
       onConfirm: async () => {
         try {
-          await (supabase.from('blocks') as any).insert({
+          // Table is blocked_users (there is no "blocks" table — inserts were silently failing)
+          const { error: blockError } = await (supabase.from('blocked_users') as any).insert({
             blocker_id: uid,
             blocked_id: match.otherUserId
           })
-          await supabase.from('matches').delete().eq('id', match.id)
+          // 23505 = already blocked; treat as success
+          if (blockError && blockError.code !== '23505') throw blockError
+
+          const { error: unmatchError } = await supabase.from('matches').delete().eq('id', match.id)
+          if (unmatchError) throw unmatchError
           modal.toast(`${match.name} has been blocked.`, 'info')
           setMatches(prev => prev.filter(m => m.id !== match.id))
           setSelectedMatch(prev => prev?.id === match.id ? null : prev)

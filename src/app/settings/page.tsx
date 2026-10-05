@@ -21,6 +21,8 @@ interface BlockedUser {
 }
 
 import { useModal } from '@/components/ModalContext'
+import PasswordInput from '@/components/PasswordInput'
+import { signOutAndClear } from '@/lib/auth/signOut'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -39,6 +41,17 @@ export default function SettingsPage() {
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
   const [unblockingId, setUnblockingId] = useState<string | null>(null)
 
+  // Account: change password & delete account
+  const [userEmail, setUserEmail] = useState('')
+  const [hasPasswordLogin, setHasPasswordLogin] = useState(true)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+
   // UI Status States
   const [loading, setLoading] = useState(true)
   const [savedMessage, setSavedMessage] = useState('')
@@ -52,12 +65,15 @@ export default function SettingsPage() {
           return
         }
         setUserId(user.id)
+        setUserEmail(user.email || '')
+        // Google-only accounts have no password yet (they can set one below)
+        setHasPasswordLogin((user.identities || []).some(i => i.provider === 'email') || user.app_metadata?.provider === 'email')
 
         // 1. Fetch user settings
         const { data: settings } = await (supabase.from('user_settings') as any)
           .select('*')
-          .eq('user_id', user.id)
-          .single()
+          .eq('id', user.id) // user_settings is keyed by id (= the user's id)
+          .maybeSingle()
 
         if (settings) {
           if (typeof settings.discovery_visible === 'boolean') setDiscoveryVisible(settings.discovery_visible)
@@ -104,7 +120,7 @@ export default function SettingsPage() {
     if (!userId) return
 
     const payload = {
-      user_id: userId,
+      id: userId,
       discovery_visible: updated.discovery_visible ?? discoveryVisible,
       incognito: updated.incognito ?? incognito,
       email_notifications: updated.email_notifications ?? emailNotifications,
@@ -114,16 +130,122 @@ export default function SettingsPage() {
 
     try {
       const { error } = await (supabase.from('user_settings') as any)
-        .upsert(payload, { onConflict: 'user_id' })
+        .upsert(payload, { onConflict: 'id' })
 
-      if (error) {
-        console.error("Save settings error:", error)
-      } else {
-        showSavedBanner("Settings updated successfully")
-      }
+      if (error) throw error
+      showSavedBanner("Settings updated successfully")
     } catch (e) {
       console.error("Save settings failed:", e)
+      // Put the toggle back so the screen matches what's actually saved
+      if (updated.discovery_visible !== undefined) setDiscoveryVisible(discoveryVisible)
+      if (updated.incognito !== undefined) setIncognito(incognito)
+      if (updated.email_notifications !== undefined) setEmailNotifications(emailNotifications)
+      if (updated.push_notifications !== undefined) setPushNotifications(pushNotifications)
+      modal.toast("Couldn't save that setting. Try again.", "error")
     }
+  }
+
+  // Confirms the user's current password without changing anything
+  const verifyCurrentPassword = async (password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email: userEmail, password })
+    return !error
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (changingPassword) return
+
+    if (newPassword.length < 6) {
+      modal.toast('New password must be at least 6 characters.', 'warning')
+      return
+    }
+    if (newPassword !== confirmNewPassword) {
+      modal.toast('New passwords do not match.', 'warning')
+      return
+    }
+    if (hasPasswordLogin && !currentPassword) {
+      modal.toast('Enter your current password.', 'warning')
+      return
+    }
+    if (hasPasswordLogin && currentPassword === newPassword) {
+      modal.toast('Choose a password different from your current one.', 'warning')
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      if (hasPasswordLogin && !(await verifyCurrentPassword(currentPassword))) {
+        modal.toast('Current password is incorrect.', 'error')
+        return
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
+
+      const wasPasswordLogin = hasPasswordLogin
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmNewPassword('')
+      setHasPasswordLogin(true)
+      modal.toast(wasPasswordLogin ? 'Password changed successfully.' : 'Password set. You can now also log in with your email.', 'success')
+    } catch (err: any) {
+      console.error('Change password error:', err)
+      modal.toast(err?.message || "Couldn't change your password. Try again.", 'error')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deletingAccount || !userId) return
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      modal.toast('Type DELETE to confirm.', 'warning')
+      return
+    }
+    if (hasPasswordLogin && !deletePassword) {
+      modal.toast('Enter your password to confirm.', 'warning')
+      return
+    }
+
+    modal.confirm({
+      title: 'Delete your account?',
+      message: 'This permanently deletes your profile, photos, matches and messages. This cannot be undone.',
+      confirmText: 'Delete Forever',
+      isDanger: true,
+      onConfirm: async () => {
+        setDeletingAccount(true)
+        try {
+          if (hasPasswordLogin && !(await verifyCurrentPassword(deletePassword))) {
+            modal.toast('Password is incorrect.', 'error')
+            return
+          }
+
+          // Best-effort cleanup of this user's uploaded photos
+          try {
+            const { data: files } = await supabase.storage.from('profile-images').list(userId, { limit: 1000 })
+            if (files && files.length > 0) {
+              await supabase.storage.from('profile-images').remove(files.map(f => `${userId}/${f.name}`))
+            }
+          } catch (storageErr) {
+            console.warn('Photo cleanup skipped:', storageErr)
+          }
+
+          // Deletes the auth user; the profile and related data cascade
+          const { error } = await (supabase as any).rpc('delete_my_account')
+          if (error) throw error
+
+          try { await signOutAndClear(supabase) } catch { /* user no longer exists */ }
+          window.location.replace('/')
+        } catch (err: any) {
+          console.error('Delete account error:', err)
+          const notSetUp = String(err?.message || '').includes('delete_my_account')
+          modal.toast(notSetUp
+            ? 'Account deletion is not set up yet. Please contact support.'
+            : "Couldn't delete your account. Try again.", 'error')
+        } finally {
+          setDeletingAccount(false)
+        }
+      }
+    })
   }
 
   const showSavedBanner = (msg: string) => {
@@ -137,12 +259,14 @@ export default function SettingsPage() {
     setUnblockingId(blockedId)
 
     try {
-      const { error } = await (supabase.from('blocked_users') as any)
+      // Blocked deletes return 0 rows rather than an error, so confirm a row was removed
+      const { data: removedRows, error } = await (supabase.from('blocked_users') as any)
         .delete()
         .eq('blocker_id', userId)
         .eq('blocked_id', blockedId)
+        .select('id')
 
-      if (error) {
+      if (error || !removedRows || removedRows.length === 0) {
         console.error("Unblock user error:", error)
         modal.toast("Failed to unblock user. Try again.", "error")
       } else {
@@ -151,6 +275,7 @@ export default function SettingsPage() {
       }
     } catch (e) {
       console.error("Unblock failed:", e)
+      modal.toast("Failed to unblock user. Try again.", "error")
     } finally {
       setUnblockingId(null)
     }
@@ -325,6 +450,92 @@ export default function SettingsPage() {
                 <p>You haven&apos;t blocked any users yet.</p>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* 4. Account: change / set password */}
+        <section className="settings-section">
+          <div className="section-header">
+            <span className="section-icon">🔐</span>
+            <h3 className="section-title">{hasPasswordLogin ? 'Change Password' : 'Set a Password'}</h3>
+          </div>
+
+          <form className="account-form" onSubmit={handleChangePassword}>
+            {/* Hidden username helps password managers update the right entry */}
+            <input type="email" name="username" autoComplete="username" value={userEmail} readOnly hidden />
+            {hasPasswordLogin ? (
+              <PasswordInput
+                name="current-password"
+                autoComplete="current-password"
+                placeholder="Current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            ) : (
+              <p className="account-hint">You signed in with Google. Set a password to also log in with your email.</p>
+            )}
+            <PasswordInput
+              name="new-password"
+              autoComplete="new-password"
+              placeholder="New password (min 6 characters)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+            <PasswordInput
+              name="confirm-new-password"
+              autoComplete="new-password"
+              placeholder="Confirm new password"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+            />
+            {confirmNewPassword.length > 0 && (
+              <p className={`account-hint ${newPassword === confirmNewPassword ? 'is-ok' : 'is-bad'}`}>
+                {newPassword === confirmNewPassword ? '✓ Passwords match' : 'Passwords do not match yet'}
+              </p>
+            )}
+            <button type="submit" className="account-btn" disabled={changingPassword}>
+              {changingPassword ? 'Saving…' : hasPasswordLogin ? 'Change Password' : 'Set Password'}
+            </button>
+          </form>
+        </section>
+
+        {/* 5. Danger zone: delete account */}
+        <section className="settings-section danger-zone">
+          <div className="section-header">
+            <span className="section-icon">⚠️</span>
+            <h3 className="section-title">Delete Account</h3>
+          </div>
+
+          <div className="account-form">
+            <p className="account-hint">
+              Permanently delete your UniMatch account, profile, photos, matches and messages. This cannot be undone.
+            </p>
+            <input
+              type="text"
+              className="account-input"
+              placeholder="Type DELETE to confirm"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              autoComplete="off"
+              aria-label="Type DELETE to confirm"
+            />
+            {hasPasswordLogin && (
+              <PasswordInput
+                name="delete-password"
+                autoComplete="current-password"
+                placeholder="Your password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+              />
+            )}
+            <button
+              type="button"
+              className="account-btn danger"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount || deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+            >
+              {deletingAccount ? 'Deleting…' : 'Delete My Account'}
+            </button>
           </div>
         </section>
 

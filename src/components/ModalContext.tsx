@@ -14,7 +14,7 @@ interface ConfirmConfig {
   confirmText?: string
   cancelText?: string
   isDanger?: boolean
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   onCancel?: () => void
 }
 
@@ -38,6 +38,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig | null>(null)
   const [alertConfig, setAlertConfig] = useState<AlertConfig | null>(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
 
   const toast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     const id = Math.random().toString(36).substring(2, 9)
@@ -59,15 +60,23 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const handleConfirmAction = () => {
-    if (confirmConfig) {
-      confirmConfig.onConfirm()
+  // Await async confirm handlers so their work (and errors) complete before the modal closes
+  const handleConfirmAction = async () => {
+    if (!confirmConfig || confirmBusy) return
+    setConfirmBusy(true)
+    try {
+      await confirmConfig.onConfirm()
+    } catch (e) {
+      console.error('Confirm action failed:', e)
+      toast('Something went wrong. Please try again.', 'error')
+    } finally {
+      setConfirmBusy(false)
       setConfirmConfig(null)
     }
   }
 
   const handleConfirmCancel = () => {
-    if (confirmConfig) {
+    if (confirmConfig && !confirmBusy) {
       if (confirmConfig.onCancel) confirmConfig.onCancel()
       setConfirmConfig(null)
     }
@@ -128,14 +137,15 @@ export function ModalProvider({ children }: { children: ReactNode }) {
             <h3 className="um-modal-title">{confirmConfig.title}</h3>
             <p className="um-modal-message">{confirmConfig.message}</p>
             <div className="um-modal-actions">
-              <button className="um-btn-modal-secondary" onClick={handleConfirmCancel}>
+              <button className="um-btn-modal-secondary" onClick={handleConfirmCancel} disabled={confirmBusy}>
                 {confirmConfig.cancelText || 'Cancel'}
               </button>
               <button
                 className={`um-btn-modal-primary ${confirmConfig.isDanger ? 'danger' : ''}`}
                 onClick={handleConfirmAction}
+                disabled={confirmBusy}
               >
-                {confirmConfig.confirmText || 'Confirm'}
+                {confirmBusy ? 'Please wait…' : (confirmConfig.confirmText || 'Confirm')}
               </button>
             </div>
           </div>
