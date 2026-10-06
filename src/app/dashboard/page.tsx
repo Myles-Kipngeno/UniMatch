@@ -14,6 +14,7 @@ import { useAppCache } from '@/context/AppCacheContext'
 import { useNetwork } from '@/context/NetworkContext'
 import { DashboardSkeleton } from '@/components/skeletons/Skeletons'
 import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
+import { formatPreciseDistance } from '@/lib/distance'
 import './dashboard.css'
 
 interface DashboardStats {
@@ -98,6 +99,8 @@ interface ProfileCandidate {
   verified?: boolean
   online?: boolean
   location_name?: string | null
+  lat?: number | null
+  lng?: number | null
 }
 
 const DEFAULT_CAMPUS_SPOTS: CampusSpot[] = [
@@ -222,7 +225,7 @@ export default function DashboardPage() {
 
   // Campus Spots & Presence States
   const [campusSpots, setCampusSpots] = useState<CampusSpot[]>(DEFAULT_CAMPUS_SPOTS)
-  const [spotCategoryTab, setSpotCategoryTab] = useState<'inside' | 'outside' | null>('inside')
+  const [spotCategoryTab, setSpotCategoryTab] = useState<'inside' | 'outside' | null>(null)
   const [presenceSearch, setPresenceSearch] = useState('')
   const [presenceResults, setPresenceResults] = useState<any[]>([])
   const [presenceSearchLoading, setPresenceSearchLoading] = useState(false)
@@ -280,6 +283,8 @@ export default function DashboardPage() {
   // Dropdown DOM Refs
   const dropdownRef = useRef<HTMLDivElement>(null)
   const dropdownTriggerRef = useRef<HTMLButtonElement>(null)
+  const mobileDropdownRef = useRef<HTMLDivElement>(null)
+  const mobileDropdownTriggerRef = useRef<HTMLButtonElement>(null)
 
   const updateCurrentSpot = (spotName: string | null) => {
     myCurrentSpotRef.current = spotName
@@ -350,18 +355,21 @@ export default function DashboardPage() {
     dragStartXRef.current = null
   }, [activeDiscoveryIndex])
 
-  // Single outside-click dismiss listener pattern for 3-dot dropdown
+  // Single outside-click dismiss listener pattern for 3-dot dropdown (desktop & mobile)
   useEffect(() => {
     if (!isDropdownOpen) return
 
     const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node
       if (
-        dropdownRef.current && !dropdownRef.current.contains(target) &&
-        dropdownTriggerRef.current && !dropdownTriggerRef.current.contains(target)
+        (dropdownRef.current && dropdownRef.current.contains(target)) ||
+        (mobileDropdownRef.current && mobileDropdownRef.current.contains(target)) ||
+        (dropdownTriggerRef.current && dropdownTriggerRef.current.contains(target)) ||
+        (mobileDropdownTriggerRef.current && mobileDropdownTriggerRef.current.contains(target))
       ) {
-        setIsDropdownOpen(false)
+        return
       }
+      setIsDropdownOpen(false)
     }
 
     document.addEventListener('mousedown', handleOutsideClick)
@@ -1222,16 +1230,39 @@ export default function DashboardPage() {
         .limit(20) as any
 
       if (profiles && profiles.length > 0) {
-        setDiscoveryPool(profiles)
-        setActiveDiscoveryIndex(0)
-
-        // Batch-prefetch gallery photos for the whole pool with a single query
         const poolIds = profiles.map((p: any) => p.id)
-        const photos = await supabase
-          .from('profile_photos')
-          .select('user_id, url, position')
-          .in('user_id', poolIds)
-          .order('position', { ascending: true }) as any
+
+        // Batch-prefetch gallery photos and live presence/coordinates for the whole pool
+        const [photos, presenceRes] = await Promise.all([
+          supabase
+            .from('profile_photos')
+            .select('user_id, url, position')
+            .in('user_id', poolIds)
+            .order('position', { ascending: true }) as any,
+          supabase
+            .from('presence' as any)
+            .select('user_id, lat, lng, location_name, online')
+            .in('user_id', poolIds) as any
+        ])
+
+        const presenceMap = new Map<string, any>()
+        for (const pr of (presenceRes.data || [])) {
+          presenceMap.set(pr.user_id, pr)
+        }
+
+        const enrichedCandidates: ProfileCandidate[] = profiles.map((p: any) => {
+          const pres = presenceMap.get(p.id)
+          return {
+            ...p,
+            lat: pres?.lat ?? null,
+            lng: pres?.lng ?? null,
+            location_name: pres?.location_name || p.location_name || null,
+            online: pres ? !!pres.online : !!p.online
+          }
+        })
+
+        setDiscoveryPool(enrichedCandidates)
+        setActiveDiscoveryIndex(0)
 
         const grouped = new Map<string, string[]>()
         for (const ph of (photos.data || [])) {
@@ -1533,6 +1564,7 @@ export default function DashboardPage() {
   const toggleTheme = () => {
     const isLight = document.documentElement.classList.toggle('light-theme')
     localStorage.setItem('theme', isLight ? 'light' : 'dark')
+    modal.toast(isLight ? 'Switched to Light Mode ☀️' : 'Switched to Dark Mode 🌙', 'info')
   }
 
   // User Sign out
@@ -1652,6 +1684,74 @@ export default function DashboardPage() {
     openProfileDetailModal(candidate)
   }
 
+  // Reusable 3-dot menu items for both desktop and mobile header
+  const renderDropdownMenu = (isMobile = false) => (
+    <div
+      ref={isMobile ? mobileDropdownRef : dropdownRef}
+      className={`avatar-dropdown ${isMobile ? 'avatar-dropdown-mobile' : ''}`}
+      style={{ display: 'flex' }}
+    >
+      <Link href="/profile?edit=true" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+        </svg>
+        <span>View Profile</span>
+      </Link>
+      <Link href="/settings" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+        <span>Settings</span>
+      </Link>
+      {!isVerified && (
+        <Link href="/verify" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path d="m9 12 2 2 4-4" />
+          </svg>
+          <span>Get Verified</span>
+        </Link>
+      )}
+      <button className="avatar-dropdown-item" onClick={() => { toggleTheme(); setIsDropdownOpen(false); }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+        <span>Toggle Theme</span>
+      </button>
+      <button className="avatar-dropdown-item" onClick={() => {
+        const shareUrl = 'https://uni-match-one.vercel.app'
+        setIsDropdownOpen(false)
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          navigator.share({
+            title: 'UniMatch',
+            text: 'Join me on UniMatch, the university dating & social networking app!',
+            url: shareUrl
+          }).catch((err: unknown) => {
+            if (err instanceof DOMException && err.name === 'AbortError') return
+            window.open(`https://wa.me/?text=${encodeURIComponent('Join me on UniMatch! ' + shareUrl)}`, '_blank')
+          })
+        } else {
+          window.open(`https://wa.me/?text=${encodeURIComponent('Join me on UniMatch! ' + shareUrl)}`, '_blank')
+        }
+        modal.toast('Invite link ready to share! 🚀', 'info')
+      }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </svg>
+        <span>Invite Friends</span>
+      </button>
+      <div className="dropdown-divider"></div>
+      <button className="avatar-dropdown-item danger" onClick={() => { handleSignOut(); setIsDropdownOpen(false); }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+        </svg>
+        <span>Sign Out</span>
+      </button>
+    </div>
+  )
+
   return (
     <div className={`dashboard-page ${displayFont.variable}`}>
       {!isOnline && <OfflineBanner />}
@@ -1668,19 +1768,50 @@ export default function DashboardPage() {
 
       {/* ═══ MOBILE TOP HEADER (Photo 1) ═══ */}
       <header className="db-mobile-header">
-        <div className="db-mh-text">
-          <h1 className="db-mh-title">
-            {greeting}, <span className="db-mh-name">{profileName.split(' ')[0] || 'Myles'}</span> 👑
-          </h1>
-          <p className="db-mh-sub">Ready to find your people?</p>
+        <div className="db-mh-brand">
+          <Link href="/dashboard" className="db-mh-logo-wrap" title="UniMatch">
+            <Image
+              src="/logo/unimatch-logo-192.png"
+              alt="UniMatch"
+              width={34}
+              height={34}
+              className="db-mh-logo"
+              priority
+            />
+          </Link>
+          <div className="db-mh-text">
+            <h1 className="db-mh-title">
+              {greeting}, <span className="db-mh-name">{profileName.split(' ')[0] || 'Myles'}</span> 👑
+            </h1>
+            <p className="db-mh-sub">Ready to find your people?</p>
+          </div>
         </div>
-        <Link href="/notifications" className="db-mh-bell-btn" title="Notifications">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-          </svg>
-          <span className="bell-badge-dot"></span>
-        </Link>
+        <div className="db-mh-actions">
+          <Link href="/notifications" className="db-mh-bell-btn" title="Notifications" aria-label="Notifications">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span className="bell-badge-dot"></span>
+          </Link>
+
+          <button
+            ref={mobileDropdownTriggerRef}
+            type="button"
+            className="db-mh-more-btn"
+            onClick={() => setIsDropdownOpen(prev => !prev)}
+            title="More options"
+            aria-label="More options"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="5" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="12" cy="19" r="2" />
+            </svg>
+          </button>
+
+          {isDropdownOpen && renderDropdownMenu(true)}
+        </div>
       </header>
 
       {/* ═══ DESKTOP TOP NAVBAR (Photo 2) ═══ */}
@@ -1710,9 +1841,11 @@ export default function DashboardPage() {
 
           <button
             ref={dropdownTriggerRef}
+            type="button"
             className="more-btn"
             onClick={() => setIsDropdownOpen(prev => !prev)}
             title="More options"
+            aria-label="More options"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <circle cx="12" cy="5" r="2" />
@@ -1721,56 +1854,7 @@ export default function DashboardPage() {
             </svg>
           </button>
 
-          {isDropdownOpen && (
-            <div ref={dropdownRef} className="avatar-dropdown" style={{ display: 'flex' }}>
-              <Link href="/profile?edit=true" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-                </svg>
-                <span>View Profile</span>
-              </Link>
-              <Link href="/settings" className="avatar-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-                <span>Settings</span>
-              </Link>
-              <button className="avatar-dropdown-item" onClick={() => { toggleTheme(); setIsDropdownOpen(false); }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-                <span>Toggle Theme</span>
-              </button>
-              <button className="avatar-dropdown-item" onClick={() => {
-                const shareUrl = 'https://uni-match-one.vercel.app'
-                setIsDropdownOpen(false)
-                // Share only the URL — WhatsApp auto-generates the rich link preview card from OG tags
-                if (typeof navigator !== 'undefined' && navigator.share) {
-                  navigator.share({ url: shareUrl }).catch((err: unknown) => {
-                    // AbortError = user closed the share sheet; don't push them to WhatsApp
-                    if (err instanceof DOMException && err.name === 'AbortError') return
-                    window.open(`https://wa.me/?text=${encodeURIComponent(shareUrl)}`, '_blank')
-                  })
-                } else {
-                  window.open(`https://wa.me/?text=${encodeURIComponent(shareUrl)}`, '_blank')
-                }
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                </svg>
-                <span>Invite Friends</span>
-              </button>
-              <div className="dropdown-divider"></div>
-              <button className="avatar-dropdown-item danger" onClick={() => { handleSignOut(); setIsDropdownOpen(false); }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-                </svg>
-                <span>Sign Out</span>
-              </button>
-            </div>
-          )}
+          {isDropdownOpen && renderDropdownMenu(false)}
         </div>
       </nav>
 
@@ -2088,7 +2172,15 @@ export default function DashboardPage() {
                       )}
 
                       <p className="db-disc-distance">
-                        {currentCandidate.location_name || '2.4 km away'}
+                        {formatPreciseDistance(
+                          gpsLat,
+                          gpsLng,
+                          currentCandidate.lat,
+                          currentCandidate.lng,
+                          currentCandidate.location_name,
+                          currentCandidate.campus,
+                          currentCandidate.university
+                        )}
                       </p>
                     </div>
                   </div>
@@ -2294,6 +2386,18 @@ export default function DashboardPage() {
                     /* 3. Expanded Category View */
                     <div className="spot-expanded-container anim-fade-in">
                       <div className="spot-category-tabs-bar">
+                        <button
+                          type="button"
+                          className="spot-back-btn"
+                          onClick={() => setSpotCategoryTab(null)}
+                          title="Back to all categories"
+                          aria-label="Back to all categories"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M19 12H5M12 19l-7-7 7-7" />
+                          </svg>
+                          <span>Back</span>
+                        </button>
                         <div className="spot-category-tabs" role="tablist" data-active={spotCategoryTab}>
                           <span className="spot-cat-indicator" aria-hidden="true"></span>
                           <button
