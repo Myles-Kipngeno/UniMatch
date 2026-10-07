@@ -185,6 +185,10 @@ export default function MatchesPage() {
       if (!user) { router.push('/login'); return }
       setUid(user.id)
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single() as any
+      if (!profile || !profile.profile_complete) {
+        router.push('/profile')
+        return
+      }
       const fullUser = { ...user, ...(profile || {}) }
       setCurrentUser(fullUser)
       await fetchMatches(user.id, fullUser)

@@ -382,6 +382,11 @@ function ChatPageContent() {
         .eq('id', user.id)
         .single() as any
 
+      if (!profile || !profile.profile_complete) {
+        router.push('/profile')
+        return
+      }
+
       const fullUser = { ...user, ...(profile || {}) }
       setCurrentUser(fullUser)
       fetchConversations(user.id, fullUser)

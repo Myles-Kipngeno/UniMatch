@@ -326,15 +326,18 @@ export default function UploadPhotosPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('name, photo_url, verified')
+        .select('name, photo_url, verified, profile_complete')
         .eq('id', user.id)
         .single() as any
 
-      if (profile) {
-        setUserName(profile.name || 'Student')
-        setIsVerified(Boolean(profile.verified))
-        if (profile.photo_url) setProfilePhoto(profile.photo_url)
+      if (!profile || !profile.profile_complete) {
+        router.push('/profile')
+        return
       }
+
+      setUserName(profile.name || 'Student')
+      setIsVerified(Boolean(profile.verified))
+      if (profile.photo_url) setProfilePhoto(profile.photo_url)
       await loadMedia(user.id)
     }
 

@@ -241,6 +241,12 @@ textarea {
   font-size: 15px;
   outline: none;
   transition: all 0.25s ease;
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1a172c !important;
+  color: #ffffff !important;
 }
 
 input:focus,

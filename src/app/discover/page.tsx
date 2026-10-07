@@ -85,7 +85,10 @@ export default function DiscoverPage() {
   useEffect(() => {
     const cached = getCache('discover')
     if (cached) {
-      if (cached.currentUserProfile) setCurrentUserProfile(cached.currentUserProfile)
+      if (cached.currentUserProfile) {
+        setCurrentUserProfile(cached.currentUserProfile)
+        setFilterPreference(cached.currentUserProfile.preference || "all")
+      }
       if (cached.allProfiles) setAllProfiles(cached.allProfiles)
       if (cached.candidates) setCandidates(cached.candidates)
       // Resume pagination past the cached pool so load-more doesn't refetch seen profiles
@@ -99,7 +102,9 @@ export default function DiscoverPage() {
   const [filterCampus, setFilterCampus] = useState("")
   const [filterCourse, setFilterCourse] = useState("")
   const [filterYear, setFilterYear] = useState("")
-  const [filterPreference, setFilterPreference] = useState("all")
+  const [filterPreference, setFilterPreference] = useState(() => {
+    return cachedDiscover?.currentUserProfile?.preference || "all"
+  })
   const [showFilters, setShowFilters] = useState(false)
 
   // Filters DOM Refs
@@ -166,15 +171,13 @@ export default function DiscoverPage() {
           .single() as any
 
         if (!profile || !profile.profile_complete) {
-          setProfileIncomplete(true)
-          setLoading(false)
+          router.push('/profile')
           return
         }
 
         setCurrentUserProfile(profile)
-        if (profile.preference) {
-          setFilterPreference(profile.preference)
-        }
+        const resolvedPref = profile.preference || "all"
+        setFilterPreference(resolvedPref)
 
         // 2. Fetch existing likes, passes, blocked users (bi-directional), and hidden settings in parallel
         // RLS only lets users read their OWN blocks/settings, so "who blocked me" and
@@ -218,7 +221,7 @@ export default function DiscoverPage() {
         const initialPreference = profile.preference || "all"
         const filtered = firstPageProfiles
           .filter((u: Profile) => {
-            if (initialPreference !== "all" && u.gender !== initialPreference) return false
+            if (initialPreference !== "all" && u.gender?.toLowerCase() !== initialPreference.toLowerCase()) return false
             return true
           })
           .map((u: Profile) => ({
@@ -274,7 +277,7 @@ export default function DiscoverPage() {
     yearVal: string,
     prefVal: string
   ) => {
-    if (prefVal !== "all" && u.gender !== prefVal) return false
+    if (prefVal && prefVal !== "all" && u.gender?.toLowerCase() !== prefVal.toLowerCase()) return false
     const campusClean = campusVal.toLowerCase().trim()
     if (campusClean && (!u.campus || !u.campus.toLowerCase().includes(campusClean))) return false
     const courseClean = courseVal.toLowerCase().trim()
@@ -307,11 +310,12 @@ export default function DiscoverPage() {
   }
 
   const resetAllFilters = () => {
+    const defaultPref = currentUserProfile?.preference || "all"
     setFilterCampus("")
     setFilterCourse("")
     setFilterYear("")
-    setFilterPreference("all")
-    applyClientFiltering("", "", "", "all")
+    setFilterPreference(defaultPref)
+    applyClientFiltering("", "", "", defaultPref)
   }
 
   // SWIPE ENGINE ACTION COMMITTAL
@@ -828,9 +832,8 @@ export default function DiscoverPage() {
               onChange={(e) => setFilterPreference(e.target.value)}
             >
               <option value="all">Everyone</option>
-              <option value="male">Men</option>
-              <option value="female">Women</option>
-              <option value="nonbinary">Non-Binary</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
             </select>
           </div>
           <div className="filter-actions">
