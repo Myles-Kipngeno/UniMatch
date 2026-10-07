@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/PasswordInput'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
+import UniversityEmailNotice from '@/components/UniversityEmailNotice'
 import { signOutAndClear } from '@/lib/auth/signOut'
 import LoadingScreen from '@/components/LoadingScreen'
 import './login.css'
@@ -32,12 +33,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
+  const [forceShowEmailNotice, setForceShowEmailNotice] = useState(false)
 
   // Errors passed back from /auth/callback (e.g. non-university Google account)
   useEffect(() => {
     const authError = new URLSearchParams(window.location.search).get('auth_error')
     if (authError) {
       setError(authError)
+      if (authError.toLowerCase().includes('kabarak') || authError.toLowerCase().includes('domain')) {
+        setForceShowEmailNotice(true)
+      }
       window.history.replaceState(null, '', '/login')
     }
   }, [])
@@ -94,16 +99,33 @@ export default function LoginPage() {
     modal.toast('Removed saved account from this device.', 'info')
   }
 
+  const handleFixEmail = (fixedEmail: string) => {
+    setEmail(fixedEmail)
+    setForceShowEmailNotice(false)
+    setError('')
+    const pwdInput = document.getElementById('loginPassword')
+    if (pwdInput) pwdInput.focus()
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     setUnverifiedEmail(null)
 
-    const trimmedEmail = email.trim()
+    const trimmedEmail = email.trim().toLowerCase()
     if (!trimmedEmail || !password) {
       setError('Please enter both email and password.')
       setLoading(false)
+      return
+    }
+
+    if (!trimmedEmail.endsWith('@kabarak.ac.ke')) {
+      setForceShowEmailNotice(true)
+      setError('Please use your official @kabarak.ac.ke university email.')
+      setLoading(false)
+      const emailInput = document.getElementById('loginEmail')
+      if (emailInput) emailInput.focus()
       return
     }
 
@@ -121,7 +143,7 @@ export default function LoginPage() {
         const msg = loginError.message.toLowerCase()
         if (msg.includes('email not confirmed') || msg.includes('confirm') || msg.includes('unverified')) {
           setUnverifiedEmail(trimmedEmail)
-          setError('Email not confirmed. Please check your inbox or click resend below.')
+          setError('Email confirmation pending. Check your inbox or sign in instantly with Google below.')
         } else {
           setError(loginError.message)
         }
@@ -154,7 +176,11 @@ export default function LoginPage() {
           }
         }
 
-        router.push('/dashboard')
+        if (profile?.profile_complete) {
+          router.push('/dashboard')
+        } else {
+          router.push('/profile')
+        }
       }
     } catch (err: any) {
       console.error('Login error:', err)
@@ -173,6 +199,9 @@ export default function LoginPage() {
       const { error: resendErr } = await supabase.auth.resend({
         type: 'signup',
         email: trimmedEmail,
+        options: {
+          emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
+        }
       })
       if (resendErr) throw resendErr
       modal.alert({
@@ -285,10 +314,22 @@ export default function LoginPage() {
             id="loginEmail"
             name="username"
             autoComplete="username"
-            placeholder="University Email"
+            placeholder="University Email (@kabarak.ac.ke)"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              if (forceShowEmailNotice && e.target.value.toLowerCase().endsWith('@kabarak.ac.ke')) {
+                setForceShowEmailNotice(false)
+                setError('')
+              }
+            }}
             required
+          />
+
+          <UniversityEmailNotice
+            email={email}
+            onFixEmail={handleFixEmail}
+            forceShow={forceShowEmailNotice}
           />
           <PasswordInput
             id="loginPassword"
@@ -316,14 +357,37 @@ export default function LoginPage() {
           {error && <p id="loginError" className="error">{error}</p>}
 
           {unverifiedEmail && (
-            <>
-              <p id="verifyNotice" style={{ color: 'orange', fontSize: '13.5px', marginBottom: '8px' }}>
-                Your email is not verified yet.
+            <div style={{
+              margin: '14px 0',
+              padding: '14px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              borderRadius: '14px',
+              textAlign: 'left'
+            }}>
+              <p style={{ color: '#fbbf24', fontSize: '13px', margin: '0 0 10px 0', lineHeight: 1.5, fontWeight: 500 }}>
+                ⚠️ <strong>Email confirmation pending for {unverifiedEmail}.</strong> Check your inbox / spam folder or resend below.
               </p>
-              <button type="button" id="resendBtn" className="btn-secondary" onClick={handleResend} style={{ marginBottom: '1rem', width: '100%' }}>
+              <button
+                type="button"
+                id="resendBtn"
+                className="btn-secondary"
+                onClick={handleResend}
+                style={{ marginBottom: '10px', width: '100%', padding: '10px' }}
+              >
                 Resend verification email
               </button>
-            </>
+              <div style={{
+                textAlign: 'center',
+                paddingTop: '10px',
+                borderTop: '1px dashed rgba(255, 255, 255, 0.12)'
+              }}>
+                <div style={{ fontSize: '12px', color: '#c4b5fd', marginBottom: '8px' }}>
+                  ⚡ <strong>Skip waiting?</strong> Sign in with Google:
+                </div>
+                <GoogleSignInButton label="Sign in instantly with Kabarak Google" />
+              </div>
+            </div>
           )}
 
           <button type="submit" disabled={loading}>

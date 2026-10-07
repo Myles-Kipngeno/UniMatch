@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import PasswordInput from '@/components/PasswordInput'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
+import UniversityEmailNotice from '@/components/UniversityEmailNotice'
 import LoadingScreen from '@/components/LoadingScreen'
 import './signup.css'
 
@@ -25,6 +26,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [emailHelper, setEmailHelper] = useState('')
+  const [forceShowEmailNotice, setForceShowEmailNotice] = useState(false)
   const [loading, setLoading] = useState(false)
   // Set after a successful signup: shows the "check your email" panel with Resend
   const [signedUpEmail, setSignedUpEmail] = useState<string | null>(null)
@@ -37,9 +39,22 @@ export default function SignupPage() {
     return () => clearTimeout(t)
   }, [resendCooldown])
 
+  const handleFixEmail = (fixedEmail: string) => {
+    setEmail(fixedEmail)
+    setForceShowEmailNotice(false)
+    setEmailHelper('')
+    setError('')
+    const pwdInput = document.getElementById('password')
+    if (pwdInput) pwdInput.focus()
+  }
+
   const handleEmailChange = (val: string) => {
     setEmail(val)
     const lowerVal = val.toLowerCase().trim()
+    if (forceShowEmailNotice && lowerVal.endsWith(KABARAK_DOMAIN)) {
+      setForceShowEmailNotice(false)
+      setError('')
+    }
     if (lowerVal.length > 0 && !lowerVal.includes('@')) {
       setEmailHelper(`Use your ${UNIVERSITY_NAME} email: ${lowerVal}${KABARAK_DOMAIN}`)
     } else {
@@ -57,8 +72,11 @@ export default function SignupPage() {
 
     // 1️⃣ Check Kabarak University email ONLY
     if (!trimmedEmail.endsWith(KABARAK_DOMAIN)) {
+      setForceShowEmailNotice(true)
       setError(`Only ${UNIVERSITY_NAME} email addresses (${KABARAK_DOMAIN}) are allowed.`)
       setLoading(false)
+      const emailInput = document.getElementById('email')
+      if (emailInput) emailInput.focus()
       return
     }
 
@@ -94,6 +112,7 @@ export default function SignupPage() {
         email: trimmedEmail,
         password,
         options: {
+          emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
           data: {
             name: trimmedName,
             university: UNIVERSITY_NAME,
@@ -106,19 +125,57 @@ export default function SignupPage() {
 
       const user = data.user
 
-      // 6️⃣ Upsert profile data in PostgreSQL.
-      // The signup trigger already creates the profile; with email confirmation on there's
-      // no session yet, so RLS can reject this — that must not fail an otherwise good signup.
+      // 6️⃣ If session returned (email confirmation disabled in Supabase, or pre-confirmed)
       if (user && data.session) {
-        const { error: upsertErr } = await supabase.from('profiles').upsert({
+        const { error: upsertErr } = await (supabase.from('profiles') as any).upsert({
           id: user.id,
           email: user.email!,
           name: trimmedName,
           university: UNIVERSITY_NAME,
           email_domain: KABARAK_DOMAIN,
           profile_complete: false,
-        } as any)
+        })
         if (upsertErr) console.warn('Profile upsert after signup:', upsertErr.message)
+
+        try {
+          const raw = localStorage.getItem('unimatch_remembered_accounts')
+          let existing = raw ? JSON.parse(raw) : []
+          existing = existing.filter((a: any) => a.email.toLowerCase() !== trimmedEmail.toLowerCase())
+          existing.unshift({
+            email: trimmedEmail,
+            name: trimmedName,
+            avatar_url: '',
+            lastUsed: Date.now()
+          })
+          localStorage.setItem('unimatch_remembered_accounts', JSON.stringify(existing.slice(0, 5)))
+        } catch (e) {}
+
+        modal.toast('Account created! Welcome to UniMatch 🎉', 'success')
+        router.push('/profile')
+        return
+      }
+
+      // If no session returned, attempt immediate auto-login in case email confirmation was disabled
+      if (user && !data.session) {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: trimmedEmail,
+          password,
+        })
+        if (signInData?.session) {
+          const { error: upsertErr } = await (supabase.from('profiles') as any).upsert({
+            id: user.id,
+            email: user.email!,
+            name: trimmedName,
+            university: UNIVERSITY_NAME,
+            email_domain: KABARAK_DOMAIN,
+            profile_complete: false,
+          })
+          if (upsertErr) console.warn('Profile upsert after signup:', upsertErr.message)
+
+          modal.toast('Account created! Welcome to UniMatch 🎉', 'success')
+          router.push('/profile')
+          return
+        }
       }
 
       setSignedUpEmail(trimmedEmail)
@@ -126,7 +183,12 @@ export default function SignupPage() {
       setLoading(false)
     } catch (err: any) {
       console.error('Signup error:', err)
-      setError(err.message || 'An error occurred during signup. Please try again.')
+      const msg = err.message || ''
+      if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('email')) {
+        setError(msg + ' — Tip: You can also use "Sign up with Google" below for instant access.')
+      } else {
+        setError(err.message || 'An error occurred during signup. Please try again.')
+      }
       setLoading(false)
     }
   }
@@ -135,7 +197,13 @@ export default function SignupPage() {
     if (!signedUpEmail || resendCooldown > 0 || resending) return
     setResending(true)
     try {
-      const { error: resendErr } = await supabase.auth.resend({ type: 'signup', email: signedUpEmail })
+      const { error: resendErr } = await supabase.auth.resend({
+        type: 'signup',
+        email: signedUpEmail,
+        options: {
+          emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
+        }
+      })
       if (resendErr) throw resendErr
       modal.toast('Confirmation email sent again — check your inbox and spam folder.', 'success')
       setResendCooldown(60)
@@ -160,6 +228,7 @@ export default function SignupPage() {
               We sent a confirmation link to <strong>{signedUpEmail}</strong>.
               Open it to activate your account, then log in.
             </p>
+
             <button
               type="button"
               className="secondary-action"
@@ -169,9 +238,26 @@ export default function SignupPage() {
             >
               {resending ? 'Sending…' : resendCooldown > 0 ? `Resend email in ${resendCooldown}s` : 'Resend confirmation email'}
             </button>
-            <button type="submit" onClick={() => router.push('/login')}>
+
+            <button type="submit" onClick={() => router.push('/login')} style={{ marginBottom: '14px' }}>
               Go to Login
             </button>
+
+            <div style={{
+              margin: '14px 0',
+              padding: '14px',
+              background: 'rgba(108, 71, 255, 0.1)',
+              border: '1px solid rgba(108, 71, 255, 0.3)',
+              borderRadius: '14px',
+              textAlign: 'center'
+            }}>
+              <p style={{ fontSize: '13px', color: '#c4b5fd', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                ⚡ <strong>Want to skip waiting for the email?</strong><br />
+                Sign in instantly using your official Kabarak Google account:
+              </p>
+              <GoogleSignInButton label="Instant Access with Google" />
+            </div>
+
             <p className="switch">
               Wrong email?{' '}
               <a href="#" onClick={(e) => { e.preventDefault(); setSignedUpEmail(null) }}>Sign up again</a>
@@ -200,16 +286,22 @@ export default function SignupPage() {
           <input
             type="email"
             id="email"
-            placeholder="University Email"
+            placeholder="University Email (@kabarak.ac.ke)"
             value={email}
             onChange={(e) => handleEmailChange(e.target.value)}
             required
           />
           {emailHelper && (
-            <small id="emailHelper" style={{ color: '#667eea', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+            <small id="emailHelper" style={{ color: '#a78bfa', fontSize: '12.5px', marginTop: '-8px', marginBottom: '12px', display: 'block', textAlign: 'left' }}>
               {emailHelper}
             </small>
           )}
+
+          <UniversityEmailNotice
+            email={email}
+            onFixEmail={handleFixEmail}
+            forceShow={forceShowEmailNotice}
+          />
 
           <PasswordInput
             id="password"

@@ -42,6 +42,16 @@ body {
   overflow-x: hidden;
   background-color: #09080f;
   color: #ffffff;
+  color-scheme: dark;
+}
+
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #1a172c !important;
+  color: #ffffff !important;
 }
 
 body.chat-view-active {

@@ -227,22 +227,25 @@ function ProfileFormContent() {
           .single() as any
 
         if (profile) {
-          // Only fill the form if the user hasn't started editing it, and never during
-          // onboarding — the wizard starts empty even if the row holds old values
-          if (!formTouchedRef.current && (profile.profile_complete || viewingOther)) {
-            setName(profile.name || '')
-            setGender(profile.gender || '')
-            setAge(profile.age ? String(profile.age) : '')
-            setCampus(profile.campus || '')
-            setCourse(profile.course || '')
-            setYearOfStudy(profile.year_of_study || '')
-            setBio(profile.bio || '')
-            setPreference(profile.preference || 'all')
-            setSelectedInterests(profile.interests || [])
+          if (!formTouchedRef.current) {
+            if (profile.name && !name) {
+              setName(profile.name)
+            }
+            if (profile.profile_complete || viewingOther) {
+              setName(profile.name || '')
+              setGender(profile.gender || '')
+              setAge(profile.age ? String(profile.age) : '')
+              setCampus(profile.campus || '')
+              setCourse(profile.course || '')
+              setYearOfStudy(profile.year_of_study || '')
+              setBio(profile.bio || '')
+              setPreference(profile.preference || 'all')
+              setSelectedInterests(profile.interests || [])
 
-            if (profile.photo_url) {
-              setCurrentPhotoUrl(profile.photo_url)
-              setPreviewUrl(profile.photo_url)
+              if (profile.photo_url) {
+                setCurrentPhotoUrl(profile.photo_url)
+                setPreviewUrl(profile.photo_url)
+              }
             }
           }
           cacheHydratedForRef.current = targetKey
@@ -484,7 +487,7 @@ function ProfileFormContent() {
     )
   }
 
-  const showTabs = (isEditModeParam || profileComplete) && !isOtherUser
+  const showTabs = Boolean(profileComplete) && !isOtherUser
   const isViewing = (showTabs && activeTab === 'view') || isOtherUser
   const isEditing = !isOtherUser && (!showTabs || activeTab === 'edit')
 
@@ -512,7 +515,7 @@ function ProfileFormContent() {
           )}
 
           {/* Three-dot menu */}
-          {showTabs && (
+          {!isOtherUser && (
             <div className="profile-card-menu">
               <button
                 ref={triggerRef}
@@ -528,14 +531,18 @@ function ProfileFormContent() {
               </button>
               {menuOpen && (
                 <div ref={menuRef} className="profile-menu-dropdown open">
-                  <Link href="/settings" className="profile-menu-item" onClick={() => setMenuOpen(false)}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="3"/>
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
-                    <span>Settings</span>
-                  </Link>
-                  <div className="profile-menu-divider"></div>
+                  {showTabs && (
+                    <>
+                      <Link href="/settings" className="profile-menu-item" onClick={() => setMenuOpen(false)}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3"/>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                        <span>Settings</span>
+                      </Link>
+                      <div className="profile-menu-divider"></div>
+                    </>
+                  )}
                   <button className="profile-menu-item danger" onClick={handleSignOut}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -738,7 +745,6 @@ function ProfileFormContent() {
                             <option value="">Select Gender</option>
                             <option value="male">Male</option>
                             <option value="female">Female</option>
-                            <option value="nonbinary">Non-Binary</option>
                           </select>
                         </div>
                         <div className="form-group">
@@ -759,9 +765,8 @@ function ProfileFormContent() {
                         <label className="form-label">Interested In (Show Me)</label>
                         <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
                           <option value="all">Everyone</option>
-                          <option value="male">Men</option>
-                          <option value="female">Women</option>
-                          <option value="nonbinary">Non-Binary</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
                         </select>
                       </div>
                     </div>
@@ -930,11 +935,14 @@ function ProfileFormContent() {
                         <div className="form-row">
                           <div className="form-group">
                             <label className="form-label">Gender</label>
-                            <select value={gender} onChange={(e) => setGender(e.target.value)} required>
+                            <select 
+                              value={gender} 
+                              onChange={(e) => setGender(e.target.value)} 
+                              required
+                            >
                               <option value="">Select Gender</option>
                               <option value="male">Male</option>
                               <option value="female">Female</option>
-                              <option value="nonbinary">Non-Binary</option>
                             </select>
                           </div>
                           <div className="form-group">
@@ -1028,9 +1036,8 @@ function ProfileFormContent() {
                           <label className="form-label">Show Me</label>
                           <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
                             <option value="all">Everyone</option>
-                            <option value="male">Men</option>
-                            <option value="female">Women</option>
-                            <option value="nonbinary">Non-Binary</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
                           </select>
                         </div>
 
@@ -1098,7 +1105,9 @@ function ProfileFormContent() {
       </div>
 
       {/* Slanted Nav / Bottom Navigation */}
-      <BottomNav activeTab={isOtherUser ? "" : "profile"} />
+      {Boolean(profileComplete || isOtherUser) && (
+        <BottomNav activeTab={isOtherUser ? "" : "profile"} />
+      )}
     </div>
   )
 }

@@ -1,0 +1,163 @@
+/* ═══════════════════════════════════════════════════════════
+   UniversityEmailNotice.css - Alert for University Email Requirement
+   ═══════════════════════════════════════════════════════════ */
+
+.uni-email-alert {
+  margin: -4px 0 16px 0;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(239, 68, 68, 0.08) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 14px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.08);
+  animation: alertSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes alertSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.uni-email-alert::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to bottom, #f59e0b, #ef4444);
+}
+
+.uni-email-alert-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.uni-email-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fbbf24;
+  letter-spacing: 0.2px;
+}
+
+.uni-email-alert-badge svg {
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+.uni-email-domain-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fef3c7;
+  letter-spacing: 0.3px;
+  font-family: monospace, sans-serif;
+}
+
+.uni-email-alert-text {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: #e2e0f0 !important;
+  margin: 0 !important;
+}
+
+.uni-email-alert-text strong {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.uni-email-fix-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.uni-email-fix-btn:hover {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: rgba(245, 158, 11, 0.65);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.uni-email-fix-btn:active {
+  transform: translateY(0);
+}
+
+.uni-email-fix-btn .fix-btn-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.uni-email-fix-btn .fix-btn-text {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uni-email-fix-btn .fix-btn-text strong {
+  color: #fef08a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.uni-email-fix-btn .fix-btn-arrow {
+  font-size: 14px;
+  color: #fbbf24;
+  font-weight: 700;
+  transition: transform 0.2s ease;
+}
+
+.uni-email-fix-btn:hover .fix-btn-arrow {
+  transform: translateX(3px);
+}
+
+@media (max-width: 480px) {
+  .uni-email-alert {
+    padding: 12px 13px;
+    gap: 8px;
+  }
+  .uni-email-alert-text {
+    font-size: 12.5px !important;
+  }
+  .uni-email-fix-btn {
+    padding: 9px 12px;
+    font-size: 12.5px;
+  }
+}

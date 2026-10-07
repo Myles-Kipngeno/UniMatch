@@ -536,6 +536,11 @@ export default function NotificationsPage() {
         return
       }
       setUid(user.id)
+      const { data: profile } = await supabase.from('profiles').select('profile_complete').eq('id', user.id).single() as any
+      if (!profile || !profile.profile_complete) {
+        router.push('/profile')
+        return
+      }
       await fetchNotifications(user.id)
     }
     initNotifications()

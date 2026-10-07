@@ -643,6 +643,12 @@
     font-size: 14px;
     font-family: inherit;
     outline: none;
+    color-scheme: dark;
+  }
+
+  .filter-input option {
+    background-color: #1a172c !important;
+    color: #ffffff !important;
   }
 
   .filter-input:focus {

@@ -322,6 +322,10 @@ export default function DashboardPage() {
     setMounted(true)
     const cached = getCache('dashboard')
     if (cached) {
+      if (cached.profileComplete === false) {
+        router.push('/profile')
+        return
+      }
       if (cached.profileName) setProfileName(cached.profileName)
       if (cached.profilePhotoUrl) setProfilePhotoUrl(cached.profilePhotoUrl)
       if (cached.profileSummary) setProfileSummary(cached.profileSummary)
@@ -459,8 +463,12 @@ export default function DashboardPage() {
         .eq('id', user.id)
         .single() as any
 
-      if (profile) {
-        const name = profile.name || user.email?.split('@')[0] || 'Student'
+      if (!profile || !profile.profile_complete) {
+        router.push('/profile')
+        return
+      }
+
+      const name = profile.name || user.email?.split('@')[0] || 'Student'
         setProfileName(name)
         setProfileSummary([profile.course, profile.campus].filter(Boolean).join(' • ') || 'Complete your profile')
         if (profile.photo_url) setProfilePhotoUrl(profile.photo_url)
@@ -510,7 +518,6 @@ export default function DashboardPage() {
             reportNetworkError()
           }
         }
-      }
       setLoading(false)
     }
 
