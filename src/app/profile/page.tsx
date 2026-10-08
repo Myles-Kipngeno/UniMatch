@@ -480,6 +480,12 @@ function ProfileFormContent() {
         return
       }
     }
+    if (currentStep === 3) {
+      if (selectedInterests.length < 3) {
+        setError('Please select at least 3 interests to continue.')
+        return
+      }
+    }
     setCurrentStep(prev => prev + 1)
   }
 
@@ -784,9 +790,10 @@ function ProfileFormContent() {
                 <span className={`step-dot ${currentStep >= 1 ? 'active' : ''}`}>1</span>
                 <span className={`step-dot ${currentStep >= 2 ? 'active' : ''}`}>2</span>
                 <span className={`step-dot ${currentStep >= 3 ? 'active' : ''}`}>3</span>
+                <span className={`step-dot ${currentStep >= 4 ? 'active' : ''}`}>4</span>
               </div>
               <div className="progress-bar-wrap">
-                <div className="progress-bar-fill" style={{ width: `${(currentStep / 3) * 100}%` }}></div>
+                <div className="progress-bar-fill" style={{ width: `${(currentStep / 4) * 100}%` }}></div>
               </div>
             </div>
           )}
@@ -1304,10 +1311,10 @@ function ProfileFormContent() {
 
                   {currentStep === 3 && (
                     <div className="wizard-step active">
-                      <h3 className="step-title">Hobbies, Bio & Photo</h3>
-                      <p className="step-subtitle">Select at least 3 things you love</p>
+                      <h3 className="step-title">Hobbies, Interests & Bio</h3>
+                      <p className="step-subtitle">Select at least 3 things you love and introduce yourself</p>
                       
-                      <div className="interests-grid" style={{ marginBottom: '2rem' }}>
+                      <div className="interests-grid" style={{ marginBottom: '1.5rem' }}>
                         {CURATED_INTERESTS.map(interest => (
                           <div
                             key={interest.name}
@@ -1322,10 +1329,14 @@ function ProfileFormContent() {
 
                       <div className="form-grid">
                         <div className="form-group">
-                          <label className="form-label">Bio</label>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <label className="form-label" style={{ margin: 0 }}>Bio</label>
+                            <span style={{ fontSize: '11px', color: '#9e9bb8' }}>{bio.length}/300</span>
+                          </div>
                           <textarea
                             placeholder="Write a short bio about yourself..."
                             rows={4}
+                            maxLength={300}
                             value={bio}
                             onChange={(e) => setBio(e.target.value)}
                           />
@@ -1339,118 +1350,125 @@ function ProfileFormContent() {
                             <option value="female">Female</option>
                           </select>
                         </div>
+                      </div>
+                    </div>
+                  )}
 
-                        <div className="form-group photo-upload-group">
-                          <div className="photo-grid-header">
-                            <div>
-                              <label className="form-label" style={{ margin: 0 }}>
-                                Profile Photos * ({onboardingPhotos.length}/6)
-                              </label>
-                              <p className="photo-grid-subtext">
-                                Add 1 to 6 photos. The first or starred photo will be your main profile card.
-                              </p>
-                            </div>
-                            {onboardingPhotos.length < 6 && (
-                              <button
-                                type="button"
-                                className="add-photos-btn"
-                                onClick={() => multiFileInputRef.current?.click()}
-                              >
-                                <span>+ Add Photos</span>
-                              </button>
-                            )}
+                  {currentStep === 4 && (
+                    <div className="wizard-step active">
+                      <h3 className="step-title">Your Profile Photos</h3>
+                      <p className="step-subtitle">Add 1 to 6 photos. Tap a photo to make it your main cover card!</p>
+
+                      <div className="form-group photo-upload-group" style={{ marginTop: 0 }}>
+                        <div className="photo-grid-header">
+                          <div>
+                            <label className="form-label" style={{ margin: 0 }}>
+                              Profile Photos * ({onboardingPhotos.length}/6)
+                            </label>
+                            <p className="photo-grid-subtext">
+                              The first or starred photo will be your primary card on Discover.
+                            </p>
                           </div>
+                          {onboardingPhotos.length < 6 && (
+                            <button
+                              type="button"
+                              className="add-photos-btn"
+                              onClick={() => multiFileInputRef.current?.click()}
+                            >
+                              <span>+ Add Photos</span>
+                            </button>
+                          )}
+                        </div>
 
-                          <input
-                            ref={multiFileInputRef}
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files.length > 0) {
-                                handleAddPhotos(e.target.files)
-                                e.target.value = ''
-                              }
-                            }}
-                            hidden
-                          />
+                        <input
+                          ref={multiFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              handleAddPhotos(e.target.files)
+                              e.target.value = ''
+                            }
+                          }}
+                          hidden
+                        />
 
-                          <div className="onboarding-photos-grid">
-                            {Array.from({ length: 6 }).map((_, slotIdx) => {
-                              const photoItem = onboardingPhotos[slotIdx]
-                              if (photoItem) {
-                                return (
-                                  <div
-                                    key={photoItem.id}
-                                    className={`photo-slot filled ${photoItem.isPrimary ? 'primary-slot' : ''}`}
-                                  >
-                                    <Image
-                                      src={photoItem.url}
-                                      alt={`Photo ${slotIdx + 1}`}
-                                      width={160}
-                                      height={160}
-                                      className="slot-img"
-                                      unoptimized={photoItem.url.startsWith('blob:') || photoItem.url.startsWith('data:')}
-                                    />
-                                    {photoItem.isPrimary ? (
-                                      <div className="slot-badge-main" title="Main Profile Cover">
-                                        ⭐ Main
-                                      </div>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        className="slot-set-main-btn"
-                                        onClick={() => handleSetPrimaryPhoto(photoItem.id)}
-                                        title="Set as main photo"
-                                      >
-                                        Set Main
-                                      </button>
-                                    )}
+                        <div className="onboarding-photos-grid">
+                          {Array.from({ length: 6 }).map((_, slotIdx) => {
+                            const photoItem = onboardingPhotos[slotIdx]
+                            if (photoItem) {
+                              return (
+                                <div
+                                  key={photoItem.id}
+                                  className={`photo-slot filled ${photoItem.isPrimary ? 'primary-slot' : ''}`}
+                                >
+                                  <Image
+                                    src={photoItem.url}
+                                    alt={`Photo ${slotIdx + 1}`}
+                                    width={160}
+                                    height={160}
+                                    className="slot-img"
+                                    unoptimized={photoItem.url.startsWith('blob:') || photoItem.url.startsWith('data:')}
+                                  />
+                                  {photoItem.isPrimary ? (
+                                    <div className="slot-badge-main" title="Main Profile Cover">
+                                      ⭐ Main
+                                    </div>
+                                  ) : (
                                     <button
                                       type="button"
-                                      className="slot-remove-btn"
-                                      onClick={() => handleRemovePhoto(photoItem.id)}
-                                      title="Remove photo"
-                                      aria-label="Remove photo"
+                                      className="slot-set-main-btn"
+                                      onClick={() => handleSetPrimaryPhoto(photoItem.id)}
+                                      title="Set as main photo"
                                     >
-                                      ✕
+                                      Set Main
                                     </button>
-                                  </div>
-                                )
-                              } else {
-                                return (
+                                  )}
                                   <button
-                                    key={`empty_${slotIdx}`}
                                     type="button"
-                                    className={`photo-slot empty ${slotIdx === 0 ? 'first-slot' : ''}`}
-                                    onClick={() => multiFileInputRef.current?.click()}
-                                    title={slotIdx === 0 ? "Add your main profile photo" : `Add photo slot ${slotIdx + 1}`}
+                                    className="slot-remove-btn"
+                                    onClick={() => handleRemovePhoto(photoItem.id)}
+                                    title="Remove photo"
+                                    aria-label="Remove photo"
                                   >
-                                    <div className="slot-empty-content">
-                                      <span className="slot-plus-icon">+</span>
-                                      <span className="slot-empty-label">
-                                        {slotIdx === 0 ? 'Main Photo *' : `Photo ${slotIdx + 1}`}
-                                      </span>
-                                    </div>
+                                    ✕
                                   </button>
-                                )
-                              }
-                            })}
-                          </div>
-
-                          <div className="photo-tip-banner">
-                            <span className="tip-emoji">💡</span>
-                            <span className="tip-text">
-                              <strong>Campus Tip:</strong> Students with 3 or more photos get 4x more likes and match replies!
-                            </span>
-                          </div>
-
-                          {error === PHOTO_REQUIRED_MSG ? (
-                            <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.75rem' }}>
-                              Please upload at least one profile photo to continue.
-                            </p>
-                          ) : null}
+                                </div>
+                              )
+                            } else {
+                              return (
+                                <button
+                                  key={`empty_${slotIdx}`}
+                                  type="button"
+                                  className={`photo-slot empty ${slotIdx === 0 ? 'first-slot' : ''}`}
+                                  onClick={() => multiFileInputRef.current?.click()}
+                                  title={slotIdx === 0 ? "Add your main profile photo" : `Add photo slot ${slotIdx + 1}`}
+                                >
+                                  <div className="slot-empty-content">
+                                    <span className="slot-plus-icon">+</span>
+                                    <span className="slot-empty-label">
+                                      {slotIdx === 0 ? 'Main Photo *' : `Photo ${slotIdx + 1}`}
+                                    </span>
+                                  </div>
+                                </button>
+                              )
+                            }
+                          })}
                         </div>
+
+                        <div className="photo-tip-banner">
+                          <span className="tip-emoji">💡</span>
+                          <span className="tip-text">
+                            <strong>Campus Tip:</strong> Students with 3 or more photos get 4x more likes and match replies!
+                          </span>
+                        </div>
+
+                        {error === PHOTO_REQUIRED_MSG ? (
+                          <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.75rem' }}>
+                            Please upload at least one profile photo to finish.
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   )}
@@ -1462,7 +1480,7 @@ function ProfileFormContent() {
                     {currentStep > 1 && (
                       <button type="button" className="wizard-btn btn-prev" onClick={handlePrev}>Back</button>
                     )}
-                    {currentStep < 3 ? (
+                    {currentStep < 4 ? (
                       <button type="button" className="wizard-btn btn-next" onClick={handleNext}>Continue</button>
                     ) : (
                       <button type="submit" className="save-btn" disabled={saving}>
