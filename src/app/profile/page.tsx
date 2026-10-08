@@ -49,12 +49,20 @@ const CURATED_INTERESTS = [
 
 const PHOTO_REQUIRED_MSG = 'Please upload a profile photo to complete your profile.'
 
-interface OnboardingPhoto {
+export interface ExtraPhotoItem {
   id: string
   file?: File
   url: string
-  isPrimary: boolean
+  prompt?: string
 }
+
+const SHOWCASE_PROMPTS = [
+  { icon: '📸', label: 'Full Fit', hint: 'Campus style' },
+  { icon: '🎒', label: 'Campus Life', hint: 'Library or quad' },
+  { icon: '☕', label: 'Passions', hint: 'Hobbies & arts' },
+  { icon: '🎉', label: 'Social Vibe', hint: 'With friends' },
+  { icon: '✨', label: 'Candid Vibe', hint: 'Golden hour' },
+] as const
 
 import { useModal } from '@/components/ModalContext'
 
@@ -87,12 +95,15 @@ function ProfileFormContent() {
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
 
-  // Multi-photo state for onboarding & profile carousel
-  const [onboardingPhotos, setOnboardingPhotos] = useState<OnboardingPhoto[]>([])
+  // Showcase photos state (extra photos reflecting on views section)
+  const [extraPhotos, setExtraPhotos] = useState<ExtraPhotoItem[]>([])
   const [viewPhotos, setViewPhotos] = useState<string[]>([])
   const [activePhotoIdx, setActivePhotoIdx] = useState(0)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
-  const multiFileInputRef = useRef<HTMLInputElement | null>(null)
+  const mainAvatarInputRef = useRef<HTMLInputElement | null>(null)
+  const showcaseMultiInputRef = useRef<HTMLInputElement | null>(null)
+  const singleSlotInputRef = useRef<HTMLInputElement | null>(null)
+  const activeSlotIdxRef = useRef<number | null>(null)
 
   // Wizard / Onboarding state
   const [currentStep, setCurrentStep] = useState(1)
@@ -282,11 +293,17 @@ function ProfileFormContent() {
             }
 
             if (allPhotos.length > 0) {
-              setOnboardingPhotos(
-                allPhotos.map((url, i) => ({
+              const primaryUrl = profile?.photo_url || allPhotos[0]
+              if (!previewUrl && primaryUrl) {
+                setPreviewUrl(primaryUrl)
+                setCurrentPhotoUrl(primaryUrl)
+              }
+              const remainingShowcase = allPhotos.filter(u => u !== primaryUrl).slice(0, 5)
+              setExtraPhotos(
+                remainingShowcase.map((url, i) => ({
                   id: `existing_${i}`,
                   url,
-                  isPrimary: i === 0
+                  prompt: SHOWCASE_PROMPTS[i]?.label
                 }))
               )
             }
@@ -341,27 +358,32 @@ function ProfileFormContent() {
     })
   }
 
-  // File preview change (single photo edit)
+  // Main avatar photo change (used in Edit Mode Section 1 & Step 4 wizard)
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     markFormTouched()
     const file = e.target.files?.[0]
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        modal.toast('Please select a valid image file.', 'warning')
+        return
+      }
       setPhotoFile(file)
       setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
       const blobUrl = URL.createObjectURL(file)
       setPreviewUrl(blobUrl)
       setCurrentPhotoUrl(blobUrl)
 
-      setOnboardingPhotos(prev => {
-        const withoutPrimary = prev.filter(p => !p.isPrimary)
-        return [{ id: `photo_${Date.now()}`, file, url: blobUrl, isPrimary: true }, ...withoutPrimary]
+      // Ensure main photo is placed at index 0 in viewPhotos
+      setViewPhotos(prev => {
+        const withoutCurrent = prev.filter(u => u !== previewUrl && u !== currentPhotoUrl)
+        return [blobUrl, ...withoutCurrent]
       })
     }
     e.target.value = ''
   }
 
-  // Multi-photo add for onboarding wizard
-  const handleAddPhotos = (incomingFiles: FileList | File[]) => {
+  // Multi-photo add for showcase gallery in Step 4
+  const handleAddShowcasePhotos = (incomingFiles: FileList | File[]) => {
     markFormTouched()
     const filesArray = Array.from(incomingFiles).filter(file => file.type.startsWith('image/'))
     if (filesArray.length === 0) {
@@ -369,70 +391,165 @@ function ProfileFormContent() {
       return
     }
 
-    const availableSlots = 6 - onboardingPhotos.length
+    const availableSlots = 5 - extraPhotos.length
     if (availableSlots <= 0) {
-      modal.toast('Maximum 6 photos allowed.', 'warning')
+      modal.toast('Maximum 5 showcase photos reached.', 'warning')
       return
     }
 
     const filesToAdd = filesArray.slice(0, availableSlots)
     if (filesArray.length > availableSlots) {
-      modal.toast(`Added ${availableSlots} photo(s) (max 6 reached).`, 'info')
+      modal.toast(`Added ${availableSlots} photo(s) (maximum 5 reached).`, 'info')
     }
 
-    const newPhotoItems: OnboardingPhoto[] = filesToAdd.map((file, idx) => ({
-      id: `photo_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
-      file,
-      url: URL.createObjectURL(file),
-      isPrimary: onboardingPhotos.length === 0 && idx === 0
-    }))
-
-    setOnboardingPhotos(prev => {
-      const combined = [...prev, ...newPhotoItems]
-      if (!combined.some(p => p.isPrimary) && combined.length > 0) {
-        combined[0].isPrimary = true
+    const newPhotoItems: ExtraPhotoItem[] = filesToAdd.map((file, idx) => {
+      const slotIndex = extraPhotos.length + idx
+      return {
+        id: `showcase_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+        file,
+        url: URL.createObjectURL(file),
+        prompt: SHOWCASE_PROMPTS[slotIndex]?.label
       }
-      return combined
     })
 
-    if (!previewUrl && newPhotoItems.length > 0) {
-      setPreviewUrl(newPhotoItems[0].url)
-    }
+    setExtraPhotos(prev => [...prev, ...newPhotoItems])
 
-    setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
+    // Immediately reflect new showcase photos in viewPhotos for the views section
+    setViewPhotos(prev => {
+      const currentMain = previewUrl || currentPhotoUrl || DEFAULT_AVATAR
+      const newUrls = newPhotoItems.map(item => item.url)
+      return Array.from(new Set([currentMain, ...prev, ...newUrls].filter(Boolean)))
+    })
   }
 
-  const handleRemovePhoto = (id: string) => {
+  // Single slot photo upload in Step 4
+  const handleSingleSlotPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     markFormTouched()
-    setOnboardingPhotos(prev => {
+    const file = e.target.files?.[0]
+    const targetIdx = activeSlotIdxRef.current
+    if (file && targetIdx !== null && targetIdx !== undefined) {
+      if (!file.type.startsWith('image/')) {
+        modal.toast('Please select a valid image file.', 'warning')
+        return
+      }
+      const blobUrl = URL.createObjectURL(file)
+      const promptLabel = SHOWCASE_PROMPTS[targetIdx]?.label
+
+      setExtraPhotos(prev => {
+        const next = [...prev]
+        if (targetIdx < next.length) {
+          next[targetIdx] = {
+            id: `showcase_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            file,
+            url: blobUrl,
+            prompt: promptLabel
+          }
+        } else {
+          next.push({
+            id: `showcase_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            file,
+            url: blobUrl,
+            prompt: promptLabel
+          })
+        }
+        return next
+      })
+
+      // Reflect in viewPhotos
+      setViewPhotos(prev => {
+        const currentMain = previewUrl || currentPhotoUrl || DEFAULT_AVATAR
+        return Array.from(new Set([currentMain, ...prev, blobUrl].filter(Boolean)))
+      })
+    }
+    activeSlotIdxRef.current = null
+    e.target.value = ''
+  }
+
+  // Remove a showcase photo
+  const handleRemoveExtraPhoto = (id: string) => {
+    markFormTouched()
+    setExtraPhotos(prev => {
       const itemToRemove = prev.find(p => p.id === id)
       if (itemToRemove?.url?.startsWith('blob:')) {
         try { URL.revokeObjectURL(itemToRemove.url) } catch (_) {}
       }
       const updated = prev.filter(p => p.id !== id)
-      if (itemToRemove?.isPrimary && updated.length > 0) {
-        updated[0].isPrimary = true
-        setPreviewUrl(updated[0].url)
-      } else if (updated.length === 0) {
-        setPreviewUrl('')
-      }
+
+      // Also remove from viewPhotos
+      setViewPhotos(prevView => {
+        const filtered = prevView.filter(u => u !== itemToRemove?.url)
+        const currentMain = previewUrl || currentPhotoUrl || DEFAULT_AVATAR
+        return filtered.length > 0 ? filtered : (currentMain ? [currentMain] : [])
+      })
+
       return updated
     })
   }
 
-  const handleSetPrimaryPhoto = (id: string) => {
+  // Promote a showcase photo to become the main avatar
+  const handlePromoteToAvatar = (item: ExtraPhotoItem) => {
     markFormTouched()
-    setOnboardingPhotos(prev => {
-      const updated = prev.map(p => ({
-        ...p,
-        isPrimary: p.id === id
-      }))
-      const primaryItem = updated.find(p => p.isPrimary)
-      if (primaryItem) setPreviewUrl(primaryItem.url)
-      return updated
+    const prevMainUrl = previewUrl || currentPhotoUrl
+    const prevMainFile = photoFile
+
+    setPreviewUrl(item.url)
+    if (item.file) {
+      setPhotoFile(item.file)
+    }
+
+    setExtraPhotos(prev => {
+      const withoutItem = prev.filter(p => p.id !== item.id)
+      if (prevMainUrl && prevMainUrl !== DEFAULT_AVATAR) {
+        return [
+          {
+            id: `showcase_${Date.now()}`,
+            file: prevMainFile || undefined,
+            url: prevMainUrl,
+            prompt: item.prompt
+          },
+          ...withoutItem
+        ].slice(0, 5)
+      }
+      return withoutItem
     })
-    modal.toast('Main profile cover photo set ⭐', 'info')
+
+    setViewPhotos(prev => {
+      const withoutTarget = prev.filter(u => u !== item.url)
+      return [item.url, ...withoutTarget]
+    })
+
+    modal.toast('Promoted to main profile avatar! ⭐', 'info')
   }
+
+  // Window paste listener for pasting profile picture directly on Step 4
+  useEffect(() => {
+    if (currentStep !== 4) return
+    const onWindowPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile()
+          if (file) {
+            markFormTouched()
+            setPhotoFile(file)
+            setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
+            const blobUrl = URL.createObjectURL(file)
+            setPreviewUrl(blobUrl)
+            setCurrentPhotoUrl(blobUrl)
+            setViewPhotos(prev => {
+              const rest = prev.filter(u => u !== previewUrl && u !== currentPhotoUrl)
+              return [blobUrl, ...rest]
+            })
+            modal.toast('Profile photo pasted from clipboard! 📋', 'success')
+            break
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', onWindowPaste)
+    return () => window.removeEventListener('paste', onWindowPaste)
+  }, [currentStep, previewUrl, currentPhotoUrl, modal])
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartX(e.touches[0].clientX)
@@ -511,9 +628,9 @@ function ProfileFormContent() {
       setError('Please select at least 3 interests.')
       return
     }
-    // A photo is required: either from onboardingPhotos or photoFile or currentPhotoUrl
-    const hasOnboardingPhotos = onboardingPhotos.length > 0
-    if (!hasOnboardingPhotos && !photoFile && !currentPhotoUrl) {
+    // A photo is required: either from previewUrl, currentPhotoUrl, photoFile, or extraPhotos
+    const hasPhoto = Boolean(previewUrl || currentPhotoUrl || photoFile || extraPhotos.length > 0)
+    if (!hasPhoto) {
       setError(PHOTO_REQUIRED_MSG)
       return
     }
@@ -528,85 +645,79 @@ function ProfileFormContent() {
     setSaving(true)
 
     try {
-      let finalPhotoUrl = currentPhotoUrl
-      let updatedGalleryUrls: string[] = viewPhotos.length > 0 ? [...viewPhotos] : []
+      let finalPhotoUrl = currentPhotoUrl || previewUrl
+      const updatedGalleryUrls: string[] = []
 
-      if (hasOnboardingPhotos) {
-        const primaryItem = onboardingPhotos.find(p => p.isPrimary) || onboardingPhotos[0]
-        const uploadedUrls: string[] = []
-
-        for (let idx = 0; idx < onboardingPhotos.length; idx++) {
-          const item = onboardingPhotos[idx]
-          if (item.file) {
-            const compressedFile = await compressImage(item.file, 1600, 1600, 0.82)
-            const fileExt = compressedFile.name.split('.').pop() || 'jpg'
-            const filePath = `${userId}/${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`
-
-            const { error: uploadErr } = await supabase.storage
-              .from('profile-images')
-              .upload(filePath, compressedFile, { upsert: true, cacheControl: '3600' })
-
-            if (uploadErr) {
-              console.warn('Storage upload error for photo:', uploadErr.message)
-              continue
-            }
-
-            const { data: publicUrlData } = supabase.storage
-              .from('profile-images')
-              .getPublicUrl(filePath)
-
-            const url = publicUrlData.publicUrl
-            uploadedUrls.push(url)
-
-            if (item.id === primaryItem.id) {
-              finalPhotoUrl = url
-            }
-
-            const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
-              user_id: userId,
-              url,
-              type: 'image',
-              position: idx
-            })
-            if (galleryError) console.warn('Insert to profile_photos failed:', galleryError.message)
-          } else if (item.url) {
-            uploadedUrls.push(item.url)
-            if (item.id === primaryItem.id) {
-              finalPhotoUrl = item.url
-            }
-          }
-        }
-
-        if (uploadedUrls.length > 0) {
-          updatedGalleryUrls = Array.from(new Set([finalPhotoUrl, ...uploadedUrls].filter(Boolean)))
-        }
-      } else if (photoFile && userId) {
+      // 1. Upload Main Avatar (Position 0)
+      if (photoFile && userId) {
         const compressedFile = await compressImage(photoFile, 1600, 1600, 0.82)
         const fileExt = compressedFile.name.split('.').pop() || 'jpg'
-        const filePath = `${userId}/profile_${Date.now()}.${fileExt}`
+        const filePath = `${userId}/avatar_${Date.now()}.${fileExt}`
 
         const { error: uploadErr } = await supabase.storage
           .from('profile-images')
           .upload(filePath, compressedFile, { upsert: true, cacheControl: '3600' })
 
-        if (uploadErr) throw uploadErr
+        if (uploadErr) {
+          console.warn('Storage upload error for avatar:', uploadErr.message)
+        } else {
+          const { data: publicUrlData } = supabase.storage
+            .from('profile-images')
+            .getPublicUrl(filePath)
+          finalPhotoUrl = publicUrlData.publicUrl
+        }
+      }
 
-        const { data: publicUrlData } = supabase.storage
-          .from('profile-images')
-          .getPublicUrl(filePath)
-
-        finalPhotoUrl = publicUrlData.publicUrl
-
+      if (finalPhotoUrl && !finalPhotoUrl.startsWith('blob:')) {
+        updatedGalleryUrls.push(finalPhotoUrl)
         const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
           user_id: userId,
           url: finalPhotoUrl,
           type: 'image',
           position: 0
         })
-        if (galleryError) console.warn('Adding photo to gallery failed:', galleryError.message)
-        updatedGalleryUrls = Array.from(new Set([finalPhotoUrl, ...updatedGalleryUrls]))
+        if (galleryError) console.warn('Position 0 profile_photos note:', galleryError.message)
       }
 
+      // 2. Upload Showcase Photos (Positions 1 to 5)
+      for (let idx = 0; idx < extraPhotos.length; idx++) {
+        const item = extraPhotos[idx]
+        const position = idx + 1
+        let itemUrl = item.url
+
+        if (item.file) {
+          const compressedFile = await compressImage(item.file, 1600, 1600, 0.82)
+          const fileExt = compressedFile.name.split('.').pop() || 'jpg'
+          const filePath = `${userId}/showcase_${Date.now()}_${idx}.${fileExt}`
+
+          const { error: uploadErr } = await supabase.storage
+            .from('profile-images')
+            .upload(filePath, compressedFile, { upsert: true, cacheControl: '3600' })
+
+          if (uploadErr) {
+            console.warn('Storage upload error for showcase photo:', uploadErr.message)
+            continue
+          }
+
+          const { data: publicUrlData } = supabase.storage
+            .from('profile-images')
+            .getPublicUrl(filePath)
+          itemUrl = publicUrlData.publicUrl
+        }
+
+        if (itemUrl && !itemUrl.startsWith('blob:')) {
+          updatedGalleryUrls.push(itemUrl)
+          const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
+            user_id: userId,
+            url: itemUrl,
+            type: 'image',
+            position
+          })
+          if (galleryError) console.warn('Insert to profile_photos note:', galleryError.message)
+        }
+      }
+
+      // Fallback: If no avatar URL yet, use the first showcase photo
       if (!finalPhotoUrl && updatedGalleryUrls.length > 0) {
         finalPhotoUrl = updatedGalleryUrls[0]
       }
@@ -1356,117 +1467,180 @@ function ProfileFormContent() {
 
                   {currentStep === 4 && (
                     <div className="wizard-step active">
-                      <h3 className="step-title">Your Profile Photos</h3>
-                      <p className="step-subtitle">Add 1 to 6 photos. Tap a photo to make it your main cover card!</p>
+                      <h3 className="step-title">Profile Photos & Gallery</h3>
+                      <p className="step-subtitle">Your main photo is shown first, followed by your showcase gallery</p>
 
-                      <div className="form-group photo-upload-group" style={{ marginTop: 0 }}>
-                        <div className="photo-grid-header">
-                          <div>
-                            <label className="form-label" style={{ margin: 0 }}>
-                              Profile Photos * ({onboardingPhotos.length}/6)
+                      {/* Top Section: Circular Avatar Picture (Matches User Screenshot) */}
+                      <div className="step4-avatar-section">
+                        <div
+                          className={`photo-container ${!previewUrl && !currentPhotoUrl ? 'is-empty' : ''}`}
+                          onClick={() => mainAvatarInputRef.current?.click()}
+                          title="Upload or change main profile picture"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              mainAvatarInputRef.current?.click()
+                            }
+                          }}
+                        >
+                          <Image
+                            id="step4ProfilePreview"
+                            src={previewUrl || currentPhotoUrl || DEFAULT_AVATAR}
+                            alt="Profile Avatar"
+                            width={130}
+                            height={130}
+                            unoptimized={Boolean(previewUrl?.startsWith('blob:') || previewUrl?.startsWith('data:'))}
+                          />
+                          <div className="photo-overlay">
+                            <label className="upload-label" style={{ pointerEvents: 'none' }}>
+                              <div className="camera-icon-wrap">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                                  <circle cx="12" cy="13" r="4"/>
+                                </svg>
+                                <span>{previewUrl || currentPhotoUrl ? 'CHANGE PHOTO' : 'ADD PHOTO'}</span>
+                              </div>
                             </label>
-                            <p className="photo-grid-subtext">
-                              The first or starred photo will be your primary card on Discover.
+                          </div>
+                        </div>
+
+                        <input
+                          ref={mainAvatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePhotoChange}
+                          hidden
+                        />
+
+                        <div className="avatar-identity-labels">
+                          <span className="avatar-main-title">{name.trim() || 'FULL NAME'}</span>
+                          <span className="avatar-main-subtitle">Primary Avatar • Appears First on Campus Cards</span>
+                        </div>
+                      </div>
+
+                      {/* Bottom Section: Interesting Showcase Gallery Deck */}
+                      <div className="showcase-gallery-card">
+                        <div className="showcase-header">
+                          <div className="showcase-header-left">
+                            <div className="showcase-title-row">
+                              <h4 className="showcase-title">Showcase Photos</h4>
+                              <span className="views-reflect-badge">👁️ Reflects in Profile Views</span>
+                            </div>
+                            <p className="showcase-subtitle">
+                              Add up to 5 photos showing your campus life & hobbies. Potential matches see these in your profile views carousel!
                             </p>
                           </div>
-                          {onboardingPhotos.length < 6 && (
+                          {extraPhotos.length < 5 && (
                             <button
                               type="button"
-                              className="add-photos-btn"
-                              onClick={() => multiFileInputRef.current?.click()}
+                              className="showcase-add-btn"
+                              onClick={() => showcaseMultiInputRef.current?.click()}
+                              title="Add photos to showcase"
                             >
                               <span>+ Add Photos</span>
                             </button>
                           )}
                         </div>
 
+                        {/* Hidden file inputs for showcase gallery */}
                         <input
-                          ref={multiFileInputRef}
+                          ref={showcaseMultiInputRef}
                           type="file"
                           accept="image/*"
                           multiple
                           onChange={(e) => {
                             if (e.target.files && e.target.files.length > 0) {
-                              handleAddPhotos(e.target.files)
+                              handleAddShowcasePhotos(e.target.files)
                               e.target.value = ''
                             }
                           }}
                           hidden
                         />
+                        <input
+                          ref={singleSlotInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSingleSlotPhotoChange}
+                          hidden
+                        />
 
-                        <div className="onboarding-photos-grid">
-                          {Array.from({ length: 6 }).map((_, slotIdx) => {
-                            const photoItem = onboardingPhotos[slotIdx]
+                        {/* Interactive 5-Slot Showcase Deck */}
+                        <div className="showcase-slots-grid">
+                          {SHOWCASE_PROMPTS.map((promptItem, slotIdx) => {
+                            const photoItem = extraPhotos[slotIdx]
                             if (photoItem) {
                               return (
-                                <div
-                                  key={photoItem.id}
-                                  className={`photo-slot filled ${photoItem.isPrimary ? 'primary-slot' : ''}`}
-                                >
+                                <div key={photoItem.id} className="showcase-slot filled">
                                   <Image
                                     src={photoItem.url}
-                                    alt={`Photo ${slotIdx + 1}`}
-                                    width={160}
-                                    height={160}
-                                    className="slot-img"
-                                    unoptimized={photoItem.url.startsWith('blob:') || photoItem.url.startsWith('data:')}
+                                    alt={photoItem.prompt || `Showcase photo ${slotIdx + 1}`}
+                                    fill
+                                    sizes="(max-width: 600px) 33vw, 120px"
+                                    className="showcase-slot-img"
+                                    unoptimized={Boolean(photoItem.url.startsWith('blob:') || photoItem.url.startsWith('data:'))}
                                   />
-                                  {photoItem.isPrimary ? (
-                                    <div className="slot-badge-main" title="Main Profile Cover">
-                                      ⭐ Main
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className="slot-set-main-btn"
-                                      onClick={() => handleSetPrimaryPhoto(photoItem.id)}
-                                      title="Set as main photo"
-                                    >
-                                      Set Main
-                                    </button>
-                                  )}
                                   <button
                                     type="button"
-                                    className="slot-remove-btn"
-                                    onClick={() => handleRemovePhoto(photoItem.id)}
+                                    className="showcase-make-avatar-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handlePromoteToAvatar(photoItem)
+                                    }}
+                                    title="Make this your main avatar photo"
+                                  >
+                                    ⭐ Avatar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="showcase-remove-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRemoveExtraPhoto(photoItem.id)
+                                    }}
                                     title="Remove photo"
                                     aria-label="Remove photo"
                                   >
                                     ✕
                                   </button>
+                                  <div className="showcase-tag">
+                                    {promptItem.icon} {photoItem.prompt || promptItem.label}
+                                  </div>
                                 </div>
                               )
                             } else {
                               return (
                                 <button
-                                  key={`empty_${slotIdx}`}
+                                  key={`empty_slot_${slotIdx}`}
                                   type="button"
-                                  className={`photo-slot empty ${slotIdx === 0 ? 'first-slot' : ''}`}
-                                  onClick={() => multiFileInputRef.current?.click()}
-                                  title={slotIdx === 0 ? "Add your main profile photo" : `Add photo slot ${slotIdx + 1}`}
+                                  className="showcase-slot empty"
+                                  onClick={() => {
+                                    activeSlotIdxRef.current = slotIdx
+                                    singleSlotInputRef.current?.click()
+                                  }}
+                                  title={`Upload ${promptItem.label} photo`}
                                 >
-                                  <div className="slot-empty-content">
-                                    <span className="slot-plus-icon">+</span>
-                                    <span className="slot-empty-label">
-                                      {slotIdx === 0 ? 'Main Photo *' : `Photo ${slotIdx + 1}`}
-                                    </span>
-                                  </div>
+                                  <span className="showcase-empty-icon">{promptItem.icon}</span>
+                                  <span className="showcase-empty-label">{promptItem.label}</span>
+                                  <span className="showcase-empty-hint">{promptItem.hint}</span>
                                 </button>
                               )
                             }
                           })}
                         </div>
 
+                        {/* Campus Tip Banner */}
                         <div className="photo-tip-banner">
                           <span className="tip-emoji">💡</span>
                           <span className="tip-text">
-                            <strong>Campus Tip:</strong> Students with 3 or more photos get 4x more likes and match replies!
+                            <strong>Campus Tip:</strong> Students with 3 or more photos get 4x more match views and chat conversations!
                           </span>
                         </div>
 
                         {error === PHOTO_REQUIRED_MSG ? (
                           <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.75rem' }}>
-                            Please upload at least one profile photo to finish.
+                            Please upload your main profile picture to finish.
                           </p>
                         ) : null}
                       </div>
