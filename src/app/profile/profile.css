@@ -1488,8 +1488,8 @@ select option {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Custom Glassmorphic Select Component
-   Replaces native browser <select> with dark neon/glassmorphism
+   Custom Select Component
+   Modern rounded frame matching the app UI without old-fashioned OS borders
    ═══════════════════════════════════════════════════════════ */
 
 .custom-select-container {
@@ -1499,18 +1499,19 @@ select option {
 
 .custom-select-trigger {
   width: 100%;
-  padding: 13px 16px;
+  padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
   color: #f0eeff;
   font-size: 15px;
+  font-family: inherit;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
   outline: none;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.25s ease;
   text-align: left;
   user-select: none;
   box-sizing: border-box;
@@ -1520,7 +1521,6 @@ select option {
 .custom-select-trigger:hover {
   border-color: rgba(168, 85, 247, 0.5);
   background: rgba(168, 85, 247, 0.06);
-  box-shadow: 0 4px 16px rgba(108, 71, 255, 0.15);
 }
 
 .custom-select-container.is-open .custom-select-trigger,
@@ -1530,49 +1530,24 @@ select option {
   box-shadow: 0 0 0 4px rgba(108, 71, 255, 0.15);
 }
 
-.custom-select-trigger-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  overflow: hidden;
-}
-
-.custom-select-trigger-icon {
-  font-size: 17px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.custom-select-trigger-label {
-  font-weight: 500;
+.custom-select-value {
   color: #f0eeff;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.custom-select-trigger-badge {
-  font-size: 11px;
-  font-weight: 600;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(236, 72, 153, 0.25));
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  color: #e9d5ff;
-  padding: 1px 7px;
-  border-radius: 12px;
-  white-space: nowrap;
-}
-
 .custom-select-placeholder {
-  color: #9e9bb8;
+  color: #6b6882;
   font-size: 15px;
 }
 
 .custom-select-chevron {
-  color: #a78bfa;
+  color: #9e9bb8;
   flex-shrink: 0;
-  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-  margin-left: 8px;
+  transition: transform 0.25s ease, color 0.25s ease;
+  margin-left: 10px;
 }
 
 .custom-select-chevron.rotated {
@@ -1580,34 +1555,33 @@ select option {
   color: #c084fc;
 }
 
-/* Dropdown Menu Popup */
+/* Modern Rounded Dropdown Frame */
 .custom-select-menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  z-index: 80;
-  background: #19172c;
-  background: linear-gradient(180deg, #1d1a33 0%, #161426 100%);
-  border: 1.5px solid rgba(168, 85, 247, 0.4);
-  border-radius: 16px;
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.75), 0 0 24px rgba(108, 71, 255, 0.25);
+  z-index: 90;
+  background: #18152e;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 14px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(108, 71, 255, 0.15);
   padding: 6px;
-  max-height: 250px;
+  max-height: 240px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(168, 85, 247, 0.4) transparent;
-  animation: selectMenuDrop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  scrollbar-color: rgba(168, 85, 247, 0.35) transparent;
+  animation: selectMenuDrop 0.2s ease-out;
 }
 
 @keyframes selectMenuDrop {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.97);
+    transform: translateY(-6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -1616,23 +1590,22 @@ select option {
 }
 
 .custom-select-menu::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.4);
+  background: rgba(168, 85, 247, 0.35);
   border-radius: 10px;
 }
 
-/* Option Row */
+/* Option Row - Clean Text matching original without emojis */
 .custom-select-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 11px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  color: #dedcf0;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.15s ease, color 0.15s ease;
   user-select: none;
-  margin-bottom: 3px;
-  border: 1px solid transparent;
+  margin-bottom: 2px;
 }
 
 .custom-select-option:last-child {
@@ -1640,69 +1613,14 @@ select option {
 }
 
 .custom-select-option:hover {
-  background: rgba(168, 85, 247, 0.16);
-  border-color: rgba(168, 85, 247, 0.3);
-  transform: translateX(3px);
+  background: rgba(168, 85, 247, 0.18);
+  color: #ffffff;
 }
 
 .custom-select-option.selected {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.35), rgba(236, 72, 153, 0.22));
-  border-color: rgba(168, 85, 247, 0.55);
-}
-
-.custom-select-option-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-}
-
-.custom-select-opt-icon {
-  font-size: 17px;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.custom-select-opt-labels {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.custom-select-opt-name {
-  font-size: 14px;
-  font-weight: 600;
+  background: rgba(108, 71, 255, 0.25);
   color: #ffffff;
-}
-
-.custom-select-opt-badge {
-  font-size: 11px;
   font-weight: 600;
-  color: #c084fc;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  padding: 1.5px 7px;
-  border-radius: 20px;
-}
-
-.custom-select-check-circle {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #7c3aed, #ec4899);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
 }
 
 /* Responsive Override */

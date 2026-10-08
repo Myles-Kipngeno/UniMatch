@@ -69,27 +69,25 @@ import { useModal } from '@/components/ModalContext'
 interface CustomSelectOption {
   value: string
   label: string
-  badge?: string
-  icon?: string
 }
 
 const GENDER_OPTIONS: CustomSelectOption[] = [
-  { value: 'male', label: 'Male', icon: '👨' },
-  { value: 'female', label: 'Female', icon: '👩' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
 ]
 
 const YEAR_OPTIONS: CustomSelectOption[] = [
-  { value: '1', label: '1st Year', badge: 'Freshman', icon: '🎓' },
-  { value: '2', label: '2nd Year', badge: 'Sophomore', icon: '📚' },
-  { value: '3', label: '3rd Year', badge: 'Junior', icon: '⚡' },
-  { value: '4', label: '4th Year', badge: 'Senior', icon: '🏆' },
-  { value: '5', label: 'Graduate / PG', badge: 'Postgrad', icon: '🎯' },
+  { value: '1', label: '1st Year (Freshman)' },
+  { value: '2', label: '2nd Year (Sophomore)' },
+  { value: '3', label: '3rd Year (Junior)' },
+  { value: '4', label: '4th Year (Senior)' },
+  { value: '5', label: 'Graduate / PG' },
 ]
 
 const PREFERENCE_OPTIONS: CustomSelectOption[] = [
-  { value: 'all', label: 'Everyone', badge: 'All Students', icon: '👥' },
-  { value: 'male', label: 'Men', badge: 'Male Only', icon: '👨' },
-  { value: 'female', label: 'Women', badge: 'Female Only', icon: '👩' },
+  { value: 'all', label: 'Everyone' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
 ]
 
 interface CustomSelectProps {
@@ -167,25 +165,13 @@ function CustomSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <div className="custom-select-trigger-content">
-          {selectedOption ? (
-            <>
-              {selectedOption.icon && (
-                <span className="custom-select-trigger-icon">{selectedOption.icon}</span>
-              )}
-              <span className="custom-select-trigger-label">{selectedOption.label}</span>
-              {selectedOption.badge && (
-                <span className="custom-select-trigger-badge">{selectedOption.badge}</span>
-              )}
-            </>
-          ) : (
-            <span className="custom-select-placeholder">{placeholder}</span>
-          )}
-        </div>
+        <span className={selectedOption ? 'custom-select-value' : 'custom-select-placeholder'}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
         <svg
           className={`custom-select-chevron ${isOpen ? 'rotated' : ''}`}
-          width="18"
-          height="18"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -209,20 +195,7 @@ function CustomSelect({
                 role="option"
                 aria-selected={isSelected}
               >
-                <div className="custom-select-option-left">
-                  {opt.icon && <span className="custom-select-opt-icon">{opt.icon}</span>}
-                  <div className="custom-select-opt-labels">
-                    <span className="custom-select-opt-name">{opt.label}</span>
-                    {opt.badge && <span className="custom-select-opt-badge">{opt.badge}</span>}
-                  </div>
-                </div>
-                {isSelected && (
-                  <div className="custom-select-check-circle" title="Selected">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </div>
-                )}
+                {opt.label}
               </div>
             )
           })}
