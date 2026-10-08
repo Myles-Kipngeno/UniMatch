@@ -152,11 +152,15 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('name, avatar_url, profile_complete')
+          .select('name, photo_url, profile_complete, campus, course')
           .eq('id', data.user.id)
-          .single() as any
+          .maybeSingle() as any
+
+        if (profileError) {
+          console.warn('Profile fetch warning on login:', profileError.message)
+        }
 
         // Save to remembered accounts list on successful login if remember checkbox is checked
         if (remember) {
@@ -167,7 +171,7 @@ export default function LoginPage() {
             existing.unshift({
               email: trimmedEmail,
               name: profile?.name || trimmedEmail.split('@')[0],
-              avatar_url: profile?.avatar_url || '',
+              avatar_url: profile?.photo_url || '',
               lastUsed: Date.now()
             })
             localStorage.setItem('unimatch_remembered_accounts', JSON.stringify(existing.slice(0, 5)))
@@ -176,7 +180,12 @@ export default function LoginPage() {
           }
         }
 
-        if (profile?.profile_complete) {
+        const isProfileComplete = Boolean(
+          profile?.profile_complete || 
+          (profile?.name && (profile?.photo_url || profile?.campus || profile?.course))
+        )
+
+        if (isProfileComplete) {
           router.push('/dashboard')
         } else {
           router.push('/profile')
