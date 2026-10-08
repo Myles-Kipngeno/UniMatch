@@ -14,6 +14,7 @@ import { ProfileSkeleton } from '@/components/skeletons/Skeletons'
 import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { compressImage } from '@/lib/imageCompression'
+import { useModal } from '@/components/ModalContext'
 import './profile.css'
 
 const CURATED_INTERESTS = [
@@ -64,7 +65,42 @@ const SHOWCASE_PROMPTS = [
   { icon: '✨', label: 'Candid Vibe', hint: 'Golden hour' },
 ] as const
 
-import { useModal } from '@/components/ModalContext'
+function renderShowcaseSlotIcon(idx: number) {
+  switch (idx) {
+    case 0:
+    case 1:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      )
+    case 2:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      )
+    case 3:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      )
+    default:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="3" ry="3"/>
+          <polygon points="10 9 16 12 10 15 10 9" fill="currentColor"/>
+        </svg>
+      )
+  }
+}
 
 interface CustomSelectOption {
   value: string
@@ -532,15 +568,26 @@ function ProfileFormContent() {
       return
     }
 
+    const workingFiles = [...filesArray]
+    let newMainUrl = ''
+    if (!previewUrl && !currentPhotoUrl && workingFiles.length > 0) {
+      const mainFile = workingFiles.shift()!
+      setPhotoFile(mainFile)
+      newMainUrl = URL.createObjectURL(mainFile)
+      setPreviewUrl(newMainUrl)
+      setCurrentPhotoUrl(newMainUrl)
+      setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
+    }
+
     const availableSlots = 5 - extraPhotos.length
-    if (availableSlots <= 0) {
+    if (availableSlots <= 0 && workingFiles.length > 0) {
       modal.toast('Maximum 5 showcase photos reached.', 'warning')
       return
     }
 
-    const filesToAdd = filesArray.slice(0, availableSlots)
-    if (filesArray.length > availableSlots) {
-      modal.toast(`Added ${availableSlots} photo(s) (maximum 5 reached).`, 'info')
+    const filesToAdd = workingFiles.slice(0, availableSlots)
+    if (workingFiles.length > availableSlots) {
+      modal.toast(`Added ${availableSlots} photo(s) (maximum 5 showcase slots reached).`, 'info')
     }
 
     const newPhotoItems: ExtraPhotoItem[] = filesToAdd.map((file, idx) => {
@@ -553,11 +600,13 @@ function ProfileFormContent() {
       }
     })
 
-    setExtraPhotos(prev => [...prev, ...newPhotoItems])
+    if (newPhotoItems.length > 0) {
+      setExtraPhotos(prev => [...prev, ...newPhotoItems])
+    }
 
     // Immediately reflect new showcase photos in viewPhotos for the views section
     setViewPhotos(prev => {
-      const currentMain = previewUrl || currentPhotoUrl || DEFAULT_AVATAR
+      const currentMain = newMainUrl || previewUrl || currentPhotoUrl || DEFAULT_AVATAR
       const newUrls = newPhotoItems.map(item => item.url)
       return Array.from(new Set([currentMain, ...prev, ...newUrls].filter(Boolean)))
     })
@@ -1611,42 +1660,60 @@ function ProfileFormContent() {
                   {currentStep === 4 && (
                     <div className="wizard-step active">
                       <h3 className="step-title">Profile Photos & Gallery</h3>
-                      <p className="step-subtitle">Your main photo is shown first, followed by your showcase gallery</p>
+                      <p className="step-subtitle">Showcase your best moments</p>
 
                       {/* Top Section: Circular Avatar Picture (Matches User Screenshot) */}
                       <div className="step4-avatar-section">
-                        <div
-                          className={`photo-container ${!previewUrl && !currentPhotoUrl ? 'is-empty' : ''}`}
-                          onClick={() => mainAvatarInputRef.current?.click()}
-                          title="Upload or change main profile picture"
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              mainAvatarInputRef.current?.click()
-                            }
-                          }}
-                        >
-                          <Image
-                            id="step4ProfilePreview"
-                            src={previewUrl || currentPhotoUrl || DEFAULT_AVATAR}
-                            alt="Profile Avatar"
-                            width={130}
-                            height={130}
-                            unoptimized={Boolean(previewUrl?.startsWith('blob:') || previewUrl?.startsWith('data:'))}
-                          />
-                          <div className="photo-overlay">
-                            <label className="upload-label" style={{ pointerEvents: 'none' }}>
-                              <div className="camera-icon-wrap">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                        <div className="step4-avatar-container">
+                          <div
+                            className={`photo-container ${!previewUrl && !currentPhotoUrl ? 'is-empty' : ''}`}
+                            onClick={() => mainAvatarInputRef.current?.click()}
+                            title="Upload or change main profile picture"
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                mainAvatarInputRef.current?.click()
+                              }
+                            }}
+                          >
+                            {previewUrl || currentPhotoUrl ? (
+                              <Image
+                                id="step4ProfilePreview"
+                                src={previewUrl || currentPhotoUrl}
+                                alt="Profile Avatar"
+                                fill
+                                sizes="140px"
+                                style={{ objectFit: 'cover' }}
+                                unoptimized={Boolean(previewUrl?.startsWith('blob:') || previewUrl?.startsWith('data:'))}
+                              />
+                            ) : (
+                              <div className="avatar-empty-placeholder">
+                                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                                   <circle cx="12" cy="13" r="4"/>
                                 </svg>
-                                <span>{previewUrl || currentPhotoUrl ? 'CHANGE PHOTO' : 'ADD PHOTO'}</span>
+                                <span>ADD PHOTO</span>
                               </div>
-                            </label>
+                            )}
                           </div>
+
+                          {/* Bottom-right Pencil Edit Button */}
+                          <button
+                            type="button"
+                            className="avatar-pencil-badge"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              mainAvatarInputRef.current?.click()
+                            }}
+                            title="Edit profile photo"
+                            aria-label="Edit profile photo"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                            </svg>
+                          </button>
                         </div>
 
                         <input
@@ -1663,28 +1730,21 @@ function ProfileFormContent() {
                         </div>
                       </div>
 
-                      {/* Bottom Section: Interesting Showcase Gallery Deck */}
+                      {/* Bottom Section: Showcase Gallery Card */}
                       <div className="showcase-gallery-card">
                         <div className="showcase-header">
                           <div className="showcase-header-left">
-                            <div className="showcase-title-row">
-                              <h4 className="showcase-title">Showcase Photos</h4>
-                              <span className="views-reflect-badge">👁️ Reflects in Profile Views</span>
-                            </div>
-                            <p className="showcase-subtitle">
-                              Add up to 5 photos showing your campus life & hobbies. Potential matches see these in your profile views carousel!
-                            </p>
+                            <h4 className="showcase-title">Showcase Photos</h4>
+                            <p className="showcase-subtitle">Add a few photos to bring your profile to life.</p>
                           </div>
-                          {extraPhotos.length < 5 && (
-                            <button
-                              type="button"
-                              className="showcase-add-btn"
-                              onClick={() => showcaseMultiInputRef.current?.click()}
-                              title="Add photos to showcase"
-                            >
-                              <span>+ Add Photos</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className="showcase-add-btn"
+                            onClick={() => showcaseMultiInputRef.current?.click()}
+                            title="Add photos to showcase"
+                          >
+                            + Add Photos
+                          </button>
                         </div>
 
                         {/* Hidden file inputs for showcase gallery */}
@@ -1709,31 +1769,83 @@ function ProfileFormContent() {
                           hidden
                         />
 
-                        {/* Interactive 5-Slot Showcase Deck */}
+                        {/* 6-Slot Grid (Slot 1: Main Avatar, Slots 2-6: Showcase Photos) */}
                         <div className="showcase-slots-grid">
-                          {SHOWCASE_PROMPTS.map((promptItem, slotIdx) => {
-                            const photoItem = extraPhotos[slotIdx]
+                          {/* Slot 1: Main Avatar */}
+                          {previewUrl || currentPhotoUrl ? (
+                            <div className="showcase-slot filled">
+                              <Image
+                                src={previewUrl || currentPhotoUrl}
+                                alt="Main Avatar"
+                                fill
+                                sizes="(max-width: 600px) 33vw, 140px"
+                                className="showcase-slot-img"
+                                unoptimized={Boolean((previewUrl || currentPhotoUrl)?.startsWith('blob:') || (previewUrl || currentPhotoUrl)?.startsWith('data:'))}
+                              />
+                              <span className="showcase-main-badge">Main</span>
+                              <button
+                                type="button"
+                                className="showcase-remove-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setPreviewUrl('')
+                                  setCurrentPhotoUrl('')
+                                  setPhotoFile(null)
+                                  setViewPhotos(prev => prev.filter(u => u !== (previewUrl || currentPhotoUrl)))
+                                }}
+                                title="Remove main photo"
+                                aria-label="Remove main photo"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="showcase-slot empty"
+                              onClick={() => mainAvatarInputRef.current?.click()}
+                              title="Upload main profile photo"
+                            >
+                              <span className="showcase-empty-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                  <circle cx="12" cy="13" r="4"/>
+                                </svg>
+                              </span>
+                              <span className="showcase-empty-label">Add Photo</span>
+                              <span className="showcase-empty-plus">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                                  <line x1="12" y1="5" x2="12" y2="19"/>
+                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                              </span>
+                            </button>
+                          )}
+
+                          {/* Slots 2 to 6: Extra Showcase Photos */}
+                          {[0, 1, 2, 3, 4].map((idx) => {
+                            const photoItem = extraPhotos[idx]
                             if (photoItem) {
                               return (
                                 <div key={photoItem.id} className="showcase-slot filled">
                                   <Image
                                     src={photoItem.url}
-                                    alt={photoItem.prompt || `Showcase photo ${slotIdx + 1}`}
+                                    alt={`Showcase photo ${idx + 1}`}
                                     fill
-                                    sizes="(max-width: 600px) 33vw, 120px"
+                                    sizes="(max-width: 600px) 33vw, 140px"
                                     className="showcase-slot-img"
                                     unoptimized={Boolean(photoItem.url.startsWith('blob:') || photoItem.url.startsWith('data:'))}
                                   />
                                   <button
                                     type="button"
-                                    className="showcase-make-avatar-btn"
+                                    className="showcase-make-main-btn"
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       handlePromoteToAvatar(photoItem)
                                     }}
                                     title="Make this your main avatar photo"
                                   >
-                                    ⭐ Avatar
+                                    ⭐ Main
                                   </button>
                                   <button
                                     type="button"
@@ -1747,37 +1859,38 @@ function ProfileFormContent() {
                                   >
                                     ✕
                                   </button>
-                                  <div className="showcase-tag">
-                                    {promptItem.icon} {photoItem.prompt || promptItem.label}
-                                  </div>
                                 </div>
                               )
-                            } else {
-                              return (
-                                <button
-                                  key={`empty_slot_${slotIdx}`}
-                                  type="button"
-                                  className="showcase-slot empty"
-                                  onClick={() => {
-                                    activeSlotIdxRef.current = slotIdx
-                                    singleSlotInputRef.current?.click()
-                                  }}
-                                  title={`Upload ${promptItem.label} photo`}
-                                >
-                                  <span className="showcase-empty-icon">{promptItem.icon}</span>
-                                  <span className="showcase-empty-label">{promptItem.label}</span>
-                                  <span className="showcase-empty-hint">{promptItem.hint}</span>
-                                </button>
-                              )
                             }
+                            return (
+                              <button
+                                key={`empty_extra_slot_${idx}`}
+                                type="button"
+                                className="showcase-slot empty"
+                                onClick={() => {
+                                  activeSlotIdxRef.current = idx
+                                  singleSlotInputRef.current?.click()
+                                }}
+                                title="Upload photo"
+                              >
+                                <span className="showcase-empty-icon">{renderShowcaseSlotIcon(idx)}</span>
+                                <span className="showcase-empty-label">Add Photo</span>
+                                <span className="showcase-empty-plus">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                </span>
+                              </button>
+                            )
                           })}
                         </div>
 
-                        {/* Campus Tip Banner */}
+                        {/* Important Tip Remark (Matches User Screenshot) */}
                         <div className="photo-tip-banner">
                           <span className="tip-emoji">💡</span>
                           <span className="tip-text">
-                            <strong>Campus Tip:</strong> Students with 3 or more photos get 4x more match views and chat conversations!
+                            <strong>Tip:</strong> Use clear, high-quality photos for the best results.
                           </span>
                         </div>
 
