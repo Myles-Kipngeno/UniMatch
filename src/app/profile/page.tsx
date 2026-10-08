@@ -66,6 +66,172 @@ const SHOWCASE_PROMPTS = [
 
 import { useModal } from '@/components/ModalContext'
 
+interface CustomSelectOption {
+  value: string
+  label: string
+  badge?: string
+  icon?: string
+}
+
+const GENDER_OPTIONS: CustomSelectOption[] = [
+  { value: 'male', label: 'Male', icon: '👨' },
+  { value: 'female', label: 'Female', icon: '👩' },
+]
+
+const YEAR_OPTIONS: CustomSelectOption[] = [
+  { value: '1', label: '1st Year', badge: 'Freshman', icon: '🎓' },
+  { value: '2', label: '2nd Year', badge: 'Sophomore', icon: '📚' },
+  { value: '3', label: '3rd Year', badge: 'Junior', icon: '⚡' },
+  { value: '4', label: '4th Year', badge: 'Senior', icon: '🏆' },
+  { value: '5', label: 'Graduate / PG', badge: 'Postgrad', icon: '🎯' },
+]
+
+const PREFERENCE_OPTIONS: CustomSelectOption[] = [
+  { value: 'all', label: 'Everyone', badge: 'All Students', icon: '👥' },
+  { value: 'male', label: 'Men', badge: 'Male Only', icon: '👨' },
+  { value: 'female', label: 'Women', badge: 'Female Only', icon: '👩' },
+]
+
+interface CustomSelectProps {
+  id?: string
+  value: string
+  onChange: (value: string) => void
+  options: CustomSelectOption[]
+  placeholder?: string
+  className?: string
+}
+
+function CustomSelect({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder = 'Select...',
+  className = ''
+}: CustomSelectProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selectedOption = options.find(o => o.value === value)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [isOpen])
+
+  const handleSelect = (optValue: string) => {
+    onChange(optValue)
+    setIsOpen(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      setIsOpen(prev => !prev)
+    } else if (e.key === 'Escape') {
+      setIsOpen(false)
+    } else if (e.key === 'ArrowDown' && isOpen) {
+      e.preventDefault()
+      const currentIdx = options.findIndex(o => o.value === value)
+      const nextIdx = (currentIdx + 1) % options.length
+      onChange(options[nextIdx].value)
+    } else if (e.key === 'ArrowUp' && isOpen) {
+      e.preventDefault()
+      const currentIdx = options.findIndex(o => o.value === value)
+      const prevIdx = (currentIdx - 1 + options.length) % options.length
+      onChange(options[prevIdx].value)
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={`custom-select-container ${isOpen ? 'is-open' : ''} ${className}`}
+      id={id}
+    >
+      <button
+        type="button"
+        className="custom-select-trigger"
+        onClick={() => setIsOpen(prev => !prev)}
+        onKeyDown={handleKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <div className="custom-select-trigger-content">
+          {selectedOption ? (
+            <>
+              {selectedOption.icon && (
+                <span className="custom-select-trigger-icon">{selectedOption.icon}</span>
+              )}
+              <span className="custom-select-trigger-label">{selectedOption.label}</span>
+              {selectedOption.badge && (
+                <span className="custom-select-trigger-badge">{selectedOption.badge}</span>
+              )}
+            </>
+          ) : (
+            <span className="custom-select-placeholder">{placeholder}</span>
+          )}
+        </div>
+        <svg
+          className={`custom-select-chevron ${isOpen ? 'rotated' : ''}`}
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="custom-select-menu" role="listbox">
+          {options.map(opt => {
+            const isSelected = opt.value === value
+            return (
+              <div
+                key={opt.value}
+                className={`custom-select-option ${isSelected ? 'selected' : ''}`}
+                onClick={() => handleSelect(opt.value)}
+                role="option"
+                aria-selected={isSelected}
+              >
+                <div className="custom-select-option-left">
+                  {opt.icon && <span className="custom-select-opt-icon">{opt.icon}</span>}
+                  <div className="custom-select-opt-labels">
+                    <span className="custom-select-opt-name">{opt.label}</span>
+                    {opt.badge && <span className="custom-select-opt-badge">{opt.badge}</span>}
+                  </div>
+                </div>
+                {isSelected && (
+                  <div className="custom-select-check-circle" title="Selected">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProfileFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1158,11 +1324,13 @@ function ProfileFormContent() {
                       <div className="form-row">
                         <div className="form-group">
                           <label className="form-label">Gender</label>
-                          <select value={gender} onChange={(e) => setGender(e.target.value)} required>
-                            <option value="">Select Gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                          </select>
+                          <CustomSelect
+                            id="editGender"
+                            value={gender}
+                            onChange={(val) => { setGender(val); markFormTouched(); }}
+                            options={GENDER_OPTIONS}
+                            placeholder="Select Gender"
+                          />
                         </div>
                         <div className="form-group">
                           <label className="form-label">Age</label>
@@ -1180,11 +1348,13 @@ function ProfileFormContent() {
 
                       <div className="form-group">
                         <label className="form-label">Interested In (Show Me)</label>
-                        <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
-                          <option value="all">Everyone</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                        </select>
+                        <CustomSelect
+                          id="editPreference"
+                          value={preference}
+                          onChange={(val) => { setPreference(val); markFormTouched(); }}
+                          options={PREFERENCE_OPTIONS}
+                          placeholder="Select Preference"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1224,14 +1394,13 @@ function ProfileFormContent() {
 
                       <div className="form-group">
                         <label className="form-label">Year of Study</label>
-                        <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} required>
-                          <option value="">Select Year</option>
-                          <option value="1">1st Year (Freshman)</option>
-                          <option value="2">2nd Year (Sophomore)</option>
-                          <option value="3">3rd Year (Junior)</option>
-                          <option value="4">4th Year (Senior)</option>
-                          <option value="5">Graduate / PG</option>
-                        </select>
+                        <CustomSelect
+                          id="editYear"
+                          value={yearOfStudy}
+                          onChange={(val) => { setYearOfStudy(val); markFormTouched(); }}
+                          options={YEAR_OPTIONS}
+                          placeholder="Select Year"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1352,15 +1521,13 @@ function ProfileFormContent() {
                         <div className="form-row">
                           <div className="form-group">
                             <label className="form-label">Gender</label>
-                            <select 
+                            <CustomSelect 
+                              id="wizardGender"
                               value={gender} 
-                              onChange={(e) => setGender(e.target.value)} 
-                              required
-                            >
-                              <option value="">Select Gender</option>
-                              <option value="male">Male</option>
-                              <option value="female">Female</option>
-                            </select>
+                              onChange={(val) => { setGender(val); markFormTouched(); setError(''); }} 
+                              options={GENDER_OPTIONS}
+                              placeholder="Select Gender"
+                            />
                           </div>
                           <div className="form-group">
                             <label className="form-label">Age</label>
@@ -1407,14 +1574,13 @@ function ProfileFormContent() {
 
                         <div className="form-group">
                           <label className="form-label">Year of Study</label>
-                          <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} required>
-                            <option value="">Select Year</option>
-                            <option value="1">1st Year (Freshman)</option>
-                            <option value="2">2nd Year (Sophomore)</option>
-                            <option value="3">3rd Year (Junior)</option>
-                            <option value="4">4th Year (Senior)</option>
-                            <option value="5">Graduate / PG</option>
-                          </select>
+                          <CustomSelect
+                            id="wizardYear"
+                            value={yearOfStudy}
+                            onChange={(val) => { setYearOfStudy(val); markFormTouched(); setError(''); }}
+                            options={YEAR_OPTIONS}
+                            placeholder="Select Year"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1455,11 +1621,13 @@ function ProfileFormContent() {
 
                         <div className="form-group">
                           <label className="form-label">Show Me</label>
-                          <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
-                            <option value="all">Everyone</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                          </select>
+                          <CustomSelect
+                            id="wizardPreference"
+                            value={preference}
+                            onChange={(val) => { setPreference(val); markFormTouched(); setError(''); }}
+                            options={PREFERENCE_OPTIONS}
+                            placeholder="Select Preference"
+                          />
                         </div>
                       </div>
                     </div>
