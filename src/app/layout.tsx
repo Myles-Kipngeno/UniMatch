@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -73,6 +75,8 @@ export default function RootLayout({
     <html lang="en" className={`${outfit.variable} h-full antialiased`} suppressHydrationWarning>
       <body className={`${outfit.className} min-h-full flex flex-col`} suppressHydrationWarning>
         <Providers>{children}</Providers>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
