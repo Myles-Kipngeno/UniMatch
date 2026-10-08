@@ -72,11 +72,13 @@ interface CustomSelectOption {
 }
 
 const GENDER_OPTIONS: CustomSelectOption[] = [
+  { value: '', label: 'Select Gender' },
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
 ]
 
 const YEAR_OPTIONS: CustomSelectOption[] = [
+  { value: '', label: 'Select Year' },
   { value: '1', label: '1st Year (Freshman)' },
   { value: '2', label: '2nd Year (Sophomore)' },
   { value: '3', label: '3rd Year (Junior)' },
@@ -141,12 +143,12 @@ function CustomSelect({
     } else if (e.key === 'ArrowDown' && isOpen) {
       e.preventDefault()
       const currentIdx = options.findIndex(o => o.value === value)
-      const nextIdx = (currentIdx + 1) % options.length
+      const nextIdx = currentIdx < options.length - 1 ? currentIdx + 1 : 0
       onChange(options[nextIdx].value)
     } else if (e.key === 'ArrowUp' && isOpen) {
       e.preventDefault()
       const currentIdx = options.findIndex(o => o.value === value)
-      const prevIdx = (currentIdx - 1 + options.length) % options.length
+      const prevIdx = currentIdx > 0 ? currentIdx - 1 : options.length - 1
       onChange(options[prevIdx].value)
     }
   }
@@ -165,7 +167,7 @@ function CustomSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <span className={selectedOption ? 'custom-select-value' : 'custom-select-placeholder'}>
+        <span className={value ? 'custom-select-value' : 'custom-select-placeholder'}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <svg
