@@ -49,6 +49,13 @@ const CURATED_INTERESTS = [
 
 const PHOTO_REQUIRED_MSG = 'Please upload a profile photo to complete your profile.'
 
+interface OnboardingPhoto {
+  id: string
+  file?: File
+  url: string
+  isPrimary: boolean
+}
+
 import { useModal } from '@/components/ModalContext'
 
 function ProfileFormContent() {
@@ -79,6 +86,13 @@ function ProfileFormContent() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
+
+  // Multi-photo state for onboarding & profile carousel
+  const [onboardingPhotos, setOnboardingPhotos] = useState<OnboardingPhoto[]>([])
+  const [viewPhotos, setViewPhotos] = useState<string[]>([])
+  const [activePhotoIdx, setActivePhotoIdx] = useState(0)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const multiFileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Wizard / Onboarding state
   const [currentStep, setCurrentStep] = useState(1)
@@ -220,11 +234,30 @@ function ProfileFormContent() {
       }
 
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', targetId)
-          .single() as any
+        const [{ data: profile }, { data: galleryPhotos }] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', targetId)
+            .single() as any,
+          supabase
+            .from('profile_photos' as any)
+            .select('id, url, position, type')
+            .eq('user_id', targetId)
+            .order('position', { ascending: true }) as any
+        ])
+
+        const galleryUrls: string[] = (galleryPhotos || [])
+          .filter((p: any) => p.type !== 'video' && p.url)
+          .map((p: any) => p.url)
+
+        const allPhotos: string[] = Array.from(
+          new Set([profile?.photo_url, ...galleryUrls].filter(Boolean))
+        ) as string[]
+
+        if (allPhotos.length > 0) {
+          setViewPhotos(allPhotos)
+        }
 
         if (profile) {
           if (!formTouchedRef.current) {
@@ -246,6 +279,16 @@ function ProfileFormContent() {
                 setCurrentPhotoUrl(profile.photo_url)
                 setPreviewUrl(profile.photo_url)
               }
+            }
+
+            if (allPhotos.length > 0) {
+              setOnboardingPhotos(
+                allPhotos.map((url, i) => ({
+                  id: `existing_${i}`,
+                  url,
+                  isPrimary: i === 0
+                }))
+              )
             }
           }
           cacheHydratedForRef.current = targetKey
@@ -298,19 +341,113 @@ function ProfileFormContent() {
     })
   }
 
-  // File preview change
+  // File preview change (single photo edit)
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    markFormTouched()
     const file = e.target.files?.[0]
     if (file) {
       setPhotoFile(file)
-      // Picking a photo resolves the "photo required" error
       setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setPreviewUrl(event.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+      const blobUrl = URL.createObjectURL(file)
+      setPreviewUrl(blobUrl)
+      setCurrentPhotoUrl(blobUrl)
+
+      setOnboardingPhotos(prev => {
+        const withoutPrimary = prev.filter(p => !p.isPrimary)
+        return [{ id: `photo_${Date.now()}`, file, url: blobUrl, isPrimary: true }, ...withoutPrimary]
+      })
     }
+    e.target.value = ''
+  }
+
+  // Multi-photo add for onboarding wizard
+  const handleAddPhotos = (incomingFiles: FileList | File[]) => {
+    markFormTouched()
+    const filesArray = Array.from(incomingFiles).filter(file => file.type.startsWith('image/'))
+    if (filesArray.length === 0) {
+      modal.toast('Please select valid image files.', 'warning')
+      return
+    }
+
+    const availableSlots = 6 - onboardingPhotos.length
+    if (availableSlots <= 0) {
+      modal.toast('Maximum 6 photos allowed.', 'warning')
+      return
+    }
+
+    const filesToAdd = filesArray.slice(0, availableSlots)
+    if (filesArray.length > availableSlots) {
+      modal.toast(`Added ${availableSlots} photo(s) (max 6 reached).`, 'info')
+    }
+
+    const newPhotoItems: OnboardingPhoto[] = filesToAdd.map((file, idx) => ({
+      id: `photo_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+      file,
+      url: URL.createObjectURL(file),
+      isPrimary: onboardingPhotos.length === 0 && idx === 0
+    }))
+
+    setOnboardingPhotos(prev => {
+      const combined = [...prev, ...newPhotoItems]
+      if (!combined.some(p => p.isPrimary) && combined.length > 0) {
+        combined[0].isPrimary = true
+      }
+      return combined
+    })
+
+    if (!previewUrl && newPhotoItems.length > 0) {
+      setPreviewUrl(newPhotoItems[0].url)
+    }
+
+    setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
+  }
+
+  const handleRemovePhoto = (id: string) => {
+    markFormTouched()
+    setOnboardingPhotos(prev => {
+      const itemToRemove = prev.find(p => p.id === id)
+      if (itemToRemove?.url?.startsWith('blob:')) {
+        try { URL.revokeObjectURL(itemToRemove.url) } catch (_) {}
+      }
+      const updated = prev.filter(p => p.id !== id)
+      if (itemToRemove?.isPrimary && updated.length > 0) {
+        updated[0].isPrimary = true
+        setPreviewUrl(updated[0].url)
+      } else if (updated.length === 0) {
+        setPreviewUrl('')
+      }
+      return updated
+    })
+  }
+
+  const handleSetPrimaryPhoto = (id: string) => {
+    markFormTouched()
+    setOnboardingPhotos(prev => {
+      const updated = prev.map(p => ({
+        ...p,
+        isPrimary: p.id === id
+      }))
+      const primaryItem = updated.find(p => p.isPrimary)
+      if (primaryItem) setPreviewUrl(primaryItem.url)
+      return updated
+    })
+    modal.toast('Main profile cover photo set ⭐', 'info')
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX)
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null) return
+    const touchEndX = e.changedTouches[0].clientX
+    const diffX = touchEndX - touchStartX
+    if (diffX > 45 && activePhotoIdx > 0) {
+      setActivePhotoIdx(i => i - 1)
+    } else if (diffX < -45 && activePhotoIdx < viewPhotos.length - 1) {
+      setActivePhotoIdx(i => i + 1)
+    }
+    setTouchStartX(null)
   }
 
   // Toggle interests
@@ -368,8 +505,9 @@ function ProfileFormContent() {
       setError('Please select at least 3 interests.')
       return
     }
-    // A photo is required: a newly picked file, or one already saved on the profile
-    if (!photoFile && !currentPhotoUrl) {
+    // A photo is required: either from onboardingPhotos or photoFile or currentPhotoUrl
+    const hasOnboardingPhotos = onboardingPhotos.length > 0
+    if (!hasOnboardingPhotos && !photoFile && !currentPhotoUrl) {
       setError(PHOTO_REQUIRED_MSG)
       return
     }
@@ -385,15 +523,65 @@ function ProfileFormContent() {
 
     try {
       let finalPhotoUrl = currentPhotoUrl
+      let updatedGalleryUrls: string[] = viewPhotos.length > 0 ? [...viewPhotos] : []
 
-      if (photoFile && userId) {
-        const compressedFile = await compressImage(photoFile)
-        const fileExt = compressedFile.name.split('.').pop()
+      if (hasOnboardingPhotos) {
+        const primaryItem = onboardingPhotos.find(p => p.isPrimary) || onboardingPhotos[0]
+        const uploadedUrls: string[] = []
+
+        for (let idx = 0; idx < onboardingPhotos.length; idx++) {
+          const item = onboardingPhotos[idx]
+          if (item.file) {
+            const compressedFile = await compressImage(item.file, 1600, 1600, 0.82)
+            const fileExt = compressedFile.name.split('.').pop() || 'jpg'
+            const filePath = `${userId}/${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`
+
+            const { error: uploadErr } = await supabase.storage
+              .from('profile-images')
+              .upload(filePath, compressedFile, { upsert: true, cacheControl: '3600' })
+
+            if (uploadErr) {
+              console.warn('Storage upload error for photo:', uploadErr.message)
+              continue
+            }
+
+            const { data: publicUrlData } = supabase.storage
+              .from('profile-images')
+              .getPublicUrl(filePath)
+
+            const url = publicUrlData.publicUrl
+            uploadedUrls.push(url)
+
+            if (item.id === primaryItem.id) {
+              finalPhotoUrl = url
+            }
+
+            const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
+              user_id: userId,
+              url,
+              type: 'image',
+              position: idx
+            })
+            if (galleryError) console.warn('Insert to profile_photos failed:', galleryError.message)
+          } else if (item.url) {
+            uploadedUrls.push(item.url)
+            if (item.id === primaryItem.id) {
+              finalPhotoUrl = item.url
+            }
+          }
+        }
+
+        if (uploadedUrls.length > 0) {
+          updatedGalleryUrls = Array.from(new Set([finalPhotoUrl, ...uploadedUrls].filter(Boolean)))
+        }
+      } else if (photoFile && userId) {
+        const compressedFile = await compressImage(photoFile, 1600, 1600, 0.82)
+        const fileExt = compressedFile.name.split('.').pop() || 'jpg'
         const filePath = `${userId}/profile_${Date.now()}.${fileExt}`
 
         const { error: uploadErr } = await supabase.storage
           .from('profile-images')
-          .upload(filePath, compressedFile, { upsert: true })
+          .upload(filePath, compressedFile, { upsert: true, cacheControl: '3600' })
 
         if (uploadErr) throw uploadErr
 
@@ -403,14 +591,18 @@ function ProfileFormContent() {
 
         finalPhotoUrl = publicUrlData.publicUrl
 
-        // Also add to profile_photos table
-        // Gallery copy is a nice-to-have; the main photo is saved on the profile below
         const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
           user_id: userId,
           url: finalPhotoUrl,
-          type: 'image'
+          type: 'image',
+          position: 0
         })
         if (galleryError) console.warn('Adding photo to gallery failed:', galleryError.message)
+        updatedGalleryUrls = Array.from(new Set([finalPhotoUrl, ...updatedGalleryUrls]))
+      }
+
+      if (!finalPhotoUrl && updatedGalleryUrls.length > 0) {
+        finalPhotoUrl = updatedGalleryUrls[0]
       }
 
       const profilePayload = {
@@ -447,6 +639,8 @@ function ProfileFormContent() {
       // Update local state and app cache
       setCurrentPhotoUrl(finalPhotoUrl)
       setPreviewUrl(finalPhotoUrl)
+      setViewPhotos(updatedGalleryUrls.length > 0 ? updatedGalleryUrls : (finalPhotoUrl ? [finalPhotoUrl] : []))
+      setActivePhotoIdx(0)
       setPhotoFile(null)
       setProfileComplete(true)
       setCache('profile', profilePayload, 'self')
@@ -601,20 +795,125 @@ function ProfileFormContent() {
           {isViewing && (
             <div className="view-profile-tab">
               <div className="preview-card">
-                <div className="preview-img-wrap">
+                <div 
+                  className="preview-img-wrap"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={handleTouchEnd}
+                >
                   <Image
                     id="viewPhoto"
-                    src={previewUrl || DEFAULT_AVATAR}
+                    src={viewPhotos[activePhotoIdx] || previewUrl || DEFAULT_AVATAR}
                     alt="Profile"
                     width={400}
                     height={400}
+                    unoptimized={Boolean(
+                      (viewPhotos[activePhotoIdx] || previewUrl || '').startsWith('blob:') ||
+                      (viewPhotos[activePhotoIdx] || previewUrl || '').startsWith('data:')
+                    )}
                   />
+
+                  {/* Stories/Tinder segment indicator bars */}
+                  {viewPhotos.length > 1 && (
+                    <div className="carousel-segment-bars">
+                      {viewPhotos.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`carousel-segment-pill ${i === activePhotoIdx ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActivePhotoIdx(i)
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Left & Right Tap Zones for one-tap photo navigation */}
+                  {viewPhotos.length > 1 && (
+                    <>
+                      <div
+                        className="carousel-tap-zone left"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (activePhotoIdx > 0) setActivePhotoIdx(i => i - 1)
+                        }}
+                        aria-label="Previous photo"
+                      />
+                      <div
+                        className="carousel-tap-zone right"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (activePhotoIdx < viewPhotos.length - 1) setActivePhotoIdx(i => i + 1)
+                        }}
+                        aria-label="Next photo"
+                      />
+                    </>
+                  )}
+
+                  {/* Desktop navigation buttons */}
+                  {viewPhotos.length > 1 && activePhotoIdx > 0 && (
+                    <button
+                      type="button"
+                      className="carousel-nav-btn left"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActivePhotoIdx(i => i - 1)
+                      }}
+                      aria-label="Previous photo"
+                    >
+                      ‹
+                    </button>
+                  )}
+                  {viewPhotos.length > 1 && activePhotoIdx < viewPhotos.length - 1 && (
+                    <button
+                      type="button"
+                      className="carousel-nav-btn right"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActivePhotoIdx(i => i + 1)
+                      }}
+                      aria-label="Next photo"
+                    >
+                      ›
+                    </button>
+                  )}
+
+                  {/* Photo counter badge */}
+                  {viewPhotos.length > 1 && (
+                    <div className="carousel-photo-badge">
+                      <span>📷 {activePhotoIdx + 1}/{viewPhotos.length}</span>
+                    </div>
+                  )}
+
                   <div className="preview-overlay">
                     <h3>{name || 'Student'}{age ? `, ${age}` : ''}</h3>
                     <p>📍 {campus || 'Campus'}</p>
                     <p>📚 {course || 'Major'}{yearOfStudy ? ` (${yearOfStudy} Year)` : ''}</p>
                   </div>
                 </div>
+
+                {/* Thumbnails strip */}
+                {viewPhotos.length > 1 && (
+                  <div className="preview-thumbnails-strip">
+                    {viewPhotos.map((imgUrl, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`preview-thumb-btn ${i === activePhotoIdx ? 'active' : ''}`}
+                        onClick={() => setActivePhotoIdx(i)}
+                        title={`View photo ${i + 1}`}
+                      >
+                        <Image
+                          src={imgUrl}
+                          alt={`Thumbnail ${i + 1}`}
+                          width={46}
+                          height={46}
+                          unoptimized={imgUrl.startsWith('blob:') || imgUrl.startsWith('data:')}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="preview-bio-section">
                   <h4>About Me</h4>
                   <p>{bio || 'No bio updated yet.'}</p>
@@ -1041,35 +1340,114 @@ function ProfileFormContent() {
                           </select>
                         </div>
 
-                        <div className="form-group">
-                          <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo * (Required)</label>
-                          <div className="photo-section" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
-                            <div className="photo-container">
-                              <Image
-                                id="profilePreview"
-                                src={previewUrl || DEFAULT_AVATAR}
-                                alt="Profile"
-                                width={140}
-                                height={140}
-                              />
-                              <div className="photo-overlay">
-                                <label className="upload-label">
-                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" strokeWidth="2"/>
-                                    <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2"/>
-                                  </svg>
-                                  <input type="file" accept="image/*" onChange={handlePhotoChange} hidden />
-                                </label>
-                              </div>
+                        <div className="form-group photo-upload-group">
+                          <div className="photo-grid-header">
+                            <div>
+                              <label className="form-label" style={{ margin: 0 }}>
+                                Profile Photos * ({onboardingPhotos.length}/6)
+                              </label>
+                              <p className="photo-grid-subtext">
+                                Add 1 to 6 photos. The first or starred photo will be your main profile card.
+                              </p>
                             </div>
+                            {onboardingPhotos.length < 6 && (
+                              <button
+                                type="button"
+                                className="add-photos-btn"
+                                onClick={() => multiFileInputRef.current?.click()}
+                              >
+                                <span>+ Add Photos</span>
+                              </button>
+                            )}
                           </div>
-                          {previewUrl ? (
-                            <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '13px', color: '#4ade80' }}>
-                              ✓ {photoFile ? 'Photo ready to upload' : 'Photo added'}
-                            </p>
-                          ) : error === PHOTO_REQUIRED_MSG ? (
-                            <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.5rem' }}>
-                              Tap the photo above to add one — it&apos;s required.
+
+                          <input
+                            ref={multiFileInputRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files.length > 0) {
+                                handleAddPhotos(e.target.files)
+                                e.target.value = ''
+                              }
+                            }}
+                            hidden
+                          />
+
+                          <div className="onboarding-photos-grid">
+                            {Array.from({ length: 6 }).map((_, slotIdx) => {
+                              const photoItem = onboardingPhotos[slotIdx]
+                              if (photoItem) {
+                                return (
+                                  <div
+                                    key={photoItem.id}
+                                    className={`photo-slot filled ${photoItem.isPrimary ? 'primary-slot' : ''}`}
+                                  >
+                                    <Image
+                                      src={photoItem.url}
+                                      alt={`Photo ${slotIdx + 1}`}
+                                      width={160}
+                                      height={160}
+                                      className="slot-img"
+                                      unoptimized={photoItem.url.startsWith('blob:') || photoItem.url.startsWith('data:')}
+                                    />
+                                    {photoItem.isPrimary ? (
+                                      <div className="slot-badge-main" title="Main Profile Cover">
+                                        ⭐ Main
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="slot-set-main-btn"
+                                        onClick={() => handleSetPrimaryPhoto(photoItem.id)}
+                                        title="Set as main photo"
+                                      >
+                                        Set Main
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="slot-remove-btn"
+                                      onClick={() => handleRemovePhoto(photoItem.id)}
+                                      title="Remove photo"
+                                      aria-label="Remove photo"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                )
+                              } else {
+                                return (
+                                  <button
+                                    key={`empty_${slotIdx}`}
+                                    type="button"
+                                    className={`photo-slot empty ${slotIdx === 0 ? 'first-slot' : ''}`}
+                                    onClick={() => multiFileInputRef.current?.click()}
+                                    title={slotIdx === 0 ? "Add your main profile photo" : `Add photo slot ${slotIdx + 1}`}
+                                  >
+                                    <div className="slot-empty-content">
+                                      <span className="slot-plus-icon">+</span>
+                                      <span className="slot-empty-label">
+                                        {slotIdx === 0 ? 'Main Photo *' : `Photo ${slotIdx + 1}`}
+                                      </span>
+                                    </div>
+                                  </button>
+                                )
+                              }
+                            })}
+                          </div>
+
+                          <div className="photo-tip-banner">
+                            <span className="tip-emoji">💡</span>
+                            <span className="tip-text">
+                              <strong>Campus Tip:</strong> Students with 3 or more photos get 4x more likes and match replies!
+                            </span>
+                          </div>
+
+                          {error === PHOTO_REQUIRED_MSG ? (
+                            <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.75rem' }}>
+                              Please upload at least one profile photo to continue.
                             </p>
                           ) : null}
                         </div>
