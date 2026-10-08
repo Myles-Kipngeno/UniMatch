@@ -222,6 +222,7 @@ export default function DashboardPage() {
 
   // Prefetched gallery photos keyed by user_id (loaded in one batched query with the discovery pool)
   const poolPhotosRef = useRef<Map<string, string[]>>(new Map())
+  const viewedProfileIdsRef = useRef<Set<string>>(new Set())
 
   // Campus Spots & Presence States
   const [campusSpots, setCampusSpots] = useState<CampusSpot[]>(DEFAULT_CAMPUS_SPOTS)
@@ -1385,11 +1386,56 @@ export default function DashboardPage() {
     }
   }
 
+  // Track profile views so the target user's dashboard "Views" counter updates accurately
+  const recordProfileView = useCallback(async (targetId: string) => {
+    if (!targetId) return
+
+    // Debounce within the session so opening/closing the same profile repeatedly doesn't spam rows
+    if (viewedProfileIdsRef.current.has(targetId)) return
+
+    let activeViewerId = uid
+    if (!activeViewerId) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        activeViewerId = user?.id || null
+      } catch {
+        return
+      }
+    }
+
+    // Do not record self-views
+    if (!activeViewerId || activeViewerId === targetId) return
+
+    // Mark as viewed in session
+    viewedProfileIdsRef.current.add(targetId)
+
+    try {
+      const { error } = await (supabase.from('views') as any).insert({
+        viewer_id: activeViewerId,
+        target_id: targetId
+      })
+      if (error) {
+        // If DB insert failed, remove from session set so it can try again later
+        viewedProfileIdsRef.current.delete(targetId)
+        console.warn('Could not record profile view:', error.message)
+      }
+    } catch (err) {
+      viewedProfileIdsRef.current.delete(targetId)
+      console.warn('Error recording profile view:', err)
+    }
+  }, [uid, supabase])
+
   // Open Full Profile View Modal
   const openProfileDetailModal = async (candidate: ProfileCandidate) => {
+    if (!candidate) return
     setSelectedProfileModal(candidate)
     setActiveModalPhotoIdx(0)
     setModalPhotosLoading(true)
+
+    // Record profile view in background
+    if (candidate.id) {
+      recordProfileView(candidate.id)
+    }
 
     // Fast path: photos were already prefetched with the discovery pool
     const prefetched = poolPhotosRef.current.get(candidate.id)
