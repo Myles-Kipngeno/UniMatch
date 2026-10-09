@@ -1,8 +1,10 @@
 {
+  "id": "/",
   "name": "UniMatch",
   "short_name": "UniMatch",
   "description": "University Match and Dating Web App",
   "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f0e17",

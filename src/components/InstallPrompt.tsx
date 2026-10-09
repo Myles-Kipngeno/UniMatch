@@ -54,13 +54,23 @@ export default function InstallPrompt() {
 
     // 5. Intercept beforeinstallprompt event whenever browser fires it
     const handleBeforeInstall = (e?: any) => {
-      if (e) {
-        ; (window as any).deferredBeforeInstallPrompt = e
+      if (e && typeof e.prompt === 'function') {
+        ;(window as any).deferredBeforeInstallPrompt = e
       }
+    }
+
+    const handleAppInstalled = () => {
+      ;(window as any).deferredBeforeInstallPrompt = null
+      setShowPrompt(false)
+      try {
+        sessionStorage.setItem(SESSION_DISMISSED_KEY, 'true')
+      } catch (_) {}
+      modal.toast('UniMatch installed successfully!', 'success')
     }
 
     window.addEventListener('unimatch:beforeinstallprompt', handleBeforeInstall)
     window.addEventListener('beforeinstallprompt', handleBeforeInstall)
+    window.addEventListener('appinstalled', handleAppInstalled)
 
     // 6. Proactively display the install banner for any browser session
     setShowPrompt(true)
@@ -68,8 +78,9 @@ export default function InstallPrompt() {
     return () => {
       window.removeEventListener('unimatch:beforeinstallprompt', handleBeforeInstall)
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
+      window.removeEventListener('appinstalled', handleAppInstalled)
     }
-  }, [])
+  }, [modal])
 
   const handleDismiss = () => {
     try {
@@ -83,33 +94,36 @@ export default function InstallPrompt() {
   const handleInstallClick = async () => {
     const deferredEvent = (window as any).deferredBeforeInstallPrompt
 
-    if (deferredEvent) {
+    if (deferredEvent && typeof deferredEvent.prompt === 'function') {
       setIsInstalling(true)
       try {
         await deferredEvent.prompt()
         const choiceResult = await deferredEvent.userChoice
         console.log('[PWA] User choice:', choiceResult?.outcome)
-          ; (window as any).deferredBeforeInstallPrompt = null
+        if (choiceResult?.outcome === 'accepted') {
+          handleDismiss()
+        }
+        ;(window as any).deferredBeforeInstallPrompt = null
       } catch (err) {
         console.warn('[PWA] Install prompt error:', err)
+        handleDismiss()
       } finally {
         setIsInstalling(false)
-        handleDismiss()
       }
       return
     }
 
-    // If native prompt was not triggered by browser (e.g. iOS, uninstalled earlier, desktop):
+    // If native prompt was not triggered by browser (e.g. iOS Safari, or non-secure origin):
     if (devicePlatform === 'ios') {
       modal.alert({
         title: 'Install UniMatch on iOS',
-        message: 'Tap the Share button in Safari (bottom bar) and select "Add to Home Screen" to install UniMatch.',
+        message: 'Tap the Share button in Safari (bottom bar) and select "Add to Home Screen" to install UniMatch on your device.',
         type: 'info'
       })
     } else if (devicePlatform === 'android') {
       modal.alert({
         title: 'Install UniMatch App',
-        message: 'Tap your browser menu (⋮) at the top right and select "Install app" or "Add to Home screen".',
+        message: 'Tap your browser menu (⋮) in the top-right corner and select "Install app" or "Add to Home screen".',
         type: 'info'
       })
     } else {
