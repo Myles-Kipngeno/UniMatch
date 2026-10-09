@@ -1,12 +1,4 @@
-export * from './types'
-export * from './UniMatchPromo'
-export * from './Root'
-export * from './components/PhoneMockup'
-export * from './scenes/Scene1Hook'
-export * from './scenes/Scene2Verification'
-export * from './scenes/Scene3Onboarding'
-export * from './scenes/Scene4CampusPulse'
-export * from './scenes/Scene5DiscoveryDeck'
-export * from './scenes/Scene6MatchMoment'
-export * from './scenes/Scene7Chat'
-export * from './scenes/Scene8Outro'
+import { registerRoot } from 'remotion'
+import { RemotionRoot } from './Root'
+
+registerRoot(RemotionRoot)

@@ -45,13 +45,14 @@
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --topnav-h: 60px;
-  --bottomnav-h: 72px;
+  --bottomnav-h: 64px;
 
   font-family: 'Outfit', sans-serif;
   background-color: var(--bg-color);
   color: var(--ink);
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
+  overflow-y: hidden;
   position: relative;
   -webkit-font-smoothing: antialiased;
 
@@ -169,16 +170,21 @@
      SWIPE ARENA & CARD STACK
   ═══════════════════════════════════════ */
   .swipe-arena {
-    padding-top: calc(var(--topnav-h) + 12px);
-    padding-bottom: calc(var(--bottomnav-h) + 16px);
-    height: 100vh;
+    padding-top: calc(var(--topnav-h) + 8px);
+    padding-bottom: calc(var(--bottomnav-h) + 8px);
+    padding-left: 10px;
+    padding-right: 10px;
+    height: 100dvh;
+    width: 100%;
     max-width: 480px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
+    align-items: stretch;
+    justify-content: flex-start;
     position: relative;
+    box-sizing: border-box;
+    gap: 8px;
   }
 
   #discoverContainer,
@@ -186,10 +192,10 @@
     position: relative;
     width: 100%;
     flex: 1;
-    max-height: calc(100vh - var(--topnav-h) - var(--bottomnav-h) - 100px);
-    min-height: 480px;
+    min-height: 0;
+    max-height: none;
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
   }
 
@@ -266,6 +272,9 @@
     cursor: grab;
     transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
     will-change: transform, opacity;
+    /* Ensure card fills its container on all sides */
+    width: 100%;
+    height: 100%;
   }
 
   .user-card:active {
@@ -301,12 +310,86 @@
   }
 
   /* Main card photo */
-  .user-card>img {
+  .user-card > img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center;
+    object-position: center top;
     pointer-events: none;
+    display: block;
+  }
+
+  /* ── PHOTO CAROUSEL ── */
+  .card-photo-carousel {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .card-photo-carousel img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .card-photo-carousel img.active-photo {
+    opacity: 1;
+    z-index: 1;
+  }
+
+  .card-photo-carousel img.inactive-photo {
+    opacity: 0;
+    z-index: 0;
+  }
+
+  /* Touch zones for left/right photo navigation */
+  .card-photo-nav {
+    position: absolute;
+    top: 0;
+    bottom: 35%;
+    z-index: 15;
+    cursor: pointer;
+  }
+
+  .card-photo-nav-left {
+    left: 0;
+    z-index: 16; /* sits on top of the right zone */
+  }
+
+  .card-photo-nav-right {
+    right: 0;
+  }
+
+  /* Photo progress dots at top */
+  .card-photo-dots {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    gap: 4px;
+    pointer-events: none;
+  }
+
+  .card-photo-dot {
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.4);
+    flex: 1;
+    transition: background 0.2s ease;
+    min-width: 20px;
+    max-width: 40px;
+  }
+
+  .card-photo-dot.dot-active {
+    background: rgba(255, 255, 255, 0.95);
   }
 
   /* Card Gradient Overlay for Text Readability */
@@ -465,7 +548,8 @@
     justify-content: center;
     gap: 20px;
     width: 100%;
-    padding: 10px 0;
+    padding: 4px 0 6px;
+    flex-shrink: 0;
     z-index: 20;
   }
 
@@ -1001,15 +1085,15 @@
       margin-right: auto;
       padding-top: calc(var(--topnav-h) + 10px);
       padding-bottom: 10px;
-      height: 100vh;
+      height: 100dvh;
       box-sizing: border-box;
       overflow: hidden;
+      align-items: stretch;
     }
 
     #discoverContainer,
     .card-stack {
       min-height: 0 !important;
-      height: calc(100vh - var(--topnav-h) - 120px) !important;
       max-height: none !important;
     }
 

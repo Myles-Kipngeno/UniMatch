@@ -1,4 +1,5 @@
 import React from 'react'
+import { useCurrentFrame } from 'remotion'
 import { SCENE_RANGES, VIDEO_CONFIG } from './types'
 import { Scene1Hook } from './scenes/Scene1Hook'
 import { Scene2Verification } from './scenes/Scene2Verification'
@@ -13,8 +14,16 @@ interface PromoProps {
   currentFrame?: number
 }
 
-export const UniMatchPromo: React.FC<PromoProps> = ({ currentFrame = 0 }) => {
-  const frame = currentFrame
+export const UniMatchPromo: React.FC<PromoProps> = ({ currentFrame }) => {
+  let frame = currentFrame ?? 0
+  try {
+    const rf = useCurrentFrame()
+    if (typeof rf === 'number') {
+      frame = rf
+    }
+  } catch {
+    frame = currentFrame ?? 0
+  }
 
   // Render the appropriate scene based on the 140 BPM timeline
   if (frame < SCENE_RANGES.scene2Verification.from) {
