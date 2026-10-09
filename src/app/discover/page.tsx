@@ -163,40 +163,31 @@ export default function DiscoverPage() {
     try {
       const { data } = await (supabase
         .from('profile_photos' as any) as any)
-        .select('user_id, url, type')
+        .select('user_id, url, type, position')
         .in('user_id', ids)
-        .eq('type', 'image')
-        .order('created_at', { ascending: true })
+        .order('position', { ascending: true })
 
       if (!data) return
 
       // Group by user_id
       const grouped: Record<string, string[]> = {}
-      for (const row of data as any[]) {
+      for (const row of (data as any[]) || []) {
+        if (row.type === 'video' || !row.url) continue
         if (!grouped[row.user_id]) grouped[row.user_id] = []
-        grouped[row.user_id].push(row.url)
+        if (!grouped[row.user_id].includes(row.url)) {
+          grouped[row.user_id].push(row.url)
+        }
       }
 
-      setCandidates(prev => prev.map(c => {
+      const updatePhotos = (c: Profile) => {
         const galleryUrls = grouped[c.id] || []
-        // Put main photo_url first if not already in gallery
         const mainUrl = c.photo_url
-        let photos: string[] = []
-        if (mainUrl && !galleryUrls.includes(mainUrl)) {
-          photos = [mainUrl, ...galleryUrls]
-        } else if (galleryUrls.length > 0) {
-          // Ensure main photo is first
-          if (mainUrl) {
-            const withoutMain = galleryUrls.filter(u => u !== mainUrl)
-            photos = [mainUrl, ...withoutMain]
-          } else {
-            photos = galleryUrls
-          }
-        } else {
-          photos = mainUrl ? [mainUrl] : []
-        }
-        return { ...c, photos }
-      }))
+        const combined = Array.from(new Set([mainUrl, ...galleryUrls].filter(Boolean))) as string[]
+        return { ...c, photos: combined.length > 0 ? combined : (mainUrl ? [mainUrl] : [DEFAULT_AVATAR]) }
+      }
+
+      setCandidates(prev => prev.map(c => updatePhotos(c) as any))
+      setAllProfiles(prev => prev.map(p => updatePhotos(p)))
     } catch (err) {
       console.error('Error fetching candidate photos:', err)
     }
@@ -765,11 +756,17 @@ export default function DiscoverPage() {
 
                     const goNext = (e: React.MouseEvent | React.TouchEvent) => {
                       e.stopPropagation()
-                      setCardPhotoIndex(prev => ({ ...prev, [user.id]: Math.min(safeIdx + 1, photos.length - 1) }))
+                      setCardPhotoIndex(prev => ({
+                        ...prev,
+                        [user.id]: safeIdx + 1 < photos.length ? safeIdx + 1 : 0
+                      }))
                     }
                     const goPrev = (e: React.MouseEvent | React.TouchEvent) => {
                       e.stopPropagation()
-                      setCardPhotoIndex(prev => ({ ...prev, [user.id]: Math.max(safeIdx - 1, 0) }))
+                      setCardPhotoIndex(prev => ({
+                        ...prev,
+                        [user.id]: safeIdx - 1 >= 0 ? safeIdx - 1 : photos.length - 1
+                      }))
                     }
 
                     return (
@@ -796,13 +793,25 @@ export default function DiscoverPage() {
                           ))}
                         </div>
 
-                        {/* Tap zones — left 25% goes back, center+right (75%) goes next */}
+                        {/* Tap zones — left 30% goes back, center + right (70%) goes next */}
                         {photos.length > 1 && (
                           <>
-                            {/* Full-area next zone (center + right) */}
-                            <div className="card-photo-nav card-photo-nav-right" style={{ width: '75%', left: '25%' }} onClick={goNext} />
-                            {/* Left-edge prev zone — sits on top */}
-                            <div className="card-photo-nav card-photo-nav-left" style={{ width: '25%' }} onClick={goPrev} />
+                            {/* Center + Right zone (tapping center or right advances to next photo) */}
+                            <div
+                              className="card-photo-nav card-photo-nav-right"
+                              style={{ width: '70%', right: 0 }}
+                              onClick={goNext}
+                              role="button"
+                              aria-label="Next photo"
+                            />
+                            {/* Left zone (tapping left goes to previous photo) */}
+                            <div
+                              className="card-photo-nav card-photo-nav-left"
+                              style={{ width: '30%', left: 0 }}
+                              onClick={goPrev}
+                              role="button"
+                              aria-label="Previous photo"
+                            />
                           </>
                         )}
                       </>
