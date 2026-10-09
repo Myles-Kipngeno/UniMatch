@@ -38,30 +38,30 @@ export const PhoneMockup: React.FC<PhoneMockupProps> = ({
     >
       <div
         style={{
-          width: 440,
-          height: 900,
-          borderRadius: 56,
+          width: 324,
+          height: 590,
+          borderRadius: 42,
           background: '#15131e',
-          padding: 12,
+          padding: 8,
           boxSizing: 'border-box',
           position: 'relative',
           transformStyle: 'preserve-3d',
           transform: `translate3d(${translateX}px, ${translateY}px, ${translateZ}px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) rotateZ(${rotateZ}deg) scale(${scale})`,
           boxShadow: `
-            0 30px 80px rgba(0, 0, 0, 0.8),
-            0 0 60px ${rimLightColor},
-            inset 0 0 4px rgba(255, 255, 255, 0.25)
+            0 20px 60px rgba(0, 0, 0, 0.8),
+            0 0 50px ${rimLightColor},
+            inset 0 0 3px rgba(255, 255, 255, 0.25)
           `,
-          border: '3px solid #2d2b38',
+          border: '2.5px solid #2d2b38',
         }}
       >
         {/* Titanium Chamfer Edge */}
         <div
           style={{
             position: 'absolute',
-            inset: 3,
-            borderRadius: 50,
-            border: '1.5px solid rgba(255, 255, 255, 0.12)',
+            inset: 2,
+            borderRadius: 38,
+            border: '1.2px solid rgba(255, 255, 255, 0.12)',
             pointerEvents: 'none',
           }}
         />
@@ -71,7 +71,7 @@ export const PhoneMockup: React.FC<PhoneMockupProps> = ({
           style={{
             width: '100%',
             height: '100%',
-            borderRadius: 44,
+            borderRadius: 34,
             overflow: 'hidden',
             background: '#0b0914',
             position: 'relative',
@@ -82,26 +82,26 @@ export const PhoneMockup: React.FC<PhoneMockupProps> = ({
           <div
             style={{
               position: 'absolute',
-              top: 14,
+              top: 10,
               left: '50%',
               transform: 'translateX(-50%)',
-              width: 120,
-              height: 32,
-              borderRadius: 20,
+              width: 90,
+              height: 22,
+              borderRadius: 16,
               background: '#000000',
               zIndex: 100,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
-              paddingRight: 10,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+              paddingRight: 8,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
             }}
           >
             {/* Camera sensor dot */}
             <div
               style={{
-                width: 11,
-                height: 11,
+                width: 8,
+                height: 8,
                 borderRadius: '50%',
                 background: '#0a0d18',
                 border: '1px solid #1c2237',

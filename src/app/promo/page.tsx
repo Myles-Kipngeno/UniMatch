@@ -22,33 +22,24 @@ export default function PromoVideoPlayerPage() {
   const lastTimeRef = useRef<number | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
-  // 60 FPS playback loop
+  // High-performance real-time playback timer (never freezes or misses frames)
   useEffect(() => {
-    const loop = (timestamp: number) => {
-      if (isPlaying) {
-        if (lastTimeRef.current !== null) {
-          const delta = timestamp - lastTimeRef.current
-          // Advance frame based on 60 FPS (approx 16.66ms per frame)
-          const framesToAdvance = Math.max(1, Math.round(delta / (1000 / VIDEO_CONFIG.fps)))
-          setFrame((prev) => {
-            const next = prev + framesToAdvance
-            if (next >= VIDEO_CONFIG.totalFrames) {
-              return 0 // loop
-            }
-            return next
-          })
-        }
-        lastTimeRef.current = timestamp
-      } else {
-        lastTimeRef.current = null
-      }
-      animationFrameRef.current = requestAnimationFrame(loop)
-    }
+    if (!isPlaying) return
 
-    animationFrameRef.current = requestAnimationFrame(loop)
-    return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-    }
+    let lastTimestamp = performance.now()
+    const timerId = setInterval(() => {
+      const now = performance.now()
+      const deltaSec = (now - lastTimestamp) / 1000
+      lastTimestamp = now
+
+      const deltaFrames = Math.max(1, Math.round(deltaSec * VIDEO_CONFIG.fps))
+      setFrame((prev) => {
+        const next = prev + deltaFrames
+        return next >= VIDEO_CONFIG.totalFrames ? 0 : next
+      })
+    }, 33)
+
+    return () => clearInterval(timerId)
   }, [isPlaying])
 
   const currentTimeInSeconds = (frame / VIDEO_CONFIG.fps).toFixed(1)
@@ -144,9 +135,9 @@ export default function PromoVideoPlayerPage() {
         {/* Phone Viewport Container (Scaled to Fit Comfortably) */}
         <div
           style={{
-            height: 'min(76dvh, 760px)',
+            height: 'min(70dvh, 620px)',
             aspectRatio: '9 / 16',
-            borderRadius: 48,
+            borderRadius: 36,
             overflow: 'hidden',
             boxShadow: '0 25px 80px rgba(0, 0, 0, 0.9), 0 0 50px rgba(124, 58, 237, 0.35)',
             border: '2px solid rgba(255, 255, 255, 0.1)',

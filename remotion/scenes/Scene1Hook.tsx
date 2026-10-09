@@ -63,37 +63,33 @@ export const Scene1Hook: React.FC<SceneProps> = ({ frame }) => {
           textAlign: 'center',
         }}
       >
-        {frame >= 10 && (
-          <span
-            style={{
-              fontSize: 32,
-              fontWeight: 600,
-              color: THEME.neonViolet,
-              letterSpacing: 3,
-              textTransform: 'uppercase',
-            }}
-          >
-            Okay, Real Talk...
-          </span>
-        )}
+        <span
+          style={{
+            fontSize: 28,
+            fontWeight: 700,
+            color: THEME.neonViolet,
+            letterSpacing: 3,
+            textTransform: 'uppercase',
+          }}
+        >
+          Okay, Real Talk...
+        </span>
 
-        {frame >= 40 && (
-          <span
-            style={{
-              fontSize: 54,
-              fontWeight: 800,
-              color: '#ffffff',
-              lineHeight: 1.15,
-            }}
-          >
-            how many people on campus
-          </span>
-        )}
+        <span
+          style={{
+            fontSize: 44,
+            fontWeight: 800,
+            color: '#ffffff',
+            lineHeight: 1.15,
+          }}
+        >
+          how many people on campus
+        </span>
 
-        {frame >= 85 && (
+        {frame >= 25 && (
           <span
             style={{
-              fontSize: 48,
+              fontSize: 40,
               fontWeight: 700,
               color: '#cbd5e1',
             }}
@@ -102,18 +98,18 @@ export const Scene1Hook: React.FC<SceneProps> = ({ frame }) => {
           </span>
         )}
 
-        {isActuallyTriggered && (
+        {frame >= 50 && (
           <span
             style={{
-              fontSize: 130,
+              fontSize: 90,
               fontWeight: 900,
               lineHeight: 0.95,
-              letterSpacing: -2,
+              letterSpacing: -1,
               background: 'linear-gradient(135deg, #ec4899 0%, #a855f7 50%, #7c3aed 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               textShadow: '0 0 40px rgba(236, 72, 153, 0.6)',
-              transform: frame < 135 ? 'scale(1.25)' : 'scale(1.0)',
+              transform: frame < 65 ? 'scale(1.2)' : 'scale(1.0)',
               transition: 'transform 0.15s cubic-bezier(0.17, 0.89, 0.32, 1.49)',
             }}
           >
@@ -121,10 +117,10 @@ export const Scene1Hook: React.FC<SceneProps> = ({ frame }) => {
           </span>
         )}
 
-        {frame >= 150 && (
+        {frame >= 80 && (
           <span
             style={{
-              fontSize: 70,
+              fontSize: 56,
               fontWeight: 800,
               color: '#ffffff',
             }}
