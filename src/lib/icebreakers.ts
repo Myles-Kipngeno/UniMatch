@@ -3,7 +3,8 @@ export const ICEBREAKERS = [
   "What would you do if money wasn't an issue?",
   "Describe your perfect Sunday morning.",
   "What's the best meal you've ever had?",
-  "What three things can you not live without?"
+  "What three things can you not live without?",
+  "Coffee between lectures?"
 ]
 
 export function getRandomIcebreakers(count: number = 3): string[] {

@@ -60,6 +60,7 @@ interface Profile {
   year_of_study?: string;
   bio?: string;
   photo_url?: string;
+  photos?: string[];
   interests?: string[];
   preference?: string;
   profile_complete?: boolean;
@@ -152,6 +153,55 @@ export default function DiscoverPage() {
   // Active Card Element Ref for gestures
   const activeCardRef = useRef<HTMLDivElement>(null)
 
+  // Per-card active photo index
+  const [cardPhotoIndex, setCardPhotoIndex] = useState<Record<string, number>>({})
+
+  // Fetch gallery photos for a batch of candidate IDs
+  const fetchCandidatePhotos = useCallback(async (profiles: Profile[]) => {
+    const ids = profiles.map(p => p.id)
+    if (ids.length === 0) return
+    try {
+      const { data } = await (supabase
+        .from('profile_photos' as any) as any)
+        .select('user_id, url, type')
+        .in('user_id', ids)
+        .eq('type', 'image')
+        .order('created_at', { ascending: true })
+
+      if (!data) return
+
+      // Group by user_id
+      const grouped: Record<string, string[]> = {}
+      for (const row of data as any[]) {
+        if (!grouped[row.user_id]) grouped[row.user_id] = []
+        grouped[row.user_id].push(row.url)
+      }
+
+      setCandidates(prev => prev.map(c => {
+        const galleryUrls = grouped[c.id] || []
+        // Put main photo_url first if not already in gallery
+        const mainUrl = c.photo_url
+        let photos: string[] = []
+        if (mainUrl && !galleryUrls.includes(mainUrl)) {
+          photos = [mainUrl, ...galleryUrls]
+        } else if (galleryUrls.length > 0) {
+          // Ensure main photo is first
+          if (mainUrl) {
+            const withoutMain = galleryUrls.filter(u => u !== mainUrl)
+            photos = [mainUrl, ...withoutMain]
+          } else {
+            photos = galleryUrls
+          }
+        } else {
+          photos = mainUrl ? [mainUrl] : []
+        }
+        return { ...c, photos }
+      }))
+    } catch (err) {
+      console.error('Error fetching candidate photos:', err)
+    }
+  }, [supabase])
+
   // Fetch initial profile & candidate lists
   useEffect(() => {
     async function initDiscover() {
@@ -239,6 +289,9 @@ export default function DiscoverPage() {
         })
         clearNetworkError()
         setLoading(false)
+
+        // Fetch gallery photos for first batch of candidates
+        fetchCandidatePhotos(filtered)
 
       } catch (err: any) {
         console.error("Discover boot error:", err)
@@ -416,6 +469,7 @@ export default function DiscoverPage() {
           const seen = new Set(prev.map((c: any) => c.id))
           return [...prev, ...scored.filter((c: any) => !seen.has(c.id))]
         })
+        fetchCandidatePhotos(filteredNew)
       } else if (hasMoreProfilesRef.current && skippedEmptyPagesRef.current < 30) {
         // Entire page filtered out; pull the next batch to keep the deck populated.
         // Bound the chain so an ultra-strict filter can't paginate the whole table.
@@ -701,13 +755,59 @@ export default function DiscoverPage() {
                   <div className="stamp stamp-nope">Nope</div>
                   <div className="stamp stamp-super">Super</div>
 
-                  <img 
-                    src={user.photo_url || DEFAULT_AVATAR} 
-                    alt={user.name} 
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = DEFAULT_AVATAR
-                    }}
-                  />
+                  {/* Photo Carousel */}
+                  {(() => {
+                    const photos = user.photos && user.photos.length > 0
+                      ? user.photos
+                      : [user.photo_url || DEFAULT_AVATAR]
+                    const activeIdx = cardPhotoIndex[user.id] || 0
+                    const safeIdx = Math.min(activeIdx, photos.length - 1)
+
+                    const goNext = (e: React.MouseEvent | React.TouchEvent) => {
+                      e.stopPropagation()
+                      setCardPhotoIndex(prev => ({ ...prev, [user.id]: Math.min(safeIdx + 1, photos.length - 1) }))
+                    }
+                    const goPrev = (e: React.MouseEvent | React.TouchEvent) => {
+                      e.stopPropagation()
+                      setCardPhotoIndex(prev => ({ ...prev, [user.id]: Math.max(safeIdx - 1, 0) }))
+                    }
+
+                    return (
+                      <>
+                        {/* Dot indicators (only if multiple photos) */}
+                        {photos.length > 1 && (
+                          <div className="card-photo-dots" style={{ width: `${Math.min(photos.length * 44, 200)}px` }}>
+                            {photos.map((_, di) => (
+                              <div key={di} className={`card-photo-dot${di === safeIdx ? ' dot-active' : ''}`} />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Photo images */}
+                        <div className="card-photo-carousel">
+                          {photos.map((src, pi) => (
+                            <img
+                              key={pi}
+                              src={src}
+                              alt={user.name}
+                              className={pi === safeIdx ? 'active-photo' : 'inactive-photo'}
+                              onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_AVATAR }}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Tap zones — left 25% goes back, center+right (75%) goes next */}
+                        {photos.length > 1 && (
+                          <>
+                            {/* Full-area next zone (center + right) */}
+                            <div className="card-photo-nav card-photo-nav-right" style={{ width: '75%', left: '25%' }} onClick={goNext} />
+                            {/* Left-edge prev zone — sits on top */}
+                            <div className="card-photo-nav card-photo-nav-left" style={{ width: '25%' }} onClick={goPrev} />
+                          </>
+                        )}
+                      </>
+                    )
+                  })()}
 
                   <div className="card-info">
                     <div className="card-title-row">

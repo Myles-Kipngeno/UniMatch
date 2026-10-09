@@ -14,6 +14,7 @@ import { ProfileSkeleton } from '@/components/skeletons/Skeletons'
 import OfflineNotice, { OfflineBanner } from '@/components/OfflineNotice'
 import { DEFAULT_AVATAR } from '@/lib/constants'
 import { compressImage } from '@/lib/imageCompression'
+import { useModal } from '@/components/ModalContext'
 import './profile.css'
 
 const CURATED_INTERESTS = [
@@ -49,7 +50,198 @@ const CURATED_INTERESTS = [
 
 const PHOTO_REQUIRED_MSG = 'Please upload a profile photo to complete your profile.'
 
-import { useModal } from '@/components/ModalContext'
+export interface ExtraPhotoItem {
+  id: string
+  file?: File
+  url: string
+  prompt?: string
+}
+
+const SHOWCASE_PROMPTS = [
+  { icon: '📸', label: 'Full Fit', hint: 'Campus style' },
+  { icon: '🎒', label: 'Campus Life', hint: 'Library or quad' },
+  { icon: '☕', label: 'Passions', hint: 'Hobbies & arts' },
+  { icon: '🎉', label: 'Social Vibe', hint: 'With friends' },
+  { icon: '✨', label: 'Candid Vibe', hint: 'Golden hour' },
+] as const
+
+function renderShowcaseSlotIcon(idx: number) {
+  switch (idx) {
+    case 0:
+    case 1:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      )
+    case 2:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      )
+    case 3:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      )
+    default:
+      return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="3" ry="3"/>
+          <polygon points="10 9 16 12 10 15 10 9" fill="currentColor"/>
+        </svg>
+      )
+  }
+}
+
+interface CustomSelectOption {
+  value: string
+  label: string
+}
+
+const GENDER_OPTIONS: CustomSelectOption[] = [
+  { value: '', label: 'Select Gender' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+]
+
+const YEAR_OPTIONS: CustomSelectOption[] = [
+  { value: '', label: 'Select Year' },
+  { value: '1', label: '1st Year (Freshman)' },
+  { value: '2', label: '2nd Year (Sophomore)' },
+  { value: '3', label: '3rd Year (Junior)' },
+  { value: '4', label: '4th Year (Senior)' },
+  { value: '5', label: 'Graduate / PG' },
+]
+
+const PREFERENCE_OPTIONS: CustomSelectOption[] = [
+  { value: 'all', label: 'Everyone' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+]
+
+interface CustomSelectProps {
+  id?: string
+  value: string
+  onChange: (value: string) => void
+  options: CustomSelectOption[]
+  placeholder?: string
+  className?: string
+}
+
+function CustomSelect({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder = 'Select...',
+  className = ''
+}: CustomSelectProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const selectedOption = options.find(o => o.value === value)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [isOpen])
+
+  const handleSelect = (optValue: string) => {
+    onChange(optValue)
+    setIsOpen(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      setIsOpen(prev => !prev)
+    } else if (e.key === 'Escape') {
+      setIsOpen(false)
+    } else if (e.key === 'ArrowDown' && isOpen) {
+      e.preventDefault()
+      const currentIdx = options.findIndex(o => o.value === value)
+      const nextIdx = currentIdx < options.length - 1 ? currentIdx + 1 : 0
+      onChange(options[nextIdx].value)
+    } else if (e.key === 'ArrowUp' && isOpen) {
+      e.preventDefault()
+      const currentIdx = options.findIndex(o => o.value === value)
+      const prevIdx = currentIdx > 0 ? currentIdx - 1 : options.length - 1
+      onChange(options[prevIdx].value)
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={`custom-select-container ${isOpen ? 'is-open' : ''} ${className}`}
+      id={id}
+    >
+      <button
+        type="button"
+        className="custom-select-trigger"
+        onClick={() => setIsOpen(prev => !prev)}
+        onKeyDown={handleKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span className={value ? 'custom-select-value' : 'custom-select-placeholder'}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <svg
+          className={`custom-select-chevron ${isOpen ? 'rotated' : ''}`}
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="custom-select-menu" role="listbox">
+          {options.map(opt => {
+            const isSelected = opt.value === value
+            return (
+              <div
+                key={opt.value}
+                className={`custom-select-option ${isSelected ? 'selected' : ''}`}
+                onClick={() => handleSelect(opt.value)}
+                role="option"
+                aria-selected={isSelected}
+              >
+                {opt.label}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ProfileFormContent() {
   const router = useRouter()
@@ -79,6 +271,16 @@ function ProfileFormContent() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
+
+  // Showcase photos state (extra photos reflecting on views section)
+  const [extraPhotos, setExtraPhotos] = useState<ExtraPhotoItem[]>([])
+  const [viewPhotos, setViewPhotos] = useState<string[]>([])
+  const [activePhotoIdx, setActivePhotoIdx] = useState(0)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const mainAvatarInputRef = useRef<HTMLInputElement | null>(null)
+  const showcaseMultiInputRef = useRef<HTMLInputElement | null>(null)
+  const singleSlotInputRef = useRef<HTMLInputElement | null>(null)
+  const activeSlotIdxRef = useRef<number | null>(null)
 
   // Wizard / Onboarding state
   const [currentStep, setCurrentStep] = useState(1)
@@ -220,11 +422,30 @@ function ProfileFormContent() {
       }
 
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', targetId)
-          .single() as any
+        const [{ data: profile }, { data: galleryPhotos }] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', targetId)
+            .single() as any,
+          supabase
+            .from('profile_photos' as any)
+            .select('id, url, position, type')
+            .eq('user_id', targetId)
+            .order('position', { ascending: true }) as any
+        ])
+
+        const galleryUrls: string[] = (galleryPhotos || [])
+          .filter((p: any) => p.type !== 'video' && p.url)
+          .map((p: any) => p.url)
+
+        const allPhotos: string[] = Array.from(
+          new Set([profile?.photo_url, ...galleryUrls].filter(Boolean))
+        ) as string[]
+
+        if (allPhotos.length > 0) {
+          setViewPhotos(allPhotos)
+        }
 
         if (profile) {
           if (!formTouchedRef.current) {
@@ -246,6 +467,22 @@ function ProfileFormContent() {
                 setCurrentPhotoUrl(profile.photo_url)
                 setPreviewUrl(profile.photo_url)
               }
+            }
+
+            if (allPhotos.length > 0) {
+              const primaryUrl = profile?.photo_url || allPhotos[0]
+              if (!previewUrl && primaryUrl) {
+                setPreviewUrl(primaryUrl)
+                setCurrentPhotoUrl(primaryUrl)
+              }
+              const remainingShowcase = allPhotos.filter(u => u !== primaryUrl).slice(0, 5)
+              setExtraPhotos(
+                remainingShowcase.map((url, i) => ({
+                  id: `existing_${i}`,
+                  url,
+                  prompt: SHOWCASE_PROMPTS[i]?.label
+                }))
+              )
             }
           }
           cacheHydratedForRef.current = targetKey
@@ -298,19 +535,226 @@ function ProfileFormContent() {
     })
   }
 
-  // File preview change
+  // Main avatar photo change (used in Edit Mode Section 1 & Step 4 wizard)
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    markFormTouched()
     const file = e.target.files?.[0]
     if (file) {
-      setPhotoFile(file)
-      // Picking a photo resolves the "photo required" error
-      setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setPreviewUrl(event.target?.result as string)
+      if (!file.type.startsWith('image/')) {
+        modal.toast('Please select a valid image file.', 'warning')
+        return
       }
-      reader.readAsDataURL(file)
+      setPhotoFile(file)
+      setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
+      const blobUrl = URL.createObjectURL(file)
+      setPreviewUrl(blobUrl)
+      setCurrentPhotoUrl(blobUrl)
+
+      // Ensure main photo is placed at index 0 in viewPhotos
+      setViewPhotos(prev => {
+        const withoutCurrent = prev.filter(u => u !== previewUrl && u !== currentPhotoUrl)
+        return [blobUrl, ...withoutCurrent]
+      })
     }
+    e.target.value = ''
+  }
+
+  // Multi-photo add for showcase gallery in Step 4
+  const handleAddShowcasePhotos = (incomingFiles: FileList | File[]) => {
+    markFormTouched()
+    const filesArray = Array.from(incomingFiles).filter(file => file.type.startsWith('image/'))
+    if (filesArray.length === 0) {
+      modal.toast('Please select valid image files.', 'warning')
+      return
+    }
+
+    const workingFiles = [...filesArray]
+    let newMainUrl = ''
+    if (!previewUrl && !currentPhotoUrl && workingFiles.length > 0) {
+      const mainFile = workingFiles.shift()!
+      setPhotoFile(mainFile)
+      newMainUrl = URL.createObjectURL(mainFile)
+      setPreviewUrl(newMainUrl)
+      setCurrentPhotoUrl(newMainUrl)
+      setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
+    }
+
+    const availableSlots = 5 - extraPhotos.length
+    if (availableSlots <= 0 && workingFiles.length > 0) {
+      modal.toast('Maximum 5 showcase photos reached.', 'warning')
+      return
+    }
+
+    const filesToAdd = workingFiles.slice(0, availableSlots)
+    if (workingFiles.length > availableSlots) {
+      modal.toast(`Added ${availableSlots} photo(s) (maximum 5 showcase slots reached).`, 'info')
+    }
+
+    const newPhotoItems: ExtraPhotoItem[] = filesToAdd.map((file, idx) => {
+      const slotIndex = extraPhotos.length + idx
+      return {
+        id: `showcase_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+        file,
+        url: URL.createObjectURL(file),
+        prompt: SHOWCASE_PROMPTS[slotIndex]?.label
+      }
+    })
+
+    if (newPhotoItems.length > 0) {
+      setExtraPhotos(prev => [...prev, ...newPhotoItems])
+    }
+
+    // Immediately reflect new showcase photos in viewPhotos for the views section
+    setViewPhotos(prev => {
+      const currentMain = newMainUrl || previewUrl || currentPhotoUrl || DEFAULT_AVATAR
+      const newUrls = newPhotoItems.map(item => item.url)
+      return Array.from(new Set([currentMain, ...prev, ...newUrls].filter(Boolean)))
+    })
+  }
+
+  // Single slot photo upload in Step 4
+  const handleSingleSlotPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    markFormTouched()
+    const file = e.target.files?.[0]
+    const targetIdx = activeSlotIdxRef.current
+    if (file && targetIdx !== null && targetIdx !== undefined) {
+      if (!file.type.startsWith('image/')) {
+        modal.toast('Please select a valid image file.', 'warning')
+        return
+      }
+      const blobUrl = URL.createObjectURL(file)
+      const promptLabel = SHOWCASE_PROMPTS[targetIdx]?.label
+
+      setExtraPhotos(prev => {
+        const next = [...prev]
+        if (targetIdx < next.length) {
+          next[targetIdx] = {
+            id: `showcase_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            file,
+            url: blobUrl,
+            prompt: promptLabel
+          }
+        } else {
+          next.push({
+            id: `showcase_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            file,
+            url: blobUrl,
+            prompt: promptLabel
+          })
+        }
+        return next
+      })
+
+      // Reflect in viewPhotos
+      setViewPhotos(prev => {
+        const currentMain = previewUrl || currentPhotoUrl || DEFAULT_AVATAR
+        return Array.from(new Set([currentMain, ...prev, blobUrl].filter(Boolean)))
+      })
+    }
+    activeSlotIdxRef.current = null
+    e.target.value = ''
+  }
+
+  // Remove a showcase photo
+  const handleRemoveExtraPhoto = (id: string) => {
+    markFormTouched()
+    setExtraPhotos(prev => {
+      const itemToRemove = prev.find(p => p.id === id)
+      if (itemToRemove?.url?.startsWith('blob:')) {
+        try { URL.revokeObjectURL(itemToRemove.url) } catch (_) {}
+      }
+      const updated = prev.filter(p => p.id !== id)
+
+      // Also remove from viewPhotos
+      setViewPhotos(prevView => {
+        const filtered = prevView.filter(u => u !== itemToRemove?.url)
+        const currentMain = previewUrl || currentPhotoUrl || DEFAULT_AVATAR
+        return filtered.length > 0 ? filtered : (currentMain ? [currentMain] : [])
+      })
+
+      return updated
+    })
+  }
+
+  // Promote a showcase photo to become the main avatar
+  const handlePromoteToAvatar = (item: ExtraPhotoItem) => {
+    markFormTouched()
+    const prevMainUrl = previewUrl || currentPhotoUrl
+    const prevMainFile = photoFile
+
+    setPreviewUrl(item.url)
+    if (item.file) {
+      setPhotoFile(item.file)
+    }
+
+    setExtraPhotos(prev => {
+      const withoutItem = prev.filter(p => p.id !== item.id)
+      if (prevMainUrl && prevMainUrl !== DEFAULT_AVATAR) {
+        return [
+          {
+            id: `showcase_${Date.now()}`,
+            file: prevMainFile || undefined,
+            url: prevMainUrl,
+            prompt: item.prompt
+          },
+          ...withoutItem
+        ].slice(0, 5)
+      }
+      return withoutItem
+    })
+
+    setViewPhotos(prev => {
+      const withoutTarget = prev.filter(u => u !== item.url)
+      return [item.url, ...withoutTarget]
+    })
+
+    modal.toast('Promoted to main profile avatar! ⭐', 'info')
+  }
+
+  // Window paste listener for pasting profile picture directly on Step 4
+  useEffect(() => {
+    if (currentStep !== 4) return
+    const onWindowPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile()
+          if (file) {
+            markFormTouched()
+            setPhotoFile(file)
+            setError(prev => (prev === PHOTO_REQUIRED_MSG ? '' : prev))
+            const blobUrl = URL.createObjectURL(file)
+            setPreviewUrl(blobUrl)
+            setCurrentPhotoUrl(blobUrl)
+            setViewPhotos(prev => {
+              const rest = prev.filter(u => u !== previewUrl && u !== currentPhotoUrl)
+              return [blobUrl, ...rest]
+            })
+            modal.toast('Profile photo pasted from clipboard! 📋', 'success')
+            break
+          }
+        }
+      }
+    }
+    window.addEventListener('paste', onWindowPaste)
+    return () => window.removeEventListener('paste', onWindowPaste)
+  }, [currentStep, previewUrl, currentPhotoUrl, modal])
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX)
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null) return
+    const touchEndX = e.changedTouches[0].clientX
+    const diffX = touchEndX - touchStartX
+    if (diffX > 45 && activePhotoIdx > 0) {
+      setActivePhotoIdx(i => i - 1)
+    } else if (diffX < -45 && activePhotoIdx < viewPhotos.length - 1) {
+      setActivePhotoIdx(i => i + 1)
+    }
+    setTouchStartX(null)
   }
 
   // Toggle interests
@@ -343,6 +787,12 @@ function ProfileFormContent() {
         return
       }
     }
+    if (currentStep === 3) {
+      if (selectedInterests.length < 3) {
+        setError('Please select at least 3 interests to continue.')
+        return
+      }
+    }
     setCurrentStep(prev => prev + 1)
   }
 
@@ -368,8 +818,9 @@ function ProfileFormContent() {
       setError('Please select at least 3 interests.')
       return
     }
-    // A photo is required: a newly picked file, or one already saved on the profile
-    if (!photoFile && !currentPhotoUrl) {
+    // A photo is required: either from previewUrl, currentPhotoUrl, photoFile, or extraPhotos
+    const hasPhoto = Boolean(previewUrl || currentPhotoUrl || photoFile || extraPhotos.length > 0)
+    if (!hasPhoto) {
       setError(PHOTO_REQUIRED_MSG)
       return
     }
@@ -384,33 +835,81 @@ function ProfileFormContent() {
     setSaving(true)
 
     try {
-      let finalPhotoUrl = currentPhotoUrl
+      let finalPhotoUrl = currentPhotoUrl || previewUrl
+      const updatedGalleryUrls: string[] = []
 
+      // 1. Upload Main Avatar (Position 0)
       if (photoFile && userId) {
-        const compressedFile = await compressImage(photoFile)
-        const fileExt = compressedFile.name.split('.').pop()
-        const filePath = `${userId}/profile_${Date.now()}.${fileExt}`
+        const compressedFile = await compressImage(photoFile, 1600, 1600, 0.82)
+        const fileExt = compressedFile.name.split('.').pop() || 'jpg'
+        const filePath = `${userId}/avatar_${Date.now()}.${fileExt}`
 
         const { error: uploadErr } = await supabase.storage
           .from('profile-images')
-          .upload(filePath, compressedFile, { upsert: true })
+          .upload(filePath, compressedFile, { upsert: true, cacheControl: '3600' })
 
-        if (uploadErr) throw uploadErr
+        if (uploadErr) {
+          console.warn('Storage upload error for avatar:', uploadErr.message)
+        } else {
+          const { data: publicUrlData } = supabase.storage
+            .from('profile-images')
+            .getPublicUrl(filePath)
+          finalPhotoUrl = publicUrlData.publicUrl
+        }
+      }
 
-        const { data: publicUrlData } = supabase.storage
-          .from('profile-images')
-          .getPublicUrl(filePath)
-
-        finalPhotoUrl = publicUrlData.publicUrl
-
-        // Also add to profile_photos table
-        // Gallery copy is a nice-to-have; the main photo is saved on the profile below
+      if (finalPhotoUrl && !finalPhotoUrl.startsWith('blob:')) {
+        updatedGalleryUrls.push(finalPhotoUrl)
         const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
           user_id: userId,
           url: finalPhotoUrl,
-          type: 'image'
+          type: 'image',
+          position: 0
         })
-        if (galleryError) console.warn('Adding photo to gallery failed:', galleryError.message)
+        if (galleryError) console.warn('Position 0 profile_photos note:', galleryError.message)
+      }
+
+      // 2. Upload Showcase Photos (Positions 1 to 5)
+      for (let idx = 0; idx < extraPhotos.length; idx++) {
+        const item = extraPhotos[idx]
+        const position = idx + 1
+        let itemUrl = item.url
+
+        if (item.file) {
+          const compressedFile = await compressImage(item.file, 1600, 1600, 0.82)
+          const fileExt = compressedFile.name.split('.').pop() || 'jpg'
+          const filePath = `${userId}/showcase_${Date.now()}_${idx}.${fileExt}`
+
+          const { error: uploadErr } = await supabase.storage
+            .from('profile-images')
+            .upload(filePath, compressedFile, { upsert: true, cacheControl: '3600' })
+
+          if (uploadErr) {
+            console.warn('Storage upload error for showcase photo:', uploadErr.message)
+            continue
+          }
+
+          const { data: publicUrlData } = supabase.storage
+            .from('profile-images')
+            .getPublicUrl(filePath)
+          itemUrl = publicUrlData.publicUrl
+        }
+
+        if (itemUrl && !itemUrl.startsWith('blob:')) {
+          updatedGalleryUrls.push(itemUrl)
+          const { error: galleryError } = await (supabase.from('profile_photos') as any).insert({
+            user_id: userId,
+            url: itemUrl,
+            type: 'image',
+            position
+          })
+          if (galleryError) console.warn('Insert to profile_photos note:', galleryError.message)
+        }
+      }
+
+      // Fallback: If no avatar URL yet, use the first showcase photo
+      if (!finalPhotoUrl && updatedGalleryUrls.length > 0) {
+        finalPhotoUrl = updatedGalleryUrls[0]
       }
 
       const profilePayload = {
@@ -447,6 +946,8 @@ function ProfileFormContent() {
       // Update local state and app cache
       setCurrentPhotoUrl(finalPhotoUrl)
       setPreviewUrl(finalPhotoUrl)
+      setViewPhotos(updatedGalleryUrls.length > 0 ? updatedGalleryUrls : (finalPhotoUrl ? [finalPhotoUrl] : []))
+      setActivePhotoIdx(0)
       setPhotoFile(null)
       setProfileComplete(true)
       setCache('profile', profilePayload, 'self')
@@ -590,9 +1091,10 @@ function ProfileFormContent() {
                 <span className={`step-dot ${currentStep >= 1 ? 'active' : ''}`}>1</span>
                 <span className={`step-dot ${currentStep >= 2 ? 'active' : ''}`}>2</span>
                 <span className={`step-dot ${currentStep >= 3 ? 'active' : ''}`}>3</span>
+                <span className={`step-dot ${currentStep >= 4 ? 'active' : ''}`}>4</span>
               </div>
               <div className="progress-bar-wrap">
-                <div className="progress-bar-fill" style={{ width: `${(currentStep / 3) * 100}%` }}></div>
+                <div className="progress-bar-fill" style={{ width: `${(currentStep / 4) * 100}%` }}></div>
               </div>
             </div>
           )}
@@ -601,20 +1103,125 @@ function ProfileFormContent() {
           {isViewing && (
             <div className="view-profile-tab">
               <div className="preview-card">
-                <div className="preview-img-wrap">
+                <div 
+                  className="preview-img-wrap"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={handleTouchEnd}
+                >
                   <Image
                     id="viewPhoto"
-                    src={previewUrl || DEFAULT_AVATAR}
+                    src={viewPhotos[activePhotoIdx] || previewUrl || DEFAULT_AVATAR}
                     alt="Profile"
                     width={400}
                     height={400}
+                    unoptimized={Boolean(
+                      (viewPhotos[activePhotoIdx] || previewUrl || '').startsWith('blob:') ||
+                      (viewPhotos[activePhotoIdx] || previewUrl || '').startsWith('data:')
+                    )}
                   />
+
+                  {/* Stories/Tinder segment indicator bars */}
+                  {viewPhotos.length > 1 && (
+                    <div className="carousel-segment-bars">
+                      {viewPhotos.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`carousel-segment-pill ${i === activePhotoIdx ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActivePhotoIdx(i)
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Left & Right Tap Zones for one-tap photo navigation */}
+                  {viewPhotos.length > 1 && (
+                    <>
+                      <div
+                        className="carousel-tap-zone left"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (activePhotoIdx > 0) setActivePhotoIdx(i => i - 1)
+                        }}
+                        aria-label="Previous photo"
+                      />
+                      <div
+                        className="carousel-tap-zone right"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (activePhotoIdx < viewPhotos.length - 1) setActivePhotoIdx(i => i + 1)
+                        }}
+                        aria-label="Next photo"
+                      />
+                    </>
+                  )}
+
+                  {/* Desktop navigation buttons */}
+                  {viewPhotos.length > 1 && activePhotoIdx > 0 && (
+                    <button
+                      type="button"
+                      className="carousel-nav-btn left"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActivePhotoIdx(i => i - 1)
+                      }}
+                      aria-label="Previous photo"
+                    >
+                      ‹
+                    </button>
+                  )}
+                  {viewPhotos.length > 1 && activePhotoIdx < viewPhotos.length - 1 && (
+                    <button
+                      type="button"
+                      className="carousel-nav-btn right"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActivePhotoIdx(i => i + 1)
+                      }}
+                      aria-label="Next photo"
+                    >
+                      ›
+                    </button>
+                  )}
+
+                  {/* Photo counter badge */}
+                  {viewPhotos.length > 1 && (
+                    <div className="carousel-photo-badge">
+                      <span>📷 {activePhotoIdx + 1}/{viewPhotos.length}</span>
+                    </div>
+                  )}
+
                   <div className="preview-overlay">
                     <h3>{name || 'Student'}{age ? `, ${age}` : ''}</h3>
                     <p>📍 {campus || 'Campus'}</p>
                     <p>📚 {course || 'Major'}{yearOfStudy ? ` (${yearOfStudy} Year)` : ''}</p>
                   </div>
                 </div>
+
+                {/* Thumbnails strip */}
+                {viewPhotos.length > 1 && (
+                  <div className="preview-thumbnails-strip">
+                    {viewPhotos.map((imgUrl, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`preview-thumb-btn ${i === activePhotoIdx ? 'active' : ''}`}
+                        onClick={() => setActivePhotoIdx(i)}
+                        title={`View photo ${i + 1}`}
+                      >
+                        <Image
+                          src={imgUrl}
+                          alt={`Thumbnail ${i + 1}`}
+                          width={46}
+                          height={46}
+                          unoptimized={imgUrl.startsWith('blob:') || imgUrl.startsWith('data:')}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="preview-bio-section">
                   <h4>About Me</h4>
                   <p>{bio || 'No bio updated yet.'}</p>
@@ -741,11 +1348,13 @@ function ProfileFormContent() {
                       <div className="form-row">
                         <div className="form-group">
                           <label className="form-label">Gender</label>
-                          <select value={gender} onChange={(e) => setGender(e.target.value)} required>
-                            <option value="">Select Gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                          </select>
+                          <CustomSelect
+                            id="editGender"
+                            value={gender}
+                            onChange={(val) => { setGender(val); markFormTouched(); }}
+                            options={GENDER_OPTIONS}
+                            placeholder="Select Gender"
+                          />
                         </div>
                         <div className="form-group">
                           <label className="form-label">Age</label>
@@ -763,11 +1372,13 @@ function ProfileFormContent() {
 
                       <div className="form-group">
                         <label className="form-label">Interested In (Show Me)</label>
-                        <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
-                          <option value="all">Everyone</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                        </select>
+                        <CustomSelect
+                          id="editPreference"
+                          value={preference}
+                          onChange={(val) => { setPreference(val); markFormTouched(); }}
+                          options={PREFERENCE_OPTIONS}
+                          placeholder="Select Preference"
+                        />
                       </div>
                     </div>
                   </div>
@@ -807,14 +1418,13 @@ function ProfileFormContent() {
 
                       <div className="form-group">
                         <label className="form-label">Year of Study</label>
-                        <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} required>
-                          <option value="">Select Year</option>
-                          <option value="1">1st Year (Freshman)</option>
-                          <option value="2">2nd Year (Sophomore)</option>
-                          <option value="3">3rd Year (Junior)</option>
-                          <option value="4">4th Year (Senior)</option>
-                          <option value="5">Graduate / PG</option>
-                        </select>
+                        <CustomSelect
+                          id="editYear"
+                          value={yearOfStudy}
+                          onChange={(val) => { setYearOfStudy(val); markFormTouched(); }}
+                          options={YEAR_OPTIONS}
+                          placeholder="Select Year"
+                        />
                       </div>
                     </div>
                   </div>
@@ -935,15 +1545,13 @@ function ProfileFormContent() {
                         <div className="form-row">
                           <div className="form-group">
                             <label className="form-label">Gender</label>
-                            <select 
+                            <CustomSelect 
+                              id="wizardGender"
                               value={gender} 
-                              onChange={(e) => setGender(e.target.value)} 
-                              required
-                            >
-                              <option value="">Select Gender</option>
-                              <option value="male">Male</option>
-                              <option value="female">Female</option>
-                            </select>
+                              onChange={(val) => { setGender(val); markFormTouched(); setError(''); }} 
+                              options={GENDER_OPTIONS}
+                              placeholder="Select Gender"
+                            />
                           </div>
                           <div className="form-group">
                             <label className="form-label">Age</label>
@@ -990,14 +1598,13 @@ function ProfileFormContent() {
 
                         <div className="form-group">
                           <label className="form-label">Year of Study</label>
-                          <select value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)} required>
-                            <option value="">Select Year</option>
-                            <option value="1">1st Year (Freshman)</option>
-                            <option value="2">2nd Year (Sophomore)</option>
-                            <option value="3">3rd Year (Junior)</option>
-                            <option value="4">4th Year (Senior)</option>
-                            <option value="5">Graduate / PG</option>
-                          </select>
+                          <CustomSelect
+                            id="wizardYear"
+                            value={yearOfStudy}
+                            onChange={(val) => { setYearOfStudy(val); markFormTouched(); setError(''); }}
+                            options={YEAR_OPTIONS}
+                            placeholder="Select Year"
+                          />
                         </div>
                       </div>
                     </div>
@@ -1005,10 +1612,10 @@ function ProfileFormContent() {
 
                   {currentStep === 3 && (
                     <div className="wizard-step active">
-                      <h3 className="step-title">Hobbies, Bio & Photo</h3>
-                      <p className="step-subtitle">Select at least 3 things you love</p>
+                      <h3 className="step-title">Hobbies, Interests & Bio</h3>
+                      <p className="step-subtitle">Select at least 3 things you love and introduce yourself</p>
                       
-                      <div className="interests-grid" style={{ marginBottom: '2rem' }}>
+                      <div className="interests-grid" style={{ marginBottom: '1.5rem' }}>
                         {CURATED_INTERESTS.map(interest => (
                           <div
                             key={interest.name}
@@ -1023,10 +1630,14 @@ function ProfileFormContent() {
 
                       <div className="form-grid">
                         <div className="form-group">
-                          <label className="form-label">Bio</label>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <label className="form-label" style={{ margin: 0 }}>Bio</label>
+                            <span style={{ fontSize: '11px', color: '#9e9bb8' }}>{bio.length}/300</span>
+                          </div>
                           <textarea
                             placeholder="Write a short bio about yourself..."
                             rows={4}
+                            maxLength={300}
                             value={bio}
                             onChange={(e) => setBio(e.target.value)}
                           />
@@ -1034,45 +1645,260 @@ function ProfileFormContent() {
 
                         <div className="form-group">
                           <label className="form-label">Show Me</label>
-                          <select value={preference} onChange={(e) => setPreference(e.target.value)} required>
-                            <option value="all">Everyone</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                          </select>
+                          <CustomSelect
+                            id="wizardPreference"
+                            value={preference}
+                            onChange={(val) => { setPreference(val); markFormTouched(); setError(''); }}
+                            options={PREFERENCE_OPTIONS}
+                            placeholder="Select Preference"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {currentStep === 4 && (
+                    <div className="wizard-step active">
+                      <h3 className="step-title">Profile Photos & Gallery</h3>
+                      <p className="step-subtitle">Showcase your best moments</p>
+
+                      {/* Top Section: Circular Avatar Picture (Matches User Screenshot) */}
+                      <div className="step4-avatar-section">
+                        <div className="step4-avatar-container">
+                          <div
+                            className={`photo-container ${!previewUrl && !currentPhotoUrl ? 'is-empty' : ''}`}
+                            onClick={() => mainAvatarInputRef.current?.click()}
+                            title="Upload or change main profile picture"
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                mainAvatarInputRef.current?.click()
+                              }
+                            }}
+                          >
+                            {previewUrl || currentPhotoUrl ? (
+                              <Image
+                                id="step4ProfilePreview"
+                                src={previewUrl || currentPhotoUrl}
+                                alt="Profile Avatar"
+                                fill
+                                sizes="140px"
+                                style={{ objectFit: 'cover' }}
+                                unoptimized={Boolean(previewUrl?.startsWith('blob:') || previewUrl?.startsWith('data:'))}
+                              />
+                            ) : (
+                              <div className="avatar-empty-placeholder">
+                                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                  <circle cx="12" cy="13" r="4"/>
+                                </svg>
+                                <span>ADD PHOTO</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Bottom-right Pencil Edit Button */}
+                          <button
+                            type="button"
+                            className="avatar-pencil-badge"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              mainAvatarInputRef.current?.click()
+                            }}
+                            title="Edit profile photo"
+                            aria-label="Edit profile photo"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                            </svg>
+                          </button>
                         </div>
 
-                        <div className="form-group">
-                          <label className="form-label" style={{ textAlign: 'center' }}>Profile Photo * (Required)</label>
-                          <div className="photo-section" style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'center' }}>
-                            <div className="photo-container">
-                              <Image
-                                id="profilePreview"
-                                src={previewUrl || DEFAULT_AVATAR}
-                                alt="Profile"
-                                width={140}
-                                height={140}
-                              />
-                              <div className="photo-overlay">
-                                <label className="upload-label">
-                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="currentColor" strokeWidth="2"/>
-                                    <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2"/>
-                                  </svg>
-                                  <input type="file" accept="image/*" onChange={handlePhotoChange} hidden />
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                          {previewUrl ? (
-                            <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '13px', color: '#4ade80' }}>
-                              ✓ {photoFile ? 'Photo ready to upload' : 'Photo added'}
-                            </p>
-                          ) : error === PHOTO_REQUIRED_MSG ? (
-                            <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.5rem' }}>
-                              Tap the photo above to add one — it&apos;s required.
-                            </p>
-                          ) : null}
+                        <input
+                          ref={mainAvatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePhotoChange}
+                          hidden
+                        />
+
+                        <div className="avatar-identity-labels">
+                          <span className="avatar-main-title">{name.trim() || 'FULL NAME'}</span>
+                          <span className="avatar-main-subtitle">Primary Avatar • Appears First on Campus Cards</span>
                         </div>
+                      </div>
+
+                      {/* Bottom Section: Showcase Gallery Card */}
+                      <div className="showcase-gallery-card">
+                        <div className="showcase-header">
+                          <div className="showcase-header-left">
+                            <h4 className="showcase-title">Showcase Photos</h4>
+                            <p className="showcase-subtitle">Add a few photos to bring your profile to life.</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="showcase-add-btn"
+                            onClick={() => showcaseMultiInputRef.current?.click()}
+                            title="Add photos to showcase"
+                          >
+                            + Add Photos
+                          </button>
+                        </div>
+
+                        {/* Hidden file inputs for showcase gallery */}
+                        <input
+                          ref={showcaseMultiInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              handleAddShowcasePhotos(e.target.files)
+                              e.target.value = ''
+                            }
+                          }}
+                          hidden
+                        />
+                        <input
+                          ref={singleSlotInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSingleSlotPhotoChange}
+                          hidden
+                        />
+
+                        {/* 6-Slot Grid (Slot 1: Main Avatar, Slots 2-6: Showcase Photos) */}
+                        <div className="showcase-slots-grid">
+                          {/* Slot 1: Main Avatar */}
+                          {previewUrl || currentPhotoUrl ? (
+                            <div className="showcase-slot filled">
+                              <Image
+                                src={previewUrl || currentPhotoUrl}
+                                alt="Main Avatar"
+                                fill
+                                sizes="(max-width: 600px) 33vw, 140px"
+                                className="showcase-slot-img"
+                                unoptimized={Boolean((previewUrl || currentPhotoUrl)?.startsWith('blob:') || (previewUrl || currentPhotoUrl)?.startsWith('data:'))}
+                              />
+                              <span className="showcase-main-badge">Main</span>
+                              <button
+                                type="button"
+                                className="showcase-remove-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setPreviewUrl('')
+                                  setCurrentPhotoUrl('')
+                                  setPhotoFile(null)
+                                  setViewPhotos(prev => prev.filter(u => u !== (previewUrl || currentPhotoUrl)))
+                                }}
+                                title="Remove main photo"
+                                aria-label="Remove main photo"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="showcase-slot empty"
+                              onClick={() => mainAvatarInputRef.current?.click()}
+                              title="Upload main profile photo"
+                            >
+                              <span className="showcase-empty-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                  <circle cx="12" cy="13" r="4"/>
+                                </svg>
+                              </span>
+                              <span className="showcase-empty-label">Add Photo</span>
+                              <span className="showcase-empty-plus">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                                  <line x1="12" y1="5" x2="12" y2="19"/>
+                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                              </span>
+                            </button>
+                          )}
+
+                          {/* Slots 2 to 6: Extra Showcase Photos */}
+                          {[0, 1, 2, 3, 4].map((idx) => {
+                            const photoItem = extraPhotos[idx]
+                            if (photoItem) {
+                              return (
+                                <div key={photoItem.id} className="showcase-slot filled">
+                                  <Image
+                                    src={photoItem.url}
+                                    alt={`Showcase photo ${idx + 1}`}
+                                    fill
+                                    sizes="(max-width: 600px) 33vw, 140px"
+                                    className="showcase-slot-img"
+                                    unoptimized={Boolean(photoItem.url.startsWith('blob:') || photoItem.url.startsWith('data:'))}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="showcase-make-main-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handlePromoteToAvatar(photoItem)
+                                    }}
+                                    title="Make this your main avatar photo"
+                                  >
+                                    ⭐ Main
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="showcase-remove-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRemoveExtraPhoto(photoItem.id)
+                                    }}
+                                    title="Remove photo"
+                                    aria-label="Remove photo"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              )
+                            }
+                            return (
+                              <button
+                                key={`empty_extra_slot_${idx}`}
+                                type="button"
+                                className="showcase-slot empty"
+                                onClick={() => {
+                                  activeSlotIdxRef.current = idx
+                                  singleSlotInputRef.current?.click()
+                                }}
+                                title="Upload photo"
+                              >
+                                <span className="showcase-empty-icon">{renderShowcaseSlotIcon(idx)}</span>
+                                <span className="showcase-empty-label">Add Photo</span>
+                                <span className="showcase-empty-plus">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Important Tip Remark (Matches User Screenshot) */}
+                        <div className="photo-tip-banner">
+                          <span className="tip-emoji">💡</span>
+                          <span className="tip-text">
+                            <strong>Tip:</strong> Use clear, high-quality photos for the best results.
+                          </span>
+                        </div>
+
+                        {error === PHOTO_REQUIRED_MSG ? (
+                          <p className="error" role="alert" style={{ display: 'block', textAlign: 'center', marginTop: '0.75rem' }}>
+                            Please upload your main profile picture to finish.
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   )}
@@ -1084,7 +1910,7 @@ function ProfileFormContent() {
                     {currentStep > 1 && (
                       <button type="button" className="wizard-btn btn-prev" onClick={handlePrev}>Back</button>
                     )}
-                    {currentStep < 3 ? (
+                    {currentStep < 4 ? (
                       <button type="button" className="wizard-btn btn-next" onClick={handleNext}>Continue</button>
                     ) : (
                       <button type="submit" className="save-btn" disabled={saving}>
